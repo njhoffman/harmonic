@@ -10,7 +10,7 @@ from .analysis import analyze
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Extract Harmonic's original-mix audio features")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--version", "-v", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("audio", type=Path, help="Local audio recording (MP3, FLAC, WAV, etc.)")
     parser.add_argument("--output", type=Path, required=True, help="New analysis bundle directory")
     arguments = parser.parse_args()

@@ -9,6 +9,14 @@ default_bundle := "data/analysis/billie-jean"
 default:
     @just --list
 
+# Show the task checklist with terminal colors (no build or environment needed).
+todo:
+    @python3 tools/codex/todo/scripts/show_todo.py
+
+# Install the global Codex todo skill and /prompts:todo command for all projects.
+install-codex-todo:
+    python3 scripts/install_codex_todo.py
+
 # Install the locked Python dependencies into the local virtual environment.
 sync:
     uv sync --frozen --cache-dir .cache/uv

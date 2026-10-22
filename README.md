@@ -18,6 +18,7 @@ just test
 just inspect
 just audio-check
 just render-check
+just todo
 ```
 
 Parameters can select another recording or bundle:
@@ -29,6 +30,28 @@ just render-check data/analysis/another-track 30 data/another-preview.ppm
 ```
 
 The equivalent direct commands and prerequisites follow below.
+
+## Global Codex checklist command
+
+Install once to make the checklist command available across projects:
+
+```sh
+just install-codex-todo
+```
+
+The installer adds the `todo` skill under `~/.codex/skills/todo` and the custom
+prompt at `~/.codex/prompts/todo.md`, honoring `CODEX_HOME` when set. It preserves
+existing customized files. Restart Codex, then invoke `/prompts:todo` or `$todo`
+from any project's session. The documented CLI custom-prompt name is
+[`/prompts:todo`](https://learn.chatgpt.com/docs/custom-prompts); a bare `/todo`
+alias is not registered by this installer.
+
+The command displays the nearest `TODO.md` between the active directory and its
+Git root, or the current directory outside Git. It preserves the complete
+checklist and adds a completion count. Terminal output uses green completed tasks,
+amber pending tasks, and cyan headings; chat uses green/yellow status markers.
+It only reads the checklist. `just todo` provides the same terminal view in this
+repository without requiring a build or virtual environment.
 
 ## Build
 
@@ -83,6 +106,15 @@ Additional options:
 ./build/harmonic-player data/analysis/billie-jean --start 30 --offset-ms 20
 ./build/harmonic-player data/analysis/billie-jean --audio '/new/path/to/the/same.mp3'
 ./build/harmonic-player --help
+```
+
+Both programs support `--help`/`-h` and `--version`/`-v` without an input file:
+
+```sh
+.venv/bin/harmonic-analyze -h
+.venv/bin/harmonic-analyze -v
+./build/harmonic-player -h
+./build/harmonic-player -v
 ```
 
 ## Verify
@@ -187,5 +219,5 @@ the local commit/tag, retry that push; do not bump again or move the tag.
 
 `just version` prints the source version; `just check-version` validates all
 version fields and the changelog. The built player and installed analyzer also
-support `--version`. Repository instructions in [AGENTS.md](AGENTS.md) preserve
+support `--version`/`-v`. Repository instructions in [AGENTS.md](AGENTS.md) preserve
 this workflow for future approved updates.

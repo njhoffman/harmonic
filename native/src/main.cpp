@@ -8,12 +8,13 @@
 namespace {
 struct Options {
     std::filesystem::path manifest, audio, render_check;
-    bool inspect = false, audio_check = false;
+    bool help = false, version = false, inspect = false, audio_check = false;
     double start = 0, offset_ms = 0, exit_after = 0;
 };
 void usage() {
     std::cout << "Usage: harmonic-player BUNDLE_OR_MANIFEST [options]\n"
-        "  --version             Print the built player version\n"
+        "  -h, --help            Show usage and controls\n"
+        "  -v, --version         Print the built player version\n"
         "  --audio PATH          Relocate the original audio (checksum must match)\n"
         "  --start SECONDS       Start at a position in the recording\n"
         "  --offset-ms NUMBER    Feature timing offset; positive reads ahead\n"
@@ -39,7 +40,9 @@ Options parse(int argc, char** argv) {
             if (++i >= argc) throw std::runtime_error("Missing value for " + argument);
             return argv[i];
         };
-        if (argument == "--audio") options.audio = value();
+        if (argument == "--help" || argument == "-h") { options.help = true; return options; }
+        else if (argument == "--version" || argument == "-v") { options.version = true; return options; }
+        else if (argument == "--audio") options.audio = value();
         else if (argument == "--start") options.start = numeric(value());
         else if (argument == "--offset-ms") options.offset_ms = numeric(value());
         else if (argument == "--exit-after") options.exit_after = numeric(value());
@@ -91,16 +94,17 @@ void audio_check(harmonic::Transport& transport) {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc == 2 && std::string(argv[1]) == "--version") {
-        std::cout << "Harmonic " << HARMONIC_VERSION << '\n';
-        return 0;
-    }
-    if (argc == 1 || (argc == 2 && std::string(argv[1]) == "--help")) {
+    if (argc == 1) {
         usage();
-        return argc == 1 ? 1 : 0;
+        return 1;
     }
     try {
         const auto options = parse(argc, argv);
+        if (options.help) { usage(); return 0; }
+        if (options.version) {
+            std::cout << "Harmonic " << HARMONIC_VERSION << '\n';
+            return 0;
+        }
         const auto bundle = harmonic::load_bundle(options.manifest, options.audio);
         std::cout << "Decoding " << bundle.audio_path.filename().string() << "...\n";
         const auto audio = harmonic::decode_audio(bundle.audio_path);

@@ -5,6 +5,19 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
+### Added
+
+- Portable global Codex `todo` skill and `/prompts:todo` custom prompt that read
+  the active project's TODO.md, with ANSI terminal colors and colored Markdown
+  status markers for chat.
+- `just todo` for a local read-only checklist view and `just install-codex-todo`
+  for installing the command into the user's Codex home without overwriting
+  existing customized files.
+- `-h` as the native player's help alias and `-v` as the analyzer/player version
+  alias. Both programs support `--help`/`-h` and `--version`/`-v` without input files.
+
 ## [0.2.1] - 2026-10-22
 
 ### Added
@@ -44,6 +57,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.3.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
+[0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0

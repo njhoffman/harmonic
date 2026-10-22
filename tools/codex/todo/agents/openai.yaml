@@ -1,0 +1,5 @@
+interface:
+  display_name: "todo"
+  short_description: "Show the current project's styled task checklist"
+  brand_color: "#38BDF8"
+  default_prompt: "Use $todo to display this project's TODO.md with colored status markers."

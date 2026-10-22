@@ -15,10 +15,15 @@ checklist as part of each approved update.
 - [x] Verify source, artifact, and decoded-PCM checksums between analyzer and player.
 - [x] Display spectrum bars and a whole-track amplitude envelope.
 - [x] Implement pause/resume, seeking, restart, normalization, and timing offset.
-- [x] Pass five signal-analysis tests and three native integration tests.
+- [x] Pass five signal-analysis tests, four CLI checks, and three native integration tests.
 - [x] Verify the real recording with dummy-audio playback/seek/end-of-track checks.
 - [x] Render and visually inspect an offscreen OpenGL preview.
 - [x] Add `just` commands for build, analysis, playback, verification, and release.
+- [x] Support `--help`/`-h` and `--version`/`-v` in both analyzer and player,
+  including invocation without a recording or bundle.
+- [x] Install a global Codex `todo` skill and `/prompts:todo` command with colored
+  task status; verify checklist lookup from another project's nested directory.
+- [x] Add `just todo` and a repeatable global installer that preserves customized files.
 - [x] Establish SemVer, `CHANGELOG.md`, synchronized versions, and annotated tags.
 - [x] Publish the prototype and task runner as `v0.2.0`; verify its final build.
 
