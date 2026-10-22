@@ -7,6 +7,7 @@ import unittest
 from harmonic_analysis import __version__
 
 PLAYER = Path(os.environ.get("HARMONIC_PLAYER", "build/harmonic-player")).resolve()
+PROJECTM = Path(os.environ.get("HARMONIC_PROJECTM_CHECK", "build/harmonic-projectm-check")).resolve()
 
 
 class CommandLineTests(unittest.TestCase):
@@ -43,6 +44,14 @@ class CommandLineTests(unittest.TestCase):
     @unittest.skipUnless(PLAYER.is_file(), "Build the native player to check its CLI")
     def test_player_version_needs_no_input(self):
         self.check_version([str(PLAYER)])
+
+    @unittest.skipUnless(PROJECTM.is_file(), "Build the optional projectM checker to check its CLI")
+    def test_projectm_help_needs_no_input(self):
+        self.check_help([str(PROJECTM)])
+
+    @unittest.skipUnless(PROJECTM.is_file(), "Build the optional projectM checker to check its CLI")
+    def test_projectm_version_needs_no_input(self):
+        self.check_version([str(PROJECTM)])
 
 
 if __name__ == "__main__":

@@ -88,7 +88,7 @@ void audio_check(harmonic::Transport& transport) {
         throw std::runtime_error("Playback clock did not reach the final sample");
     transport.pause();
     if (!transport.error().empty()) throw std::runtime_error("Audio callback: " + transport.error());
-    std::cout << "Audio clock check passed: advance, freeze, seek, resume, playing seek, end of file.\n"
+    std::cout << "🟢 Audio clock check passed: advance, freeze, seek, resume, playing seek, end of file.\n"
               << "Estimated device chunk: " << transport.buffer_seconds() * 1000 << " ms.\n";
 }
 } // namespace
@@ -106,13 +106,13 @@ int main(int argc, char** argv) {
             return 0;
         }
         const auto bundle = harmonic::load_bundle(options.manifest, options.audio);
-        std::cout << "Decoding " << bundle.audio_path.filename().string() << "...\n";
+        std::cout << "🔵 Decoding " << bundle.audio_path.filename().string() << "...\n";
         const auto audio = harmonic::decode_audio(bundle.audio_path);
         if (static_cast<std::int64_t>(audio.size() / harmonic::channels) != bundle.sample_count)
             throw std::runtime_error("Decoded sample count differs from the analysis; regenerate the bundle with the current FFmpeg");
         if (harmonic::sha256(audio.data(), audio.size() * sizeof(float)) != bundle.manifest["source"]["pcm_sha256"].asString())
             throw std::runtime_error("Decoded PCM differs from the analyzer; regenerate with this FFmpeg version");
-        std::cout << "Validated " << bundle.duration() << "s, " << bundle.rms.size() << " feature frames, "
+        std::cout << "🟢 Validated " << bundle.duration() << "s, " << bundle.rms.size() << " feature frames, "
                   << bundle.bands << " bands; source, artifact, and decoded PCM checksums match.\n";
         if (options.inspect) return 0;
         const bool render_check = !options.render_check.empty();
@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
             harmonic::Renderer renderer(1280, 720, true);
             renderer.draw(bundle, std::min(options.start, bundle.duration()), true, options.offset_ms / 1000, true);
             renderer.screenshot(options.render_check);
-            std::cout << "Rendered " << options.render_check << '\n';
+            std::cout << "🟢 Rendered " << options.render_check << '\n';
             return 0;
         }
         harmonic::Transport transport(audio);
@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
             if (options.exit_after > 0 && static_cast<double>(SDL_GetTicksNS() - started) / 1e9 >= options.exit_after) running = false;
         }
     } catch (const std::exception& error) {
-        std::cerr << "harmonic-player: " << error.what() << '\n';
+        std::cerr << "🔴 harmonic-player: " << error.what() << '\n';
         return 1;
     }
     return 0;

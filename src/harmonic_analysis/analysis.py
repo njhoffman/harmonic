@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
@@ -13,6 +15,8 @@ import tempfile
 import numpy as np
 import pyarrow as pa
 import pyarrow.ipc as ipc
+
+from .terminal import Progress
 
 SAMPLE_RATE = 48_000
 WINDOW_SIZE = 4096
@@ -52,7 +56,7 @@ def decode_audio(path: Path) -> np.ndarray:
     return samples.reshape(-1, 2)
 
 
-def extract_features(samples: np.ndarray) -> dict[str, np.ndarray]:
+def extract_features(samples: np.ndarray, *, progress: Callable[[int], None] | None = None) -> dict[str, np.ndarray]:
     if samples.ndim != 2 or samples.shape[1] != 2 or not len(samples):
         raise ValueError("Expected nonempty stereo samples shaped (frames, 2)")
     if not np.isfinite(samples).all():
@@ -81,6 +85,8 @@ def extract_features(samples: np.ndarray) -> dict[str, np.ndarray]:
         power[1:-1] *= 2  # one-sided power; leave DC and Nyquist alone
         band_power = np.bincount(band_index[valid], weights=power[valid], minlength=BAND_COUNT)
         spectrum[row] = np.sqrt(band_power)
+        if progress is not None:
+            progress(row + 1)
 
     # Positive spectral flux is an activity measure, not a predicted beat grid.
     onset = np.zeros(len(centers), dtype=np.float32)
@@ -96,7 +102,7 @@ def stats(values: np.ndarray) -> dict[str, float]:
             "p99": float(np.percentile(values, 99))}
 
 
-def analyze(source: Path, output: Path) -> Path:
+def analyze(source: Path, output: Path, *, show_progress: bool = False) -> Path:
     source, output = source.resolve(), output.resolve()
     if not source.is_file():
         raise ValueError(f"Audio file does not exist: {source}")
@@ -105,13 +111,16 @@ def analyze(source: Path, output: Path) -> Path:
     for tool in ("ffmpeg", "ffprobe"):
         if shutil.which(tool) is None:
             raise ValueError(f"{tool} is required on PATH")
-    source_hash = sha256_file(source)
-    metadata = json.loads(run_tool([
-        "ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(source),
-    ]))
-    samples = decode_audio(source)
+    with (Progress("Inspecting and decoding audio") if show_progress else nullcontext()):
+        source_hash = sha256_file(source)
+        metadata = json.loads(run_tool([
+            "ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(source),
+        ]))
+        samples = decode_audio(source)
     print(f"Decoded {len(samples) / SAMPLE_RATE:.2f}s at {SAMPLE_RATE} Hz; extracting features...", flush=True)
-    features = extract_features(samples)
+    total = (len(samples) + HOP_SIZE - 1) // HOP_SIZE
+    with (Progress("Extracting feature frames", total) if show_progress else nullcontext()) as tracker:
+        features = extract_features(samples, progress=tracker.update if tracker else None)
     if sha256_file(source) != source_hash:
         raise ValueError("The source changed during analysis; retry with an unchanged file")
 

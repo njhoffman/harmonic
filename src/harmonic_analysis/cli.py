@@ -15,9 +15,9 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="New analysis bundle directory")
     arguments = parser.parse_args()
     try:
-        manifest = analyze(arguments.audio, arguments.output)
+        manifest = analyze(arguments.audio, arguments.output, show_progress=True)
     except (OSError, ValueError) as error:
-        print(f"harmonic-analyze: {error}", file=sys.stderr)
+        print(f"🔴 harmonic-analyze: {error}", file=sys.stderr)
         return 1
-    print(f"Saved {manifest}")
+    print(f"🟢 Saved {manifest}")
     return 0

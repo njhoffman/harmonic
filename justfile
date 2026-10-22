@@ -19,15 +19,15 @@ install-codex-todo:
 
 # Install the locked Python dependencies into the local virtual environment.
 sync:
-    uv sync --frozen --cache-dir .cache/uv
+    @python3 scripts/run_status.py "Syncing dependencies" uv sync --frozen --cache-dir .cache/uv
 
 # Configure the native build, fetching SDL3 locally if needed.
 configure: sync
-    cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPython3_EXECUTABLE={{ quote(python) }}
+    @python3 scripts/run_status.py "Configuring native build" cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPython3_EXECUTABLE={{ quote(python) }}
 
 # Build the native player (override job count with `just build 8`).
 build jobs="4": configure
-    cmake --build build --parallel {{ quote(jobs) }}
+    @python3 scripts/run_status.py "Building native tools" cmake --build build --parallel {{ quote(jobs) }}
 
 # Analyze a local recording into a new bundle; existing bundles are preserved.
 analyze audio=default_audio bundle=default_bundle: sync
@@ -39,19 +39,23 @@ play bundle=default_bundle: build
 
 # Build and run all Python and native integration tests.
 test: build
-    {{ quote(python) }} -m unittest discover -s tests -v
+    @python3 scripts/run_status.py "Running tests" {{ quote(python) }} -m unittest discover -s tests -v
 
 # Validate a bundle and its native decoding without opening audio/video devices.
 inspect bundle=default_bundle: build
-    {{ quote(player) }} {{ quote(bundle) }} --inspect
+    @python3 scripts/run_status.py "Validating analysis bundle" {{ quote(player) }} {{ quote(bundle) }} --inspect
 
 # Check playback, seeking, and EOF without producing sound.
 audio-check bundle=default_bundle: build
-    SDL_AUDIODRIVER=dummy {{ quote(player) }} {{ quote(bundle) }} --audio-check
+    @SDL_AUDIODRIVER=dummy python3 scripts/run_status.py "Checking audio transport" {{ quote(player) }} {{ quote(bundle) }} --audio-check
 
 # Render one offscreen frame to PPM (default position: 35 seconds).
 render-check bundle=default_bundle seconds="35" output="data/preview.ppm": build
-    {{ quote(player) }} {{ quote(bundle) }} --start {{ quote(seconds) }} --render-check {{ quote(output) }}
+    @python3 scripts/run_status.py "Rendering preview" {{ quote(player) }} {{ quote(bundle) }} --start {{ quote(seconds) }} --render-check {{ quote(output) }}
+
+# Check a local projectM preset offscreen; requires installed libprojectM 4.
+projectm-check preset bundle=default_bundle output="data/projectm-check" frames="180": build
+    ./build/harmonic-projectm-check {{ quote(bundle) }} --preset {{ quote(preset) }} --output {{ quote(output) }} --frames {{ quote(frames) }}
 
 # Print the current project version.
 version:

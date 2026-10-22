@@ -21,6 +21,15 @@ just render-check
 just todo
 ```
 
+Long terminal commands show gradient activity bars and elapsed time. Feature
+extraction and preset rendering show measured progress; builds and other commands
+with no known total show activity rather than a percentage. Logs remain visible,
+and a failed command keeps its original exit code. Colors are automatic in an
+interactive terminal; `FORCE_COLOR=1 just build` enables ANSI explicitly, while
+`NO_COLOR=1 just build` disables it and takes precedence over `FORCE_COLOR`.
+Captured output keeps colored status markers
+and concise start/completion/failure lines without animation.
+
 Parameters can select another recording or bundle:
 
 ```sh
@@ -139,6 +148,42 @@ The tests use synthetic tones, silence, impulses, anti-phase stereo, resampled
 audio, and invalid bundles. When `build/harmonic-player` exists, the native
 integration checks run too; otherwise they are reported as skipped.
 
+## Optional projectM preset check
+
+When an installed libprojectM 4 CMake package is available, the build also creates
+`harmonic-projectm-check`. The main player does not depend on libprojectM. Set
+`-DHARMONIC_PROJECTM_CHECK=OFF` when configuring CMake to disable this extra tool.
+
+```sh
+just projectm-check '/path/to/preset.milk'
+# Or choose a bundle, new output directory, and frame count:
+just projectm-check '/path/to/preset.milk' data/analysis/billie-jean data/my-preset-check 180
+./build/harmonic-projectm-check data/analysis/billie-jean \
+  --preset '/path/to/preset.milk' --output data/another-preset-check \
+  --start 30 --frames 180 --textures '/path/to/textures'
+```
+
+Each run requires a new output directory and writes `preview.ppm` and `report.json`.
+The checker validates the bundle and decoded PCM, feeds interleaved original-mix
+audio in chunks within the library's capacity, and renders 1920×1080 offscreen
+without audio output. It supports `--help`/`-h` and `--version`/`-v`. External
+presets and textures remain local; they are not bundled with Harmonic.
+
+The report records the library version/revision, OpenGL renderer, preset/audio
+hashes, fed PCM frame count, and mean/p50/p95/p99/max completed-render times after
+warmup. Timings include PCM submission, rendering, and `glFinish`; they exclude
+display presentation and pacing. When supported, explicit projectM frame times
+use a 60 Hz timeline independently of render speed. Older libraries use wall-clock
+timing with pacing; the report identifies the mode actually used.
+
+This is a rendering spike. It rejects missing preset headers, explicit library
+load failures, OpenGL errors, and empty/uniform final frames. libprojectM can
+recover internally from shader failures without exposing them through its C API;
+the report marks shader-fallback detection as unavailable. Visually review output
+before claiming preset fidelity. Full compositing, seek/reset behavior, and
+interactive playback integration remain later tasks. See [PLAN.md](PLAN.md) for
+the recorded results and software-rendering performance limits.
+
 ## Bundle contract: schema version 1
 
 Each bundle contains `manifest.json` and `mix.arrow`. The manifest records the
@@ -197,7 +242,7 @@ licenses of the chosen FFmpeg/SDL/Arrow builds before distributing binaries.
 ## Versions and approved releases
 
 Use [Semantic Versioning](https://semver.org/) and annotated Git tags named `vX.Y.Z`.
-The public interfaces are the analyzer/player CLIs and the documented analysis
+The public interfaces are the analyzer/player/checker CLIs and the documented analysis
 bundle contract. During 0.x development, new features and incompatible interface
 changes increment the minor version; compatible fixes, documentation, and build
 maintenance increment the patch version. After 1.0, incompatible changes require

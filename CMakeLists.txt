@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(harmonic VERSION 0.3.0 LANGUAGES C CXX)
+project(harmonic VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -59,3 +59,28 @@ target_compile_definitions(harmonic-player PRIVATE GL_GLEXT_PROTOTYPES HARMONIC_
 target_compile_options(harmonic-player PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(harmonic-player PRIVATE SDL3::SDL3 OpenGL::GL
     PkgConfig::FFMPEG PkgConfig::JSONCPP ${HARMONIC_ARROW_TARGET})
+
+option(HARMONIC_PROJECTM_CHECK "Build the optional libprojectM preset checker when installed" ON)
+if(HARMONIC_PROJECTM_CHECK)
+    find_package(projectM4 4 QUIET CONFIG)
+    if(projectM4_FOUND)
+        include(CheckCXXSymbolExists)
+        set(CMAKE_REQUIRED_LIBRARIES libprojectM::projectM)
+        check_cxx_symbol_exists(projectm_set_frame_time "projectM-4/parameters.h"
+            HARMONIC_PROJECTM_FRAME_TIME)
+        unset(CMAKE_REQUIRED_LIBRARIES)
+        add_executable(harmonic-projectm-check native/src/projectm_check.cpp
+            native/src/audio.cpp native/src/bundle.cpp native/src/renderer.cpp)
+        target_include_directories(harmonic-projectm-check PRIVATE native/include)
+        target_compile_definitions(harmonic-projectm-check PRIVATE GL_GLEXT_PROTOTYPES
+            HARMONIC_VERSION="${PROJECT_VERSION}")
+        if(HARMONIC_PROJECTM_FRAME_TIME)
+            target_compile_definitions(harmonic-projectm-check PRIVATE HARMONIC_PROJECTM_FRAME_TIME)
+        endif()
+        target_compile_options(harmonic-projectm-check PRIVATE -Wall -Wextra -Wpedantic)
+        target_link_libraries(harmonic-projectm-check PRIVATE SDL3::SDL3 OpenGL::GL
+            libprojectM::projectM PkgConfig::FFMPEG PkgConfig::JSONCPP ${HARMONIC_ARROW_TARGET})
+    else()
+        message(STATUS "libprojectM 4 not found; skipping the optional preset checker")
+    endif()
+endif()

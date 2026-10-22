@@ -2,7 +2,7 @@
 
 Prepared October 22, 2026, from `OUTLINE.md`. Technology and provider observations below were checked against primary documentation where available. Recommendations, proposed specifications, and effort ranges are engineering judgments, not benchmark results or vendor quotes.
 
-Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; the offscreen rendering preview has been inspected. Five signal-analysis tests and three native integration tests pass. Listening checks on the actual output device remain necessary for physical latency; stem separation is the next implementation milestone.
+Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Nineteen checks cover signal analysis, CLI behavior, native playback, the optional projectM checker, and command-status handling. Classic and shader-based projectM presets now render in a separate integration spike; measured results and API limits are below. Listening checks on the actual output device remain necessary for physical latency; stem separation awaits SAM Audio access.
 
 ## 1. Assessment of your objectives
 
@@ -217,6 +217,53 @@ Use libprojectM as an optional rendering component and composite its output with
 Legacy presets do not automatically understand your stem spectra, mood scores, or lyric events. Feed original-mix PCM to the compatibility renderer; route cached analysis into your own scenes and compositor. Exposing additional variables inside legacy presets is a separate extension project. Magnitude-only artifacts cannot replace the PCM expected by arbitrary existing presets.
 
 Do an early test with representative presets rather than assuming full visual compatibility: MilkDrop shaders use HLSL and projectM translates them for its OpenGL renderer. Preset state and feedback also need a policy for seeking: reset and transition cleanly first, rather than promising identical reconstructed frames. [Compatibility notes](https://github.com/projectM-visualizer/projectm/wiki/Milkdrop-Compatibility)
+
+### Verified projectM integration spike — October 22, 2026
+
+The optional `harmonic-projectm-check` tool validates an existing analysis bundle
+and its native decoded PCM, feeds the original stereo mix to libprojectM, renders
+offscreen, and writes a PPM preview plus a JSON report. The normal player also
+builds with projectM discovery disabled. This establishes a working integration
+path while keeping the diagnostic player independent of the optional library.
+Usage and color/progress controls are documented in [README.md](README.md).
+
+Two local presets from the upstream [Cream of the Crop pack](https://github.com/projectM-visualizer/presets-cream-of-the-crop)
+were checked at checkout `0180df21f5e0bd39b9060cc5de420ed2f1f9e509`:
+
+| Preset | Style | Render p50 | Render p95 | Local report |
+| --- | --- | --- | --- | --- |
+| `Geometric/Wire Circles/Geiss - Many Colors 1.milk` | Classic waveform/feedback | 121.82 ms | 188.50 ms | `data/projectm-v0.4.0-geiss/report.json` |
+| `Waveform/Spectrum/Jc - Flow with the Go.milk` | HLSL warp/composite shaders | 245.14 ms | 390.50 ms | `data/projectm-v0.4.0-flow/report.json` |
+
+Both v0.4.0 runs used “Billie Jean” starting at 30 seconds, 180 frames on a 60 Hz
+explicit timeline, a 64×48 mesh, and a 1920×1080 output. The first 30 frames were
+excluded from timing statistics. Each fed 143,200 stereo PCM frames, ending at
+32.983333 seconds. The reported libprojectM runtime is 4.1.0, revision
+`36490443622c7cd671e41e512568a845add3a392`. The renderer is Mesa 25.2.8,
+`llvmpipe (LLVM 20.1.8, 256 bits)`; these are **software-rendering measurements**.
+All 150 measured frames in each run exceeded a 16.67 ms budget. The target-GPU
+60 fps gate remains open. Measurements include PCM submission, rendering, and
+`glFinish`, and exclude display presentation. Timing varies with system load.
+
+Both final previews were visually inspected: the classic preset produced a
+layered pale waveform with feedback, and the shader preset produced a purple
+radial pattern. Preset, source, decoded-PCM, and preview hashes are retained in
+the local reports. Preset assets and generated output are not committed.
+
+The spike exposed two validation limits. The library accepts arbitrary text as
+an empty preset, so the checker requires a `[preset00]` section. It also recovers
+from some shader errors internally without reporting them through the C API's
+preset-load callback. Accordingly, a pass establishes a nonempty/nonuniform
+render without reported load/OpenGL errors; it does not prove exact shader
+fidelity or broad MilkDrop compatibility. The report explicitly marks shader
+fallback detection as unavailable. Regression checks cover the actual library
+load-error callback, invalid input, output preservation, and a known diagnostic
+preset.
+
+Next, integrate projectM behind a separate renderer/compositor, restore the GL
+state needed by the custom graphs, feed PCM from the playback position, and
+reset preset feedback after seeks. Test display presentation and frame times on
+the actual GPU before choosing presets or promising a frame-rate target.
 
 ## 9. Roadmap with concrete completion gates
 

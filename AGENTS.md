@@ -25,6 +25,11 @@
 
 ## Development
 
+- Make status/progress visual: use colored status markers in chat, gradient
+  terminal bars for measurable work, and activity indicators with elapsed time
+  for commands with no known total. Never invent a completion percentage.
+  Preserve command logs/exit codes and honor `NO_COLOR`; use `FORCE_COLOR=1`
+  when a captured terminal supports ANSI but cannot be detected automatically.
 - Use `just` to discover build, analysis, playback, and verification commands.
 - Python extracts offline features; C++/SDL3/OpenGL handles playback/rendering.
 - Preserve the sample-based feature timebase and the recording/artifact checksums.
