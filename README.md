@@ -66,6 +66,37 @@ amber pending tasks, and cyan headings; chat uses green/yellow status markers.
 It only reads the checklist. `just todo` provides the same terminal view in this
 repository without requiring a build or virtual environment.
 
+## Local task viewers
+
+The repository also includes executable `todo-status` and `todo-fzf` viewers:
+
+```sh
+./todo-status --pretty          # Incomplete tasks, grouped by section
+./todo-status --all --pretty    # Include completed tasks
+./todo-fzf                      # Search/select incomplete tasks
+./todo-fzf --all                # Search/select both states
+./todo-status --help
+./todo-fzf --help
+```
+
+Unchecked boxes (`☐`) are dim white, checked boxes (`☑`) are green, and two
+spaces separate each checkbox from its priority marker. Pending priorities use
+red P1, yellow P2, and dim P3 styling. `NO_COLOR` disables ANSI while preserving
+the checkbox icons. The full Markdown checklist remains available through `just todo`.
+
+TODO.md assigns explicit `(p1)`/`(p2)`/`(p3)` priorities and categories to every
+task. P1 covers GPU/SAM and real-device playback validation; P2 covers integration
+and local improvements; P3 covers later scenes, scaling, and services.
+`./todo-status --all --check` audits this metadata. Both scripts support
+`--version`/`-v`, another file through `-f FILE`, and help without reading a checklist.
+
+The picker keeps incomplete work before completed work in its urgency sort;
+Ctrl-S switches to source-file order. Previews and printed selections retain task
+line references and completion state. Its optional clipboard helper is tracked
+as a follow-up in TODO.md. For integrations, `todo-status -l` preserves the original
+eight TSV columns and appends `done` (0/1) and the checkbox icon as columns 9/10;
+`--all -l` includes completed records.
+
 ## Build
 
 The initial target is Linux with a C++20 compiler, CMake 3.24+, Ninja, pkg-config,

@@ -1,100 +1,189 @@
 # Task checklist
 
-Use this file for current progress and [PLAN.md](PLAN.md) for the architecture
-and rationale. Check off implementation only after verification. Update this
-checklist as part of each approved update.
+Use this file for current progress and [PLAN.md](PLAN.md) for architecture and
+rationale. Check off work only after verification; update the checklist with
+each approved change. Tasks carry an explicit priority and category:
+
+- **P1 `(p1)`**: next validation gates and work that unblocks the SAM milestone.
+- **P2 `(p2)`**: implementation after those gates, or independent local improvements.
+- **P3 `(p3)`**: deferred scenes, scale, service work, and optional comparisons.
+
+Categories are `[feature]`, `[test]`, `[perf]`, `[bug]`, `[docs]`, and `[chore]`.
+`☐` means incomplete; `☑` means completed. `./todo-status` and `./todo-fzf`
+show incomplete tasks by default; add `--all` to include completed tasks, or
+`--help` for options and examples. `just todo` retains the full Markdown checklist.
+
+**Current gate:** access to
+[`facebook/sam-audio-large-tv`](https://huggingface.co/facebook/sam-audio-large-tv)
+is granted. The worker and 10-second Billie Jean job are prepared, but there has
+been no real SAM inference. This laptop exposes Intel Iris Xe graphics, 16 GB
+RAM, no working CUDA device, and no configured Hugging Face token. The owner
+chose to run inference later on a GPU host. See the
+[worker guide](workers/sam_audio/README.md).
+
+## SAM Audio: GPU validation (P1)
+
+- [ ] **Select the GPU worker host** (p1) [chore]
+  Record GPU/VRAM, host RAM, driver/CUDA support, and available disk space before
+  installing the large inference environment. Keep the laptop environment separate.
+- [ ] **Transfer the release and unchanged excerpt job** (p1) [chore]
+  Use the matching Harmonic release and copy `data/sam-jobs/billie-jean-v0.7.0/`;
+  verify its hashes on the host. The complete recording need not be transferred.
+- [ ] **Install and verify the locked GPU runtime** (p1) [test]
+  Run `just sam-sync`; verify torch/torchaudio/TorchCodec/SAM imports, CUDA
+  operation, the pinned source revision, and FFmpeg shared-library compatibility.
+- [ ] **Authenticate and verify gated checkpoint access** (p1) [chore]
+  Run `just sam-auth` and `just sam-doctor` on the GPU host. Verify the granted
+  account can read the selected checkpoint; never store tokens in jobs or Git.
+- [ ] **Fetch the pinned model and record auxiliary provenance** (p1) [test]
+  Verify the main snapshot/hash and capture the resolved auxiliary text-model
+  revision. Use that revision for subsequent repeat runs.
+- [ ] **Benchmark vocal, drum, and bass prompts** (p1) [perf]
+  Run the prepared 30–40 second Billie Jean excerpt. Record elapsed/real-time
+  factor, peak GPU/host memory, settings, and whether the selected model fits.
+- [ ] **Validate and listen to returned target/residual pairs** (p1) [test]
+  Run `just sam-validate`; inspect separation quality and cross-target overlap.
+  Independent prompts must not be presented as mutually exclusive stems.
+- [ ] **Measure actual alignment and gain behavior** (p1) [test]
+  Compare original and separated transients, sample counts, relative levels,
+  right-padding trims, and mono conversion. Structural checks alone do not prove
+  perceptual timing; include stereo/anti-phase cases when evaluating the policy.
+
+## Playback: real-device validation (P1)
+
+- [ ] **Listen through Billie Jean on the actual audio output** (p1) [test]
+  Check visual alignment at the start, throughout the song, and after repeated seeks.
+- [ ] **Exercise visible desktop controls and end-of-track behavior** (p1) [test]
+  Verify mouse seeking, keyboard shortcuts, pause/resume, view switching, and restart.
+- [ ] **Measure 1080p frame times on the target GPU** (p1) [perf]
+  Check drift/stutters and the desktop OpenGL loader, including the known GLX
+  runtime-search-path warning involving `~/.local/lib`.
+- [ ] **Check contrasting real recordings** (p1) [test]
+  Include a cappella or instrumental material; Billie Jean is currently the only
+  supplied real recording. Synthetic fixtures do not complete this listening check.
+
+## SAM Audio: feature integration (P2)
+
+- [ ] **Validate the adapter with real inference outputs** (p2) [feature]
+  Preserve measured timing, sample rate/channel provenance, relative gain,
+  prompts/anchors, settings, and model revisions when producing feature artifacts.
+- [ ] **Version the multi-stream bundle contract** (p2) [feature]
+  Extend JSON/Arrow validation and the native reader for mix plus named target
+  streams. Bump the schema for incompatible changes and reject mismatched timelines.
+- [ ] **Display separate source graphs alongside the mix** (p2) [feature]
+  Use distinct activity curves without implying that independent targets sum to
+  the original mix or contain stereo-width information.
+- [ ] **Establish full-song chunking and overlap behavior** (p2) [test]
+  Measure boundary artifacts, prompt consistency, latency, and gain across chunks
+  before running catalog-wide separation.
+- [ ] **Cache SAM runs with complete provenance keys** (p2) [feature]
+  Include recording identity, excerpt/chunk coordinates, checkpoint/code/auxiliary
+  revisions, prompts/anchors, seed, settings, and output schema in reuse decisions.
+- [ ] **Resume failed stages and validate cleanup rules** (p2) [feature]
+  Reuse completed prompts/chunks after interruption or OOM. Delete separated audio
+  only after the completed feature artifact is validated; retain benchmark outputs
+  while quality and alignment are under review.
+- [ ] **Review licenses before distribution or service use** (p2) [docs]
+  The SAM License was inspected for the local prototype. Perception Models and
+  ImageBind have noncommercial terms; resolve dependency use and permitted outputs
+  before packaging binaries, model code/weights, or a commercial service.
+
+## Local experience: next improvements (P2)
+
+- [ ] **Import line-timed lyrics with manual timing correction** (p2) [feature]
+  Preserve recording identity, lyric provenance, and user adjustments.
+- [ ] **Support Unicode text rendering** (p2) [feature]
+  Replace the ASCII-only bitmap font before relying on translated lyrics and
+  non-ASCII artist/title metadata in the player.
+- [ ] **Evaluate one mood/genre tagger** (p2) [feature]
+  Preserve provider/model provenance and user overrides; keep inferred labels
+  distinct from measured audio activity.
+- [ ] **Add a small scene controller and palette mappings** (p2) [feature]
+  Start with restrained transitions that can use the existing mix features.
+- [ ] **Connect catalog selection to playback** (p2) [feature]
+  Choose a registered bundle and usable recording location, then add basic
+  playlist navigation without bypassing checksum validation.
+- [ ] **Make todo-fzf clipboard shortcuts portable** (p2) [bug]
+  The supplied script references `clip/pushclip.sh`, which is absent here.
+  Provide a local implementation or supported clipboard fallback and verify
+  the copy shortcuts without submitting text to another pane.
+
+## Later milestones (P3)
+
+- [ ] **Build spatial, radial, and vocal/lyric scenes** (p3) [feature]
+  Use validated source features and measure transitions/performance on the target GPU.
+- [ ] **Add resumable library processing and resource reporting** (p3) [perf]
+  Include concurrency/memory limits, runtime/storage accounting, and retries
+  after the single-recording workflow is validated.
+- [ ] **Build the authenticated metadata/artifact service** (p3) [feature]
+  Proceed after the local experience, recording matching, and redistribution
+  permissions are established; do not distribute original recordings.
+- [ ] **Compare alternate checkpoints or separators only if useful** (p3) [test]
+  Consider a smaller SAM checkpoint if capacity requires it and access permits;
+  keep Demucs or a paid separator as optional references.
 
 ## Completed foundation
 
-- [x] Read the outline and document objectives, stack, services, risks, and roadmap.
-- [x] Record suggested test songs and what each one exercises.
-- [x] Create the Python analyzer and C++/SDL3/OpenGL player.
-- [x] Analyze the supplied “Billie Jean” recording locally.
-- [x] Save original-mix RMS, peak, spectral-onset activity, and 64 frequency bands
-  on a 48 kHz sample timeline in versioned JSON/Arrow bundles.
-- [x] Verify source, artifact, and decoded-PCM checksums between analyzer and player.
-- [x] Display spectrum bars and a whole-track amplitude envelope.
-- [x] Implement pause/resume, seeking, restart, normalization, and timing offset.
-- [x] Pass five signal-analysis tests, six CLI checks, three player integration tests,
-  three projectM integration checks, four compositor/playback tests, nine catalog
-  checks, eight SAM job/worker contract checks, and three command-status tests.
-- [x] Verify the real recording with dummy-audio playback/seek/end-of-track checks.
-- [x] Render and visually inspect an offscreen OpenGL preview.
-- [x] Add `just` commands for build, analysis, playback, verification, and release.
-- [x] Support `--help`/`-h` and `--version`/`-v` in both analyzer and player,
-  including invocation without a recording or bundle.
-- [x] Install a global Codex `todo` skill and `/prompts:todo` command with colored
-  task status; verify checklist lookup from another project's nested directory.
-- [x] Add `just todo` and a repeatable global installer that preserves customized files.
-- [x] Add gradient progress bars, colored status markers, and elapsed-time activity
-  displays while preserving command logs, failure exit codes, and color controls.
-  Unknown-duration contexts also animate during blocking hashing/decoding work.
-- [x] Verify the base player builds and runs with both optional projectM features disabled.
-- [x] Add live preset playback, graph overlays, view switching, sample-clock timing,
-  cached pause behavior, and feedback resets after seeks and offset changes.
-- [x] Verify compositor state, pause, seeks, EOF, and resize with two real presets;
-  run the actual preset playback path with dummy audio.
-- [x] Add a local SQLite catalog, exact-file identities, location references,
-  existing-bundle registration, and verified original-mix analysis reuse.
-- [x] Verify relocated-file playback, corrupt-cache rejection, PCM/configuration
-  validation, JSON/help/version output, and interrupted-registration recovery.
-- [x] Establish SemVer, `CHANGELOG.md`, synchronized versions, and annotated tags.
-- [x] Publish the prototype and task runner as `v0.2.0`; verify its final build.
-
-## Next: playback validation
-
-- [ ] Listen through “Billie Jean” on the actual audio output device; check the
-  visual alignment at the start, across the song, and after repeated seeks.
-- [ ] Exercise mouse/keyboard controls in the visible desktop player and confirm
-  behavior at the end of playback.
-- [ ] Measure frame times at 1080p on the target GPU and check for drift/stutters.
-- [ ] Check a contrasting recording, including a cappella or instrumental audio.
-- [x] Verify classic and shader-based libprojectM presets with original-mix PCM;
-  inspect 1080p previews and record software-renderer timing and API limitations.
-
-## Next: SAM Audio separation
-
-**Access granted:** the owner confirmed access to
-[`facebook/sam-audio-large-tv`](https://huggingface.co/facebook/sam-audio-large-tv).
-The isolated worker and dependency lock are prepared here for a GPU host, as
-requested. This machine exposes Intel Iris Xe graphics, 16 GB RAM, no working
-CUDA device, and no configured Hugging Face token. No checkpoint weights were
-downloaded and no real SAM Audio inference has run. See the
-[worker guide](workers/sam_audio/README.md) for setup and transfer instructions.
-
-- [x] Receive checkpoint access (owner confirmation).
-- [x] Prepare an isolated Python 3.11/CUDA worker with pinned source/checkpoint
-  revisions and a resolved transitive dependency lock, without installing it locally.
-- [x] Prepare a portable 10-second “Billie Jean” job at 30 seconds with exact
-  source/PCM hashes, source sample offset, prompts, seed, and inference settings.
-- [x] Verify portable input, output audio/timebase validation, corrupt-file
-  rejection, mono gain/right-padding handling, and dependency-free diagnostics.
-- [ ] Install the locked environment on the GPU host and verify package imports,
-  CUDA functionality, available memory, authentication, and gated checkpoint access.
-- [ ] Confirm license terms for eventual distribution/service use. The SAM License
-  was inspected; Perception Models and ImageBind have noncommercial terms to review.
-- [ ] Benchmark a short “Billie Jean” excerpt with vocal, drum, and bass prompts;
-  record checkpoint revision, settings, runtime, memory, and visual usefulness.
-- [x] Define target/residual and overlapping-target semantics; independently
-  prompted pairs may overlap and are not four mutually exclusive stems.
-- [ ] Implement an adapter that preserves sample alignment, output rate/channels,
-  relative gain, prompt/anchor provenance, and reproducible inference settings.
-- [ ] Establish full-song chunking/overlap behavior and test boundary artifacts.
-- [ ] Extend the bundle contract and native reader/rendering for multiple streams;
-  version the schema if the data contract changes incompatibly.
-- [ ] Show distinct per-source frequency/amplitude graphs alongside the original mix.
-- [ ] Add analysis reuse and stage-level retry behavior; delete temporary separated
-  audio only after validating the completed feature artifact.
-- [ ] Compare against Demucs or a paid separator only if a reference is useful.
-
-## Later milestones
-
-- [x] Add recording identity/deduplication and a local catalog.
-- [ ] Import line-timed lyrics and support manual timing correction.
-- [ ] Evaluate one mood/genre tagger and preserve provenance and user overrides.
-- [ ] Implement a small scene controller and restrained mood/palette mappings.
-- [ ] Build spatial, radial drum/bass, and vocal/lyric scenes.
-- [x] Integrate projectM compositing and representative preset compatibility checks.
-- [ ] Add resumable library analysis and cost/resource reporting.
-- [ ] Build the authenticated metadata/artifact service after the local experience
-  and output-redistribution permissions are established.
+- [x] **Document objectives, stack, services, risks, and roadmap** (p2) [docs]
+  Read the outline and save the architecture and rationale in PLAN.md.
+- [x] **Record suggested test songs and their purpose** (p2) [docs]
+- [x] **Create the Python analyzer and C++/SDL3/OpenGL player** (p2) [feature]
+- [x] **Analyze the supplied Billie Jean recording locally** (p2) [test]
+- [x] **Store original-mix features on a 48 kHz timeline** (p2) [feature]
+  Save RMS, peak, spectral-onset activity, and 64 frequency bands in JSON/Arrow bundles.
+- [x] **Verify source, artifact, and decoded-PCM checksums** (p2) [test]
+  Check consistency between analyzer, catalog, and native player.
+- [x] **Display spectrum bars and a whole-track envelope** (p2) [feature]
+- [x] **Implement transport, normalization, and timing offset** (p2) [feature]
+  Include pause/resume, seeking, and restart.
+- [x] **Pass the v0.7.0 automated verification suite** (p2) [test]
+  Forty-one checks cover analysis, CLI behavior, native playback, projectM,
+  catalog/reuse, SAM job/worker contracts, and command status. This does not
+  establish real GPU inference or physical audio-output validation.
+- [x] **Verify dummy-audio playback, seeking, and EOF** (p2) [test]
+  Exercise the real recording without claiming physical listening validation.
+- [x] **Render and visually inspect an offscreen preview** (p2) [test]
+- [x] **Add task-runner and release commands** (p2) [chore]
+  Cover build, analysis, catalog, playback, SAM preparation, verification, and release.
+- [x] **Support help/version aliases in the project CLIs** (p2) [feature]
+  Include `--help`/`-h` and `--version`/`-v` without input files.
+- [x] **Install the global Codex checklist skill and prompt** (p2) [chore]
+  Provide `todo` and `/prompts:todo` with colors; verify lookup in another project.
+- [x] **Add the local checklist viewer and safe installer** (p2) [chore]
+  `just todo` displays the full checklist; installation preserves customized files.
+- [x] **Add gradient progress and colored command status** (p2) [feature]
+  Preserve logs/exit codes, honor color controls, and animate unknown-duration
+  activity while hashing/decoding blocks without inventing completion percentages.
+- [x] **Verify a base player without optional projectM features** (p2) [test]
+- [x] **Add live projectM playback and graph compositing** (p2) [feature]
+  Include view switching, sample-clock timing, cached pause behavior, and feedback
+  resets after seeks and timing-offset changes.
+- [x] **Verify compositor state and representative presets** (p2) [test]
+  Check classic/shader presets, pause, seeks, EOF, resize, dummy-audio playback,
+  and 1080p software-renderer previews/timings; hardware performance remains open.
+- [x] **Add recording identity and the local SQLite catalog** (p2) [feature]
+  Track exact-file identities, locations, existing bundles, and verified mix reuse.
+- [x] **Verify catalog recovery and relocated-file playback** (p2) [test]
+  Include corrupt-cache rejection, PCM/configuration validation, JSON/CLI output,
+  and recovery after interrupted registration.
+- [x] **Establish SemVer, changelog, tags, and release workflow** (p2) [chore]
+  Synchronize versions, commit, tag, push, and build approved updates.
+- [x] **Publish the v0.2.0 prototype and verify its build** (p2) [chore]
+- [x] **Publish v0.7.0 with the prepared SAM worker** (p2) [chore]
+  Commit, tag, push, and build the release; no real SAM inference was claimed.
+- [x] **Receive access to SAM Audio large TV** (p1) [chore]
+  Owner confirmation; GPU-host authentication/access checks remain open above.
+- [x] **Prepare the isolated Python 3.11/CUDA worker** (p1) [feature]
+  Pin source/checkpoint revisions and resolve the full dependency lock without
+  installing the inference environment on this laptop.
+- [x] **Prepare the portable 10-second Billie Jean job** (p1) [feature]
+  Preserve source/PCM hashes, sample offset, prompts, seed, and settings at 30 seconds.
+- [x] **Verify SAM job and output contracts without inference** (p1) [test]
+  Check portability, hashes, timebase, corrupt-file rejection, mono gain,
+  right-padding handling, and dependency-free diagnostics.
+- [x] **Define independent target/residual semantics** (p1) [docs]
+  Prompted pairs may overlap; they do not form four mutually exclusive stems.
+- [x] **Prioritize the backlog and update local task viewers** (p2) [feature]
+  Add explicit priorities/categories, recent SAM follow-ups, help/version flags,
+  default incomplete-only views, and `--all` with checked/empty boxes. Verify
+  filtering, previews, sorting/reload, metadata audits, and real fzf selection.

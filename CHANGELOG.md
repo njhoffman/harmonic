@@ -5,6 +5,28 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-22
+
+### Added
+
+- Prioritized TODO.md backlog with explicit P1/P2/P3 levels and categories,
+  consolidated completed work, and follow-ups for GPU setup, authentication,
+  model provenance, actual separation quality/alignment, SAM caching/retries,
+  Unicode text, catalog playback, and the missing optional clipboard helper.
+- Repository-local `todo-status` and `todo-fzf` viewers with default
+  incomplete-only views, `--all` for both states, and `--help`/`-h` plus
+  `--version`/`-v`. Checked boxes are green; unchecked boxes are dim white,
+  with two spaces before priority markers. Both honor `NO_COLOR`.
+- Six integration checks for completion filtering, metadata/counts, line ranges,
+  previews, urgency/file sorting, reload arguments, and actual fzf selection.
+
+### Changed
+
+- TSV status output retains its original eight columns and appends completion
+  state and checkbox columns. Fuzzy selections retain status and line references;
+  completed items sort after pending work when `--all` is used.
+- Fenced Markdown examples no longer create tasks in checklist counts or audits.
+
 ## [0.7.0] - 2026-10-22
 
 ### Added
@@ -136,7 +158,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.8.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -144,3 +166,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.5.0]: https://github.com/njhoffman/harmonic/tree/v0.5.0
 [0.6.0]: https://github.com/njhoffman/harmonic/tree/v0.6.0
 [0.7.0]: https://github.com/njhoffman/harmonic/tree/v0.7.0
+[0.8.0]: https://github.com/njhoffman/harmonic/tree/v0.8.0
