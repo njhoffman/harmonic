@@ -1,0 +1,280 @@
+# Harmonic: objectives, implementation direction, and roadmap
+
+Prepared October 22, 2026, from `OUTLINE.md`. Technology and provider observations below were checked against primary documentation where available. Recommendations, proposed specifications, and effort ranges are engineering judgments, not benchmark results or vendor quotes.
+
+Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; the offscreen rendering preview has been inspected. Five signal-analysis tests and three native integration tests pass. Listening checks on the actual output device remain necessary for physical latency; stem separation is the next implementation milestone.
+
+## 1. Assessment of your objectives
+
+You are building a music visualization system with advance knowledge of the song: separated instrument activity, spectral changes, lyrics, song structure, and emotional context. That advance knowledge is the most useful distinction from a visualizer that reacts only to the current audio buffer. It enables anticipation, section transitions, and a consistent visual identity for each recording.
+
+The outline contains two products that can share a foundation:
+
+1. **An analysis pipeline and catalog:** turn recordings into reusable, time-aligned musical data, preserve its provenance, and eventually serve it to clients.
+2. **A desktop player and rendering engine:** synchronize that data with audio playback and turn it into increasingly sophisticated scenes.
+
+My recommendation is to prove the desktop experience with local analysis files first, while designing those files so a server can deliver them later. The initial success criterion should be that distinct instruments visibly drive distinct elements, remain synchronized after seeking, and produce a more intentional experience than full-track amplitude alone.
+
+Several distinctions will keep implementation aligned with what you actually want:
+
+- **Instrument stems differ from stereo channels.** Vocals, drums, bass, and remaining accompaniment are estimated sources extracted from a finished mix. They are not guaranteed reconstructions of the original studio tracks.
+- **“Frequency and amplitude modulation” needs a concrete specification.** For visualization, you primarily want time-varying spectral energy, loudness envelopes, and musical events. Pitch trajectories are a separate feature; a drum kit or polyphonic accompaniment does not have one meaningful instantaneous pitch.
+- **Track mood and momentary activity serve different purposes.** Mood and genre can select palettes, environments, and scene families. Stem energy, onsets, and beats should animate them. A chorus can be loud while the song remains sad.
+- **The audio is temporary input to analysis, but still necessary for playback.** You can discard separated stem audio after extracting features. The player still needs the original recording, and new analyses may require separating it again.
+
+Assumptions for this plan: prerecorded local MP3s first; preprocessing is acceptable; desktop OpenGL and projectM reuse are priorities. Target operating systems, available GPU hardware, distribution license, and commercial ambitions remain unspecified.
+
+## 2. Recommended technology direction
+
+**Use Python for offline analysis, C++20 with SDL3 and OpenGL for the player, SQLite for the local catalog, and versioned binary feature artifacts. Add a Python API with PostgreSQL and object storage when the shared service becomes useful.**
+
+| Layer | Recommended starting choice | Reason and tradeoff |
+| --- | --- | --- |
+| Audio analysis | Python, NumPy, SciPy, librosa; FFmpeg for decoding | Gives direct access to audio research tools and measurable DSP. Keep this outside the rendering process. |
+| Source separation | A pinned Demucs baseline; evaluate one commercial alternative | Establishes a reproducible reference while keeping the provider replaceable. Do not assume an older research model is the best current separator. |
+| Native client | C++20, CMake, SDL3 | Direct integration with native audio, OpenGL, and libprojectM. Costs more packaging and memory-management work than a Python prototype. |
+| Graphics | OpenGL 3.3 core as an initial target, GLSL, GLAD, GLM | Fits the requested direction. Confirm the selected projectM release and target GPUs during the initial integration spike. |
+| Playback | FFmpeg libraries for decode/resampling, SDL3 audio for output | Using the same decoding rules in analysis and playback reduces timing ambiguity. Account for device buffering separately. |
+| Initial controls | Dear ImGui | Useful for feature inspection, shader tuning, and debugging. Revisit the application UI when the experience stabilizes. |
+| Local catalog | SQLite | Appropriate for a desktop application and a single-machine analysis queue. |
+| Feature exchange | JSON manifest plus Arrow IPC files containing typed arrays | Explicit cross-language schema; avoid making the client understand Python objects. Load a whole track initially; introduce chunks if scale requires them. |
+| Future catalog service | FastAPI, PostgreSQL, S3-compatible object storage, separate workers | Keeps analysis code reusable and separates searchable metadata from large artifacts. |
+
+The library choices are grounded in [librosa’s feature APIs](https://librosa.org/doc/0.10.2/feature.html), [SDL3’s native audio and graphics support](https://wiki.libsdl.org/SDL3/FrontPage), [SQLite’s intended use cases](https://www.sqlite.org/whentouse.html), [Arrow’s C++ IPC support](https://arrow.apache.org/docs/cpp/ipc.html), and [FastAPI’s documentation](https://fastapi.tiangolo.com/).
+
+C++ is the strongest default here because libprojectM is already a native OpenGL visualization library. Reusing it avoids recreating its preset parser and rendering behavior. This recommendation follows your OpenGL/projectM priorities; it is not a claim that every new graphics application should use OpenGL. [projectM repository](https://github.com/projectM-visualizer/projectm)
+
+If you strongly prefer Rust, keep the Python analysis layer and consider a Rust client using OpenGL bindings and libprojectM’s C interface. That is viable, but adds binding and integration work. If macOS is a primary long-term target, reconsider the graphics choice before building many shaders: Apple marks OpenGL deprecated. A Metal/WebGPU-oriented renderer would change the projectM integration strategy. [Apple OpenGL documentation](https://developer.apple.com/documentation/appkit/nsopenglprofileversion4_1core?language=objc)
+
+Start with a command-line analyzer and a separate player. They can communicate through completed artifacts and catalog records; an embedded Python runtime, always-running local server, or distributed task system is unnecessary for the first version.
+
+## 3. Audio analysis: the data worth keeping
+
+### Separation and the role of AI
+
+Begin with four stems: **vocals, drums, bass, other**, plus independently measured features for the original mix. A four-stem baseline makes the scene model manageable. Additional instruments can follow when they produce a clear visual benefit.
+
+Demucs provides this baseline, but its original repository explicitly states it is no longer maintained and points to the author’s fork. Treat the selected code, dependencies, and checkpoint as a frozen experiment behind an adapter. The six-source model’s documented piano limitations are another reason to begin with four sources. [Demucs README](https://github.com/facebookresearch/demucs/blob/main/README.md?plain=1)
+
+Use specialized separation models or a music-analysis API for the signal processing. OpenAI or Claude could help map existing descriptors into a controlled vocabulary, interpret verified lyric themes, or propose scene settings. Their generated descriptions should not become measured frequency curves, stem envelopes, or beat timestamps. OpenAI’s documented file-transcription workflow targets speech-to-text; it does not establish suitability for instrument separation or precise singing alignment. [Official OpenAI transcription documentation](https://developers.openai.com/api/docs/guides/speech-to-text)
+
+### Proposed first feature contract
+
+| Feature | Scope and initial resolution | Visual use |
+| --- | --- | --- |
+| RMS and peak envelope | Each stem and original mix; about 50 samples/second | Size, opacity, displacement, intensity |
+| Spectral energy | Each stem and mix; initially 64 logarithmic or mel bands at about 50 frames/second | Bars, radial shapes, ribbons, shader textures |
+| Onset strength and event timestamps | Per stem where useful, especially drums | Percussive impulses and particle emission |
+| Beat timestamps and beat confidence | Primarily the mix; retain variable timing | Pulses and rhythm-aware transitions |
+| Summary statistics | Per feature and stem | Stable normalization and relative comparisons |
+| Optional pitch/chroma | Bass/vocals for pitch; mix for harmonic context | Vertical position, melodic traces, color relationships |
+| Section boundaries and slow energy trends | Track-level timeline | Scene changes, builds, breakdowns |
+| Stereo width or balance | Optional later feature | Spatial movement and separation |
+
+RMS and mel-spectral measurements are directly supported by librosa. Treat the table’s rates and band counts as starting specifications to validate visually. Longer spectral windows improve frequency detail but smear transients, so bass and percussion may eventually need different analysis windows on a common timeline. [RMS documentation](https://librosa.org/doc/0.11.0/generated/librosa.feature.rms.html), [mel-spectrogram documentation](https://librosa.org/doc/main/api/generated/librosa.feature.melspectrogram.html)
+
+Keep measured values and display normalization separate. Store units, band edges, scale, window size, hop size, sample rate, and frame-center offset. Preserve min/max values, but use robust percentiles and a silence floor for most display mappings; a single outlier should not make the rest of a song appear flat. Include both absolute measurements and per-track relative activity.
+
+**Preserve relative stem gain.** Demucs documents that its output handling can independently rescale stems to prevent clipping. That can distort comparisons of vocal, bass, and drum strength. Prefer floating-point inference output before export normalization, or a recorded common gain; inspect commercial providers for similar normalization. Do not solve the problem by simply accepting clipped stems. [Demucs output behavior](https://github.com/facebookresearch/demucs)
+
+Magnitude spectra and envelopes deliberately discard information. They will not reconstruct arbitrary stem waveforms or support every future analysis. Keep the original-file reference and a reproducible analysis recipe so reprocessing remains possible.
+
+## 4. Timing, identity, and storage architecture
+
+```mermaid
+flowchart LR
+    A[Local audio and embedded tags] --> B[Decode and identify recording]
+    B --> C[Original-mix features]
+    B --> D[Stem separation]
+    D --> E[Stem features]
+    B --> F[Lyrics and metadata adapters]
+    C --> G[Versioned analysis bundle]
+    E --> G
+    F --> G
+    G --> H[Local catalog and cache]
+    H --> I[Player and scene controller]
+    A --> J[Audio playback clock]
+    J --> I
+    I --> K[Custom OpenGL scenes and projectM]
+    G -. Later .-> L[Hosted catalog and artifact API]
+```
+
+### A single musical timeline
+
+Define all timings relative to the decoded original recording. Record integer sample positions where possible and explicit transformations when a model resamples audio. Preserve stereo at ingestion; define how spectral power is combined instead of accidentally cancelling out-of-phase channels through a naive mono conversion.
+
+The client should derive visual time from playback progress, with device-latency compensation. A render-loop stopwatch or the amount of audio queued for output is insufficient by itself. Handle MP3 encoder delay/padding, resampling, pause, seek, output-device changes, and a user-adjustable synchronization offset. Test drift over a full track as well as immediately after seeking.
+
+Each renderer samples the feature timeline at the current audio time and interpolates continuous values. Discrete events need crossing detection so a frame-rate hitch does not silently skip a beat trigger.
+
+### Recording identity matters more than song identity
+
+Store separate identities for the musical work, a particular recording/version, a local file, and an analysis revision. A live version, radio edit, remaster, and album version can share names while requiring different timing data.
+
+Use an exact file hash to recognize unchanged imports; a tag edit changes that hash, so optionally add a hash of consistently decoded audio. Fingerprints, MusicBrainz IDs, ISRCs, names, and duration can help find candidates, but must not automatically authorize reusing a timeline. Match the actual recording and offset before attaching existing timed analysis.
+
+### Database responsibilities
+
+Proposed logical entities:
+
+- `recordings` and `audio_files`: identity, duration, local references, fingerprints, external IDs.
+- `analysis_runs`: pipeline version, checkpoint/model version, parameters, input identity, status, runtime, and cost.
+- `feature_artifacts`: schema version, URI/path, checksum, stem names, array shapes, and timebase.
+- `metadata_observations`: provider, taxonomy/model version, original payload, scores, timestamps, and permitted uses.
+- `lyric_tracks`: language, source, recording match, timing granularity, timing offset, and usage constraints.
+- `overrides`: user corrections with priority over inferred defaults, without destroying source observations.
+
+Keep searchable metadata and artifact references in SQLite, then PostgreSQL for the hosted catalog. Keep dense arrays in files/object storage. Making every time-frequency cell a database row would create unnecessary query and indexing overhead.
+
+As an illustrative size calculation, five streams × 64 bands × 50 frames/second × 240 seconds × four-byte floats is **15.36 MB per four-minute track**, before other features and compression. At 10,000 tracks that is **153.6 GB** for this spectrum representation alone. Validate acceptable band count and precision early; compression savings depend on the data. Start with float32 and consider lower precision after visual comparison.
+
+Publish artifacts atomically, checksum them, and make completed revisions immutable. Record stage-level success so a failed lyric provider does not force another expensive separation run. Cache by input identity plus model, parameters, and schema version.
+
+## 5. Assessment of the services already listed
+
+The list mixes machine-readable analysis APIs, catalog lyric suppliers, scraping libraries, and interactive discovery tools. They should have different roles in the system.
+
+| Service or tool | Recommended role |
+| --- | --- |
+| Cyanite | First tagging API I would evaluate for this use case. Its current documentation exposes versioned outputs and both track-level and segment-level data. Retrieve actual segment timestamps; do not assume a tag stream updates at rendering speed. [Model outputs](https://docs.cyanite.ai/docs/guides/model-outputs/) |
+| Bridge.audio | Credible alternate tagging candidate. Its API describes upload, status, tags, and webhook delivery. Compare actual outputs against your library before integrating a second tagger. [API overview](https://www.bridge.audio/features/api/) |
+| SONOTELLER | Candidate for descriptive music and lyric metadata. Its site describes dedicated music, lyric-analysis, and section-tagging endpoints. Treat descriptions separately from measured DSP. [Product/API overview](https://sonoteller.ai/) |
+| Musiio | Candidate for catalog tagging and, later, search. There is documented Tag API access rather than only a consumer interface. Confirm current account access and commercial terms. [Tag API](https://docs.musiio.com/tag/) |
+| AIMS API | Potential fit for a larger catalog/search product. Establish which desired fields it predicts from audio versus which fields your catalog must supply; its documentation includes both metadata and catalog operations. [API documentation](https://docs.aimsapi.com/) |
+| Musixmatch Pro | Keep as a commercial lyric-catalog candidate. Its official SDK documents lyric and subtitle resources, but current developer onboarding, pricing, and relevant rights were not verified here because its developer sites could not be fetched. Obtain a current proposal before depending on it. [Official SDK schema](https://github.com/musixmatch/musixmatch-sdk/blob/master/swagger/swagger.json) |
+| LyricsGenius | Useful for experiments, but the package scrapes lyric pages. An installed library or API token does not establish a stable licensed lyric feed. Avoid making it the foundation of the hosted catalog. [How it works](https://lyricsgenius.readthedocs.io/en/latest/how_it_works.html) |
+| LRCLIB / LRCGET | Good discovery/import path for existing synchronized lyrics. Integrate the LRCLIB API rather than automating the LRCGET application. Current docs include line synchronization and a word-timed Lyricsfile representation; coverage and timing quality must be checked per track. API accessibility does not settle lyric redistribution rights. [API documentation](https://lrclib.net/docs) |
+| Every Noise at Once | Useful reference for genre vocabulary and discovery. Treat it as a reference resource until a supported integration and appropriate reuse permission are established. [Author-hosted site](https://www.furia.com/everynoise_public/) |
+| Chosic | Useful for manual genre exploration. Its genre taxonomy page describes Spotify-derived data; this is not equivalent to a contracted audio-analysis feed. [Genre data description](https://www.chosic.com/list-of-music-genres/) |
+| PitchPlus | Useful as a manual comparison for song descriptors. Its product is oriented toward artist promotion; a supported bulk analysis API and suitable reuse rights were not established in this review. [Product description](https://pitchplus.app/what-is-pitchplus) |
+| SubmitHub “What's My Genre?” | Useful as a manual genre comparison. It has its own evolving detector, but the inspected material did not establish a supported third-party analysis API. [Detector description](https://www.submithub.com/story/upgrading-whats-my-genre) |
+
+Start with one tagging provider. Store its original scored labels and create your own small mapping to scene controls. Scores from different taxonomies are not automatically comparable probabilities, and disagreements should remain inspectable rather than being averaged away.
+
+Import the valence/danceability and other tags already present in your MP3s, preserving their source where known. Do not assume you can replenish them from Spotify: its November 2024 changes restricted Audio Features and Audio Analysis for new use cases, and its February 2026 update further narrowed Development Mode. Self-computed descriptors should have their own names and provenance rather than claim Spotify-equivalent semantics. [2024 API changes](https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api), [2026 developer-access update](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security)
+
+The local-file design also avoids making Spotify playback a dependency. Any later Spotify integration needs its own assessment: the developer policy restricts visual synchronization and analysis of Spotify content. Those restrictions should not be generalized to every unrelated local recording. [Spotify Developer Policy](https://developer.spotify.com/policy)
+
+## 6. Additional services and tools worth knowing
+
+| Addition | Why it belongs on your shortlist |
+| --- | --- |
+| **Music.ai / Moises developer platform** | Especially relevant: stem separation, beat and section transcription, lyric transcription, and alignment modules. Could reduce the number of vendors needed for an initial paid pipeline. Compare the actual workflow cost and output contract. [Module pricing/catalog](https://music.ai/pricing/), [lyric alignment](https://music.ai/modules/utilities/lyrics-and-speech-alignment/) |
+| **AudioShake** | Strong candidate for a paid comparison covering both instrument separation and singing-specific lyric transcription/alignment. Its FAQ explicitly distinguishes lyric transcription from speech transcription. [Capabilities and API](https://audioshake.ai/faq) |
+| **Chromaprint / AcoustID and MusicBrainz** | Recording identification and canonical metadata are missing from the outline and become essential for a reusable catalog. AcoustID can connect fingerprints to MusicBrainz metadata. The free AcoustID service is for noncommercial use; commercial arrangements exist. MusicBrainz’s public API also has usage conditions and rate limits. [AcoustID service](https://acoustid.org/webservice), [commercial availability](https://acoustid.org/), [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API) |
+| **ACRCloud** | Alternate identity/metadata supplier if commercial catalog coverage becomes important. Its metadata API accepts identifiers such as ISRC and returns cross-platform metadata; this does not substitute for checking exact recording alignment. [Metadata API](https://docs.acrcloud.com/reference/metadata-api) |
+| **Essentia** | Valuable music-analysis research toolkit and pretrained classifiers. Its library and model licensing differ: AGPLv3 for the library, and the official pretrained models are listed under CC BY-NC-ND 4.0 with proprietary licensing available. Evaluate the exact intended usage before making it part of a commercial service. [Licensing](https://essentia.upf.edu/licensing_information.html) |
+
+For your initial experiment, I would compare **one local separator against either Music.ai or AudioShake**, then evaluate **Cyanite as the single semantic tagger**. This is an evaluation recommendation, not a provider-quality ranking; no representative tracks have been processed yet.
+
+## 7. Lyrics need their own pipeline
+
+Lyric acquisition, transcription, alignment, and display are separate tasks. Existing synchronized text may avoid both transcription cost and transcription errors. Begin with line-level display from embedded/imported LRC or a suitable provider, matched to the exact recording.
+
+When timing is missing, align verified lyrics to the recording, preferably using a singing-specific tool. Music.ai documents alignment of supplied subtitle text to singing, and AudioShake offers lyric-specific transcription/alignment. A generic speech transcript should be treated as a candidate requiring review. [Music.ai alignment](https://music.ai/modules/utilities/lyrics-and-speech-alignment/), [AudioShake FAQ](https://audioshake.ai/faq)
+
+Handle instrumental tracks, repeated choruses, long vocal pauses, multiple languages, backing vocals, explicit versions, and missing lyrics. Provide a simple manual offset correction. Add word highlighting only after line timing works well; a lyric editor can be more useful than another automatic provider.
+
+Store lyric-derived themes separately from audio-derived mood. Their disagreement can be meaningful, and lyric text may carry different display, caching, and redistribution conditions from timing or analysis fields.
+
+## 8. Turning the data into good visuals
+
+Introduce a small **scene controller** between analysis data and rendering. It should turn observations into stable visual controls rather than letting every shader invent its own audio interpretation.
+
+| Musical input | First mapping to try |
+| --- | --- |
+| Drum onset and beat phase | Short impulses, radial expansion, particle bursts |
+| Bass envelope and spectrum | Large-scale motion, displacement, low-frequency geometry |
+| Vocal activity and pitch confidence | Foreground ribbons, lyric emphasis, vertical motion |
+| Other-stem spectrum | Secondary geometry and texture detail |
+| Mood and genre | Palette, background artwork, lighting, scene family |
+| Sections and slow energy changes | Camera movement, density, transitions |
+
+These are artistic hypotheses to compare, not universal genre-to-color rules. Use attack/release smoothing, thresholds, and hysteresis so weak or noisy signals do not make the scene flicker. Permit user overrides and restrained intensity settings. Begin with curated backgrounds or procedural palettes; image generation does not need to be a runtime dependency.
+
+For the proposed 3D visualization, start with a fixed spatial home for each stem, frequency bands along one axis, and amplitude controlling height or radius. This creates a legible spatial arrangement without requiring actual acoustic source localization. Add motion only when it improves interpretation.
+
+### Reusing projectM and MilkDrop
+
+Use libprojectM as an optional rendering component and composite its output with custom graphics and lyrics. Its API accepts PCM audio, and newer rendering APIs expose user-provided framebuffers. Verify the exact release API during the initial spike. [Audio API](https://github.com/projectM-visualizer/projectm/blob/master/src/api/include/projectM-4/audio.h), [OpenGL rendering API](https://github.com/projectM-visualizer/projectm/blob/master/src/api/include/projectM-4/render_opengl.h)
+
+Legacy presets do not automatically understand your stem spectra, mood scores, or lyric events. Feed original-mix PCM to the compatibility renderer; route cached analysis into your own scenes and compositor. Exposing additional variables inside legacy presets is a separate extension project. Magnitude-only artifacts cannot replace the PCM expected by arbitrary existing presets.
+
+Do an early test with representative presets rather than assuming full visual compatibility: MilkDrop shaders use HLSL and projectM translates them for its OpenGL renderer. Preset state and feedback also need a policy for seeking: reset and transition cleanly first, rather than promising identical reconstructed frames. [Compatibility notes](https://github.com/projectM-visualizer/projectm/wiki/Milkdrop-Compatibility)
+
+## 9. Roadmap with concrete completion gates
+
+| Phase | Work and deliverable | Completion gate |
+| --- | --- | --- |
+| **0. Resolve the expensive assumptions** | Pick the first target OS/GPU. Select 20–30 representative tracks. Draft feature/timing schemas. Compile a minimal SDL/OpenGL client and exercise one libprojectM preset. Get one separation-provider sample and clarify output reuse. | The proposed stack works on your machine, and no essential provider dependency is assumed without evidence. |
+| **1. One recording, full-track graphs** | Decode audio, import embedded tags, extract mix RMS/spectrum/onsets, write a manifest and artifact, and display bars/lines during playback. Add pause/seek and a timing offset control. | Graphs remain aligned through a complete song, repeated seeks, and pause/resume. The player can run without a network connection. |
+| **2. Stem-driven graphs** | Add a separation adapter and four-stem features. Preserve relative gain. Show mix and stem graphs, robust normalization, feature statistics, and optional waveform thumbnails. Discard temporary stem audio after a validated artifact is complete. | Instruments produce visibly distinct activity. Reimporting an unchanged input reuses analysis. A failed later stage does not redo separation. |
+| **3. Lyrics and semantic context** | Import line-timed lyrics, add offset correction, integrate one tagger, and implement a restrained palette/background selector. | Missing lyrics or metadata do not interrupt playback. Provider observations and user corrections remain traceable. |
+| **4. A small visual repertoire** | Build one spatial stem scene, one drum/bass radial scene, and one vocal/lyric scene. Add scene transitions, projectM compositing, and shader reload during development. | The experience is attractive on representative music, survives a full playlist, and meets a stated frame-rate target on the chosen hardware. |
+| **5. Catalog and service** | Add resumable library processing, identity review, quotas/cost reporting, PostgreSQL metadata, object storage, and an authenticated artifact API with local client caching. | A second client can retrieve permitted analysis for a correctly matched recording without receiving the original audio. Revisions and provider failures are handled predictably. |
+
+A rough planning range for an experienced solo developer is **4–8 focused weeks for a usable technical prototype through phase 3**. Custom visual design, robust cross-platform packaging, and the hosted service are additional work that can make this a multi-month project. Hardware, prior C++/DSP experience, and lyric quality could move those ranges substantially.
+
+Defer live arbitrary-audio separation, full instrument transcription, a large preset-language fork, vector search, and distributed infrastructure until a demonstrated need emerges. The outline is already large enough without those expansions.
+
+## 10. Expected challenges and practical responses
+
+| Challenge | Likely effect | Response |
+| --- | --- | --- |
+| Stem bleed and separation artifacts | Drums appear in vocals; sustained sounds create misleading motion | Benchmark visual usefulness, add activity floors, and fall back to mix features when a stem is unreliable. |
+| Timing mismatch | Lyrics and visuals feel wrong despite plausible data | Establish a single sample-based timebase, account for transformations and output latency, and verify after seeks. |
+| Incorrect recording matches | Entire timelines attach to the wrong edit or performance | Require version/duration checks and alignment evidence; allow unmatched local records. |
+| Weak beat tracking on live or unusual music | Pulses drift or jump to half/double tempo | Preserve confidence and variable beat times; allow envelope-driven behavior when rhythm inference is weak. |
+| Subjective or conflicting metadata | Scenes feel arbitrary or stereotyped | Keep multiple scored labels, use a small explicit scene mapping, and prioritize user overrides. |
+| Provider/checkpoint changes | New processing produces different data or taxonomy | Pin versions, preserve provenance, and create a new analysis revision rather than silently replacing old results. |
+| GPU contention | Local separation causes playback/rendering stutter | Run batch analysis separately, limit concurrency, and prioritize playback. Benchmark CPU and GPU paths before promising throughput. |
+| Feature volume | Catalog size and downloads grow quickly | Measure artifact size early; tune bands, frame rate, compression, and later chunking. |
+| Build and graphics portability | Driver-specific bugs and difficult installation | Start on one OS/GPU, package pinned dependencies, and add platforms deliberately. |
+| Visual complexity without clarity | Every element moves but nothing feels musical | Keep a diagnostic graph mode, limit mappings, and compare against a mix-only baseline. |
+
+Useful verification includes synthetic tones for spectral placement, impulse/click tracks for event timing, golden artifacts for schema compatibility, and manual playback/seek checks with ordinary MP3s. For separation, assess whether the resulting envelopes improve the visualization; without true source stems, do not claim objective source-recovery scores.
+
+An initial engineering target could be 1080p at 60 fps on the selected GPU, with frame-time measurements and no cumulative audio/visual drift. Treat synchronization thresholds as measured targets, accounting for both feature-window duration and the output device, rather than claiming sample accuracy at the display.
+
+## 11. Cost, licensing, and the eventual service
+
+Track processing cost explicitly:
+
+`catalog cost = audio minutes × sum of selected module rates + compute + storage + transfer + retries/reprocessing`
+
+For perspective, Music.ai currently lists some individual musical-stem modules at $0.07 per audio minute. A four-minute track is $0.28 for one such module. **If** four stems were separately billed at that rate, the hypothetical cost would be $1.12 per track, or $11,200 for 10,000 tracks, before lyrics, tagging, and other costs. Bundles and actual workflow billing can differ; use a verified workflow quote for budgeting. [Published module pricing](https://music.ai/pricing/)
+
+Local processing exchanges per-call charges for GPU time, electricity, dependency maintenance, and model operations. Compare wall time per audio minute, peak memory, visual quality, and total cost on your representative set before committing either way. A monthly consumer subscription should not be assumed to include bulk API usage.
+
+Because serving metadata is an explicit goal, provider selection must include permission to retain, transform, cache on clients, and redistribute the particular outputs you intend to serve. Ask about derived feature arrays as well as raw metadata, and about retention after contract termination. Confirm processing rights for uploaded recordings separately. “We only save data” does not, by itself, resolve those contractual questions.
+
+Maintain permissions alongside provenance: internal use, client display, redistribution, attribution requirements, retention period, and deletion obligations. This lets the service serve cleared fields while keeping other observations private. Keep original music local by default; require explicit upload intent when a cloud provider needs it. The hosted design will also need authentication, per-user isolation where applicable, deletion controls, and worker retries/spend limits.
+
+Dependency licenses need a similarly concrete review before distribution. libprojectM’s core uses LGPL-2.1, while presets and textures can have separate terms. FFmpeg’s license depends on build options and included components. Choose your application’s distribution model early enough to select compatible builds and assets. [projectM licensing](https://github.com/projectM-visualizer/projectm), [FFmpeg licensing](https://www.ffmpeg.org/legal.html)
+
+## 12. Most valuable next step
+
+Build a single-track vertical slice: **original playback → mix and four-stem features → synchronized graphs → saved, reloadable analysis bundle**. Use a track with clearly alternating vocals, percussion, and bass, then check a few contrasting recordings before expanding the schema.
+
+That slice will reveal the real synchronization work, separation quality, data-size requirements, and whether independent musical sources create the experience you want. Once it works, lyrics, emotional styling, projectM compositing, and the shared catalog become incremental additions to a tested foundation.
+
+### Suggested recordings for the first tests
+
+Start with **Michael Jackson’s “Billie Jean.”** Its opening makes it easy to follow the percussion, bass, and vocal entrances. Look for changes you can recognize by ear and then confirm in the graphs.
+
+These are suggested listening tests; their stem separation has not been benchmarked for this project.
+
+| Song | Why it’s useful | What to test |
+| --- | --- | --- |
+| **Michael Jackson — “Billie Jean”** | Distinctive, repeating drums and bass underneath clear vocal phrases. [Recording interview](https://www.soundonsound.com/people/bruce-swedien-recording-michael-jackson) | Whether vocals activate their own visualization while the rhythm remains steady. |
+| **Queen — “Another One Bites the Dust”** | Prominent bass, a restrained drum groove, and space between vocal phrases. [Production background](https://www.queenonline.com/news/another-one-bites-the-dust-behind-queens-dancefloor-detonating-hit) | Whether bass notes and kick drums produce independent activity despite overlapping low frequencies. |
+| **Billie Eilish — “bad guy”** | Sparse production built around drums, bass, and layered vocals. [Producer interview](https://www.soundonsound.com/people/billie-eilish) | Quiet vocal detail, strong low-frequency energy, and vocal-layer separation. |
+| **Massive Attack — “Angel”** | A bass-driven arrangement that develops into a much denser texture. [Producer interview](https://www.soundonsound.com/people/massive-attacks-new-studio) | Gradual energy changes, normalization, and keeping individual elements legible as density increases. |
+| **Phil Collins — “In the Air Tonight”** | A drum-machine foundation precedes the dramatic acoustic drum entrance. [Recording interview](https://www.mixonline.com/recording/classic-tracks-phil-collins-air-tonight-365521) | Transient timing, dynamic range, and a scene transition that lands with the drum entrance. |
+
+Then add two contrasting controls:
+
+- **Suzanne Vega — “Tom’s Diner,” original *Solitude Standing* version:** a cappella, so the instrumental stems should remain comparatively quiet. Useful for detecting vocal leakage into other stems. Select the original recording rather than the DNA remix. [Artist biography](https://www.suzannevega.com/bio)
+- **Dave Brubeck Quartet — “Take Five,” *Time Out* recording:** instrumental jazz in 5/4. Useful for checking that the scene controller handles absent vocals and avoids assuming every measure contains four beats. [Official album background](https://www.davebrubeck.com/dave-brubecks-time-out)
+
+Use consistent album versions throughout testing so edits and remixes do not introduce unexpected timing differences.
