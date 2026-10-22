@@ -16,7 +16,8 @@ checklist as part of each approved update.
 - [x] Display spectrum bars and a whole-track amplitude envelope.
 - [x] Implement pause/resume, seeking, restart, normalization, and timing offset.
 - [x] Pass five signal-analysis tests, six CLI checks, three player integration tests,
-  three projectM integration checks, four compositor/playback tests, and two command-status tests.
+  three projectM integration checks, four compositor/playback tests, nine catalog
+  checks, and three command-status tests.
 - [x] Verify the real recording with dummy-audio playback/seek/end-of-track checks.
 - [x] Render and visually inspect an offscreen OpenGL preview.
 - [x] Add `just` commands for build, analysis, playback, verification, and release.
@@ -27,11 +28,16 @@ checklist as part of each approved update.
 - [x] Add `just todo` and a repeatable global installer that preserves customized files.
 - [x] Add gradient progress bars, colored status markers, and elapsed-time activity
   displays while preserving command logs, failure exit codes, and color controls.
+  Unknown-duration contexts also animate during blocking hashing/decoding work.
 - [x] Verify the base player builds and runs with both optional projectM features disabled.
 - [x] Add live preset playback, graph overlays, view switching, sample-clock timing,
   cached pause behavior, and feedback resets after seeks and offset changes.
 - [x] Verify compositor state, pause, seeks, EOF, and resize with two real presets;
   run the actual preset playback path with dummy audio.
+- [x] Add a local SQLite catalog, exact-file identities, location references,
+  existing-bundle registration, and verified original-mix analysis reuse.
+- [x] Verify relocated-file playback, corrupt-cache rejection, PCM/configuration
+  validation, JSON/help/version output, and interrupted-registration recovery.
 - [x] Establish SemVer, `CHANGELOG.md`, synchronized versions, and annotated tags.
 - [x] Publish the prototype and task runner as `v0.2.0`; verify its final build.
 
@@ -72,7 +78,7 @@ download or SAM Audio inference has been performed here.
 
 ## Later milestones
 
-- [ ] Add recording identity/deduplication and a local catalog.
+- [x] Add recording identity/deduplication and a local catalog.
 - [ ] Import line-timed lyrics and support manual timing correction.
 - [ ] Evaluate one mood/genre tagger and preserve provenance and user overrides.
 - [ ] Implement a small scene controller and restrained mood/palette mappings.

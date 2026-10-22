@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
 import numpy as np
@@ -117,7 +118,9 @@ def analyze(source: Path, output: Path, *, show_progress: bool = False) -> Path:
             "ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(source),
         ]))
         samples = decode_audio(source)
-    print(f"Decoded {len(samples) / SAMPLE_RATE:.2f}s at {SAMPLE_RATE} Hz; extracting features...", flush=True)
+    if show_progress:
+        print(f"🔵 Decoded {len(samples) / SAMPLE_RATE:.2f}s at {SAMPLE_RATE} Hz; extracting features...",
+              file=sys.stderr, flush=True)
     total = (len(samples) + HOP_SIZE - 1) // HOP_SIZE
     with (Progress("Extracting feature frames", total) if show_progress else nullcontext()) as tracker:
         features = extract_features(samples, progress=tracker.update if tracker else None)

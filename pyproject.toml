@@ -1,12 +1,13 @@
 [project]
 name = "harmonic-analysis"
-version = "0.5.0"
+version = "0.6.0"
 description = "Offline, sample-aligned audio features for Harmonic"
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.2,<3", "pyarrow>=20,<27"]
 
 [project.scripts]
 harmonic-analyze = "harmonic_analysis.cli:main"
+harmonic-catalog = "harmonic_analysis.catalog:main"
 
 [build-system]
 requires = ["hatchling>=1.27"]

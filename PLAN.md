@@ -2,7 +2,7 @@
 
 Prepared October 22, 2026, from `OUTLINE.md`. Technology and provider observations below were checked against primary documentation where available. Recommendations, proposed specifications, and effort ranges are engineering judgments, not benchmark results or vendor quotes.
 
-Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Twenty-three checks cover signal analysis, CLI behavior, native playback, projectM rendering/compositing, and command-status handling. Optional projectM presets now play with graph overlays, a preset view, cached pause behavior, and sample-based seek resets. Listening checks on the actual output device remain necessary for physical latency; stem separation awaits SAM Audio access.
+Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Thirty-three checks cover signal analysis, CLI behavior, native playback, projectM rendering/compositing, local catalog/reuse, and command-status handling. Optional projectM presets now play with graph overlays, a preset view, cached pause behavior, and sample-based seek resets. A local SQLite catalog tracks exact-file identities, locations, and verified reusable mix bundles. Listening checks on the actual output device remain necessary for physical latency; stem separation awaits SAM Audio access.
 
 ## 1. Assessment of your objectives
 
@@ -145,6 +145,25 @@ Keep searchable metadata and artifact references in SQLite, then PostgreSQL for 
 As an illustrative size calculation, five streams × 64 bands × 50 frames/second × 240 seconds × four-byte floats is **15.36 MB per four-minute track**, before other features and compression. At 10,000 tracks that is **153.6 GB** for this spectrum representation alone. Validate acceptable band count and precision early; compression savings depend on the data. Start with float32 and consider lower precision after visual comparison.
 
 Publish artifacts atomically, checksum them, and make completed revisions immutable. Record stage-level success so a failed lyric provider does not force another expensive separation run. Cache by input identity plus model, parameters, and schema version.
+
+The implemented local catalog in v0.6.0 covers the current original-mix stage:
+`harmonic-catalog import` creates or reuses analysis, `import --bundle` registers
+an existing bundle, and `list` displays saved identities/references. Both commands
+offer JSON output; help/version aliases follow the other CLIs. SQLite contains
+`recordings`, `locations`, and `analyses`; dense arrays stay in immutable Arrow
+bundles. The catalog has its own application identifier and schema version and
+rejects unrelated or unsupported databases.
+
+Deduplication is conservative: byte-identical files share an identity, while
+different source bytes remain distinct even when decoded PCM matches. A moved
+file can reuse its bundle; playback uses the existing `--audio` override. Cache
+hits recheck source bytes, saved manifest/artifact hashes, fixed v1 parameters,
+and Arrow content/timebase. External bundles additionally require current-decoder
+PCM equality before registration. The fixed pipeline is the current cache key;
+SAM Audio/model stages must add checkpoint, prompt, and parameter identities.
+Corrupt cached artifacts fail explicitly. A complete managed bundle surviving a
+registration interruption is validated and adopted on retry. This is single-track
+mix reuse, not a bulk queue or full stage-retry implementation.
 
 ## 5. Assessment of the services already listed
 

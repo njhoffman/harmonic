@@ -20,6 +20,8 @@ just test
 just inspect
 just audio-check
 just render-check
+just catalog-add  # Register the existing Billie Jean bundle once.
+just catalog
 just todo
 ```
 
@@ -128,6 +130,63 @@ Both programs support `--help`/`-h` and `--version`/`-v` without an input file:
 ./build/harmonic-player -h
 ./build/harmonic-player -v
 ```
+
+## Local recording catalog
+
+Register the existing analysis once, then import recordings as needed:
+
+```sh
+just catalog-add
+just import '/path/to/another track.flac'
+just catalog
+```
+
+`just catalog-add` defaults to the existing Billie Jean recording/bundle.
+`just import` reuses registered analysis for identical source bytes; otherwise it
+creates a new immutable bundle under `data/library/bundles/`. The SQLite catalog
+defaults to `data/library/catalog.sqlite3`; its references and all media stay local
+and are ignored by Git. Audio files remain in their original locations.
+
+Direct commands offer another database, existing-bundle registration, and JSON:
+
+```sh
+.venv/bin/harmonic-catalog --database data/library/catalog.sqlite3 \
+  import 'data/tracks/Michael Jackson - Billie Jean.mp3' --bundle data/analysis/billie-jean
+.venv/bin/harmonic-catalog import '/new/location/the-same-recording.mp3'
+.venv/bin/harmonic-catalog list --json
+.venv/bin/harmonic-catalog -h
+.venv/bin/harmonic-catalog -v
+```
+
+The CLI is also available as `.venv/bin/python -m harmonic_analysis.catalog`.
+Place `--database` before the subcommand. JSON results go to stdout and progress
+goes to stderr. Imports print a ready-to-run player command with `--audio`, so a
+relocated identical file works without editing the bundle's original path.
+
+Identity uses source-file SHA-256. Identical copies share one recording and retain
+separate location references. Tag edits, alternate encodings, remasters, and
+different files get separate identities, even when canonical PCM hashes match.
+This conservative first version does not infer song identity from names or merge
+timelines using fingerprints. Replacing a file at a known path updates that path's
+reference and preserves the previous recording/bundle history.
+
+Every reuse verifies the saved manifest checksum, source bytes, feature checksum,
+supported analysis configuration, Arrow types/values, and sample timeline.
+Registering an external bundle also decodes the recording and checks its PCM hash;
+unchanged, previously verified inputs skip decoding and feature extraction.
+The player still checks the current decoder's PCM result before playback. A corrupt
+or missing cached bundle produces an error; imports never overwrite completed
+analysis. Register another valid bundle with `--bundle` to replace a broken cache
+reference. A completed managed bundle left by an interruption before database
+registration is validated and recovered on retry.
+
+Catalog schema version 1 stores identities, local file references, and bundle
+provenance; dense features remain in Arrow files. The mix cache key is the fixed
+`harmonic.mix.v1` pipeline with its validated configuration, separate from the app's
+SemVer version. Future configurable/model stages need parameter/revision keys.
+Listing shows saved references and current path presence; it does not hash files
+or validate bundles. Bulk queues, stage retries, pruning, and a hosted catalog
+remain future work.
 
 ## Verify
 
@@ -269,9 +328,10 @@ changes and physical-output timestamps remain future work.
 
 ## Current scope
 
-This milestone analyzes the original mix and supports optional projectM
-compositing. Stem separation, lyric display, semantic/mood services, and a
-persistent catalog are later steps. The analyzer and player decode the complete track into memory;
+This milestone analyzes the original mix, supports optional projectM compositing,
+and catalogs local recordings with verified analysis reuse. Stem separation,
+lyric display, semantic/mood services, and bulk processing are later steps.
+The analyzer and player decode the complete track into memory;
 long recordings need a future streaming/chunking pass. The small bitmap UI font
 supports ASCII; richer typography and translated metadata need a proper text
 renderer. The prototype uses native Linux OpenGL entry points; other platforms
@@ -289,7 +349,7 @@ licenses of the chosen FFmpeg/SDL/Arrow builds before distributing binaries.
 ## Versions and approved releases
 
 Use [Semantic Versioning](https://semver.org/) and annotated Git tags named `vX.Y.Z`.
-The public interfaces are the analyzer/player/checker CLIs and the documented analysis
+The public interfaces are the analyzer/catalog/player/checker CLIs and the documented analysis
 bundle contract. During 0.x development, new features and incompatible interface
 changes increment the minor version; compatible fixes, documentation, and build
 maintenance increment the patch version. After 1.0, incompatible changes require

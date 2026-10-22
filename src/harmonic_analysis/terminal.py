@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 
 
@@ -31,6 +32,8 @@ class Progress:
         self.refreshed = 0.0
         self.done = 0
         self.finished = False
+        self.activity_stop = threading.Event()
+        self.activity_thread = None
         if self.color:
             self.update(0)
         else:
@@ -75,7 +78,18 @@ class Progress:
         print(color + message + "\033[0m" if self.color else message, file=self.stream, flush=True)
 
     def __enter__(self):
+        # Hashing and external decoding block the calling thread. Keep their
+        # unknown-duration context moving without inventing a completion total.
+        if self.color and self.total is None:
+            def animate():
+                while not self.activity_stop.wait(0.1):
+                    self.update()
+            self.activity_thread = threading.Thread(target=animate, daemon=True)
+            self.activity_thread.start()
         return self
 
     def __exit__(self, kind, value, traceback):
+        self.activity_stop.set()
+        if self.activity_thread is not None:
+            self.activity_thread.join()
         self.finish(kind is None)

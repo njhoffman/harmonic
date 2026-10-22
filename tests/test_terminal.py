@@ -1,8 +1,13 @@
+import io
 import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import unittest
+from unittest.mock import patch
+
+from harmonic_analysis.terminal import Progress
 
 RUNNER = Path(__file__).resolve().parent.parent / "scripts" / "run_status.py"
 
@@ -27,6 +32,27 @@ class CommandStatusTests(unittest.TestCase):
         self.assertIn("failure detail", result.stderr)
         self.assertIn("failed", result.stderr)
         self.assertNotIn("complete", result.stderr)
+
+    def test_unknown_duration_context_animates_while_caller_is_blocked(self):
+        refreshed = threading.Event()
+        class Terminal(io.StringIO):
+            frames = 0
+            def write(self, text):
+                if "working" in text:
+                    self.frames += 1
+                    if self.frames >= 2 and "38;2;" in text:
+                        refreshed.set()
+                return super().write(text)
+        stream = Terminal()
+        with patch.dict(os.environ, {"FORCE_COLOR": "1"}):
+            os.environ.pop("NO_COLOR", None)
+            with Progress("Blocking stage", stream=stream):
+                self.assertTrue(refreshed.wait(timeout=2), "Activity stopped while the caller was waiting")
+                self.assertNotIn("complete", stream.getvalue())
+        output = stream.getvalue()
+        self.assertIn("38;2;", output)
+        self.assertIn("complete", output)
+        self.assertNotIn("%", output)
 
 
 if __name__ == "__main__":

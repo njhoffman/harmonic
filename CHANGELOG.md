@@ -5,6 +5,29 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-22
+
+### Added
+
+- Local SQLite recording catalog with exact-file deduplication, file-location
+  references, immutable bundle provenance, and `harmonic-catalog import/list`.
+  The CLI supports JSON output, `--help`/`-h`, and `--version`/`-v`.
+- Verified original-mix analysis reuse, existing-bundle registration, and recovery
+  of completed managed bundles after interrupted database registration. Imports
+  check hashes, supported parameters, Arrow content, and sample timing; external
+  bundles additionally require matching decoded PCM. Corrupt caches fail explicitly.
+- `just import`, `just catalog-add`, and `just catalog`; relocated identical files
+  reuse analysis and receive a player command with the correct audio override.
+- Nine catalog checks for reuse, identity, relocation, corruption, provenance,
+  recovery, database protection, and CLI behavior.
+
+### Fixed
+
+- Unknown-duration terminal contexts keep their gradient activity indicator
+  moving while hashing or external decoding blocks the caller. A dedicated
+  check verifies progress without displaying an invented percentage.
+- Analyzer diagnostic messages use stderr, keeping catalog JSON stdout clean.
+
 ## [0.5.0] - 2026-10-22
 
 ### Added
@@ -93,9 +116,10 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.6.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
 [0.4.0]: https://github.com/njhoffman/harmonic/tree/v0.4.0
 [0.5.0]: https://github.com/njhoffman/harmonic/tree/v0.5.0
+[0.6.0]: https://github.com/njhoffman/harmonic/tree/v0.6.0

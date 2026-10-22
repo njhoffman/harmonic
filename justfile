@@ -33,6 +33,18 @@ build jobs="4": configure
 analyze audio=default_audio bundle=default_bundle: sync
     {{ quote(python) }} -m harmonic_analysis {{ quote(audio) }} --output {{ quote(bundle) }}
 
+# Import a recording, reusing verified analysis or creating a managed bundle.
+import audio=default_audio database="data/library/catalog.sqlite3": sync
+    {{ quote(python) }} -m harmonic_analysis.catalog --database {{ quote(database) }} import {{ quote(audio) }}
+
+# Register an existing bundle without repeating feature extraction.
+catalog-add audio=default_audio bundle=default_bundle database="data/library/catalog.sqlite3": sync
+    {{ quote(python) }} -m harmonic_analysis.catalog --database {{ quote(database) }} import {{ quote(audio) }} --bundle {{ quote(bundle) }}
+
+# List local recording identities and bundle references.
+catalog database="data/library/catalog.sqlite3": sync
+    {{ quote(python) }} -m harmonic_analysis.catalog --database {{ quote(database) }} list
+
 # Build and play a previously analyzed recording.
 play bundle=default_bundle: build
     {{ quote(player) }} {{ quote(bundle) }}
