@@ -37,6 +37,8 @@
 - Keep `TODO.md` as the running task checklist. Update it with each approved
   update, check off only verified work, and record blockers such as pending
   model access without marking the dependent implementation complete.
-- SAM Audio is the preferred separation engine; checkpoint access is pending.
+- SAM Audio is the preferred separation engine; the owner has access to
+  `facebook/sam-audio-large-tv`. The isolated worker is prepared for a GPU host;
+  worker authentication and actual CUDA inference remain unverified.
   Keep Demucs optional as a comparison/fallback, and isolate model dependencies
   from the current analyzer/player environment.

@@ -337,19 +337,35 @@ supports ASCII; richer typography and translated metadata need a proper text
 renderer. The prototype uses native Linux OpenGL entry points; other platforms
 will need a portable GL loader and packaging work.
 
-The preferred next separation engine is [SAM Audio](https://huggingface.co/collections/facebook/sam-audio),
-with checkpoint access pending. Its prompted target/residual outputs need an
-adapter and timing/quality validation before they can drive additional graphs.
-Demucs is an optional comparison/fallback. SAM Audio has not been installed or
-benchmarked in this project; implementation tasks are tracked in [TODO.md](TODO.md).
+The owner now has access to [SAM Audio large TV](https://huggingface.co/facebook/sam-audio-large-tv).
+An isolated GPU worker is prepared with pinned dependencies, portable excerpt
+jobs, target/residual WAVs and provenance reports, and returned-output validation.
+Its dependency graph resolves; GPU installation, authentication, inference, and
+timing/quality validation remain pending. No checkpoint weights were downloaded
+on this laptop. SAM outputs are not yet part of the native player bundle.
+Demucs remains an optional comparison/fallback.
 
-Provider credentials and uploads are not needed for this milestone. Review the
+```sh
+just sam-doctor  # Reports missing prerequisites; downloads no weights.
+just sam-prepare '/path/track.flac' data/sam-jobs/my-track 30 10
+# On the GPU host: just sam-sync; just sam-auth; just sam-doctor
+just sam-run data/sam-jobs/my-track data/sam-results/my-track
+just sam-validate data/sam-jobs/my-track data/sam-results/my-track
+```
+
+The existing Billie Jean excerpt is at `data/sam-jobs/billie-jean-v0.7.0/`.
+See the [SAM worker guide](workers/sam_audio/README.md) for GPU requirements,
+job transfer, inference settings, mono/overlap semantics, and dependency license
+observations. Tasks remain tracked in [TODO.md](TODO.md).
+
+Original-mix analysis/playback needs no provider credentials. The SAM worker
+requires Hugging Face authentication on its GPU host. Review the
 licenses of the chosen FFmpeg/SDL/Arrow builds before distributing binaries.
 
 ## Versions and approved releases
 
 Use [Semantic Versioning](https://semver.org/) and annotated Git tags named `vX.Y.Z`.
-The public interfaces are the analyzer/catalog/player/checker CLIs and the documented analysis
+The public interfaces are the analyzer/catalog/SAM/player/checker CLIs and the documented analysis
 bundle contract. During 0.x development, new features and incompatible interface
 changes increment the minor version; compatible fixes, documentation, and build
 maintenance increment the patch version. After 1.0, incompatible changes require

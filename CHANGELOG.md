@@ -5,6 +5,26 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-22
+
+### Added
+
+- Portable short-excerpt SAM Audio jobs through `harmonic-sam prepare/inspect`,
+  preserving source/PCM checksums, exact source sample offsets, prompts, and settings.
+- Isolated Linux GPU worker for the approved `facebook/sam-audio-large-tv`
+  checkpoint, pinned source/model revisions, and a separate Python 3.11/CUDA 12.8
+  dependency lock. The graph resolves; runtime/GPU compatibility is still unverified.
+- Worker preflight diagnostics and explicit GPU-host sync/auth/run commands.
+  Help/version and pre-install diagnostics require no model dependencies; missing
+  prerequisites stop execution before checkpoint downloads.
+- Atomic target/residual float32 mono WAV output and provenance/timing/memory
+  reports, with returned-result validation via `harmonic-sam validate` and
+  `just sam-validate`. Independent targets may overlap; only right codec padding
+  is trimmed, without normalization or concealing short/invalid output.
+- Eight contract/CLI checks and GPU setup, transfer, and dependency-license notes.
+  The owner granted model access; no weights or inference stack were installed
+  locally and no real separation benchmark has run yet.
+
 ## [0.6.0] - 2026-10-22
 
 ### Added
@@ -116,10 +136,11 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.7.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
 [0.4.0]: https://github.com/njhoffman/harmonic/tree/v0.4.0
 [0.5.0]: https://github.com/njhoffman/harmonic/tree/v0.5.0
 [0.6.0]: https://github.com/njhoffman/harmonic/tree/v0.6.0
+[0.7.0]: https://github.com/njhoffman/harmonic/tree/v0.7.0

@@ -17,7 +17,7 @@ checklist as part of each approved update.
 - [x] Implement pause/resume, seeking, restart, normalization, and timing offset.
 - [x] Pass five signal-analysis tests, six CLI checks, three player integration tests,
   three projectM integration checks, four compositor/playback tests, nine catalog
-  checks, and three command-status tests.
+  checks, eight SAM job/worker contract checks, and three command-status tests.
 - [x] Verify the real recording with dummy-audio playback/seek/end-of-track checks.
 - [x] Render and visually inspect an offscreen OpenGL preview.
 - [x] Add `just` commands for build, analysis, playback, verification, and release.
@@ -54,18 +54,29 @@ checklist as part of each approved update.
 
 ## Next: SAM Audio separation
 
-**Access pending:** the owner is awaiting access to the
-[SAM Audio checkpoints](https://huggingface.co/collections/facebook/sam-audio).
-SAM Audio is preferred over the earlier Demucs-first direction. No checkpoint
-download or SAM Audio inference has been performed here.
+**Access granted:** the owner confirmed access to
+[`facebook/sam-audio-large-tv`](https://huggingface.co/facebook/sam-audio-large-tv).
+The isolated worker and dependency lock are prepared here for a GPU host, as
+requested. This machine exposes Intel Iris Xe graphics, 16 GB RAM, no working
+CUDA device, and no configured Hugging Face token. No checkpoint weights were
+downloaded and no real SAM Audio inference has run. See the
+[worker guide](workers/sam_audio/README.md) for setup and transfer instructions.
 
-- [ ] Receive checkpoint access and configure authentication locally.
-- [ ] Select a compatible Python/PyTorch/CUDA environment for an isolated worker.
-- [ ] Confirm the selected SAM License/checkpoint terms fit the intended usage.
+- [x] Receive checkpoint access (owner confirmation).
+- [x] Prepare an isolated Python 3.11/CUDA worker with pinned source/checkpoint
+  revisions and a resolved transitive dependency lock, without installing it locally.
+- [x] Prepare a portable 10-second “Billie Jean” job at 30 seconds with exact
+  source/PCM hashes, source sample offset, prompts, seed, and inference settings.
+- [x] Verify portable input, output audio/timebase validation, corrupt-file
+  rejection, mono gain/right-padding handling, and dependency-free diagnostics.
+- [ ] Install the locked environment on the GPU host and verify package imports,
+  CUDA functionality, available memory, authentication, and gated checkpoint access.
+- [ ] Confirm license terms for eventual distribution/service use. The SAM License
+  was inspected; Perception Models and ImageBind have noncommercial terms to review.
 - [ ] Benchmark a short “Billie Jean” excerpt with vocal, drum, and bass prompts;
   record checkpoint revision, settings, runtime, memory, and visual usefulness.
-- [ ] Define target/residual and overlapping-target semantics; do not assume
-  independently prompted outputs form four mutually exclusive stems.
+- [x] Define target/residual and overlapping-target semantics; independently
+  prompted pairs may overlap and are not four mutually exclusive stems.
 - [ ] Implement an adapter that preserves sample alignment, output rate/channels,
   relative gain, prompt/anchor provenance, and reproducible inference settings.
 - [ ] Establish full-song chunking/overlap behavior and test boundary artifacts.

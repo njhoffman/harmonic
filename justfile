@@ -4,6 +4,7 @@ python := justfile_directory() / ".venv/bin/python"
 player := justfile_directory() / "build/harmonic-player"
 default_audio := "data/tracks/Michael Jackson - Billie Jean.mp3"
 default_bundle := "data/analysis/billie-jean"
+sam_python := justfile_directory() / "workers/sam_audio/.venv/bin/python"
 
 # List available commands.
 default:
@@ -44,6 +45,30 @@ catalog-add audio=default_audio bundle=default_bundle database="data/library/cat
 # List local recording identities and bundle references.
 catalog database="data/library/catalog.sqlite3": sync
     {{ quote(python) }} -m harmonic_analysis.catalog --database {{ quote(database) }} list
+
+# Prepare a portable short-excerpt job; no model packages or weights are needed.
+sam-prepare audio=default_audio output="data/sam-jobs/billie-jean" start="30" duration="10": sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli prepare {{ quote(audio) }} --output {{ quote(output) }} --start {{ quote(start) }} --duration {{ quote(duration) }}
+
+# Install the separate pinned inference environment ON THE GPU HOST (large download).
+sam-sync:
+    @UV_PYTHON_INSTALL_DIR={{ quote(justfile_directory() / ".cache/uv-python") }} python3 scripts/run_status.py "Syncing isolated SAM worker" uv sync --project workers/sam_audio --frozen --python 3.11 --cache-dir .cache/uv
+
+# Diagnose the worker without downloading weights; returns nonzero when not ready.
+sam-doctor:
+    @if test -x {{ quote(sam_python) }}; then {{ quote(sam_python) }} workers/sam_audio/worker.py doctor; else python3 workers/sam_audio/worker.py doctor; fi
+
+# Authenticate interactively on the GPU host; tokens stay out of project files.
+sam-auth:
+    ./workers/sam_audio/.venv/bin/hf auth login
+
+# Run a prepared excerpt on the GPU host; no automatic CPU fallback or installation.
+sam-run job="data/sam-jobs/billie-jean" output="data/sam-results/billie-jean":
+    @if test -x {{ quote(sam_python) }}; then {{ quote(sam_python) }} workers/sam_audio/worker.py run {{ quote(job) }} --output {{ quote(output) }}; else python3 workers/sam_audio/worker.py run {{ quote(job) }} --output {{ quote(output) }}; fi
+
+# Verify returned audio against the prepared job before using its timeline.
+sam-validate job="data/sam-jobs/billie-jean" result="data/sam-results/billie-jean": sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli validate {{ quote(job) }} {{ quote(result) }}
 
 # Build and play a previously analyzed recording.
 play bundle=default_bundle: build

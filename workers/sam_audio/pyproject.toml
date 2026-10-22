@@ -1,0 +1,37 @@
+[project]
+name = "harmonic-sam-worker"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "sam-audio @ git+https://github.com/facebookresearch/sam-audio.git@bb4c6999d2677c7402360e426afc01ddfad6dce0",
+  "torch==2.8.0",
+  "torchaudio==2.8.0",
+  "torchvision==0.23.0",
+  "torchcodec==0.7.0",
+  "xformers==0.0.32.post2",
+  "numpy==1.26.4",
+  "transformers==4.55.4",
+  "huggingface-hub==0.34.4",
+  "opencv-python==4.11.0.86",
+]
+
+[tool.uv]
+package = false
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+override-dependencies = [
+  "dacvae @ git+https://github.com/facebookresearch/dacvae.git@414c20785fc3a28373073ea8ef7a1316eeeaca6e",
+  "imagebind @ git+https://github.com/facebookresearch/ImageBind.git@53680b02d7e37b19b124fa37bae4b6c98c38f5be",
+  "laion-clap @ git+https://github.com/lematt1991/CLAP.git@b85cb7ecac0af7d064cbf03ebd990e709e959fe7",
+  "perception-models @ git+https://github.com/facebookresearch/perception_models.git@e72b6810b1133e1c879f2cc965d276eb73803f1f",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+xformers = { index = "pytorch-cu128" }
