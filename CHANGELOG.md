@@ -5,6 +5,21 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-22
+
+### Added
+
+- `TODO.md` as the running checklist, with verified work, manual playback checks,
+  pending SAM Audio access, and the remaining implementation milestones.
+- Standing instructions to keep the checklist current with approved updates.
+
+### Changed
+
+- Prefer SAM Audio for the next separation milestone, with Demucs retained as an
+  optional reference/fallback. Document prompted target/residual behavior,
+  provenance, timing/channel conversion, model isolation, and access/licensing
+  prerequisites. SAM Audio remains uninstalled and unbenchmarked pending access.
+
 ## [0.2.0] - 2026-10-22
 
 First tagged release, following the untagged 0.1.0 prototype.
@@ -29,5 +44,6 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.2.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
+[0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1

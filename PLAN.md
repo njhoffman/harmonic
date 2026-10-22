@@ -31,7 +31,7 @@ Assumptions for this plan: prerecorded local MP3s first; preprocessing is accept
 | Layer | Recommended starting choice | Reason and tradeoff |
 | --- | --- | --- |
 | Audio analysis | Python, NumPy, SciPy, librosa; FFmpeg for decoding | Gives direct access to audio research tools and measurable DSP. Keep this outside the rendering process. |
-| Source separation | A pinned Demucs baseline; evaluate one commercial alternative | Establishes a reproducible reference while keeping the provider replaceable. Do not assume an older research model is the best current separator. |
+| Source separation | SAM Audio as the preferred engine, pending checkpoint access; Demucs as an optional comparison/fallback | Supports exploring more specific musical sources. Validate prompt behavior, timing, gain, and resource use before depending on it. |
 | Native client | C++20, CMake, SDL3 | Direct integration with native audio, OpenGL, and libprojectM. Costs more packaging and memory-management work than a Python prototype. |
 | Graphics | OpenGL 3.3 core as an initial target, GLSL, GLAD, GLM | Fits the requested direction. Confirm the selected projectM release and target GPUs during the initial integration spike. |
 | Playback | FFmpeg libraries for decode/resampling, SDL3 audio for output | Using the same decoding rules in analysis and playback reduces timing ambiguity. Account for device buffering separately. |
@@ -54,9 +54,25 @@ Start with a command-line analyzer and a separate player. They can communicate t
 
 Begin with four stems: **vocals, drums, bass, other**, plus independently measured features for the original mix. A four-stem baseline makes the scene model manageable. Additional instruments can follow when they produce a clear visual benefit.
 
-Demucs provides this baseline, but its original repository explicitly states it is no longer maintained and points to the author’s fork. Treat the selected code, dependencies, and checkpoint as a frozen experiment behind an adapter. The six-source model’s documented piano limitations are another reason to begin with four sources. [Demucs README](https://github.com/facebookresearch/demucs/blob/main/README.md?plain=1)
+**SAM Audio is the preferred separation direction, replacing the earlier Demucs-first recommendation. Hugging Face checkpoint access is pending.** Its text, visual, and temporal prompting support fits the goal of eventually extracting more specific sources than four fixed instrument groups. Actual separation quality for this library remains to be measured. [SAM Audio repository](https://github.com/facebookresearch/sam-audio)
+
+Demucs remains an optional comparison or fallback, not the default implementation target. Its original repository states it is no longer maintained and points to the author’s fork; freeze any selected code and checkpoint behind the same adapter. [Demucs README](https://github.com/facebookresearch/demucs/blob/main/README.md?plain=1)
 
 Use specialized separation models or a music-analysis API for the signal processing. OpenAI or Claude could help map existing descriptors into a controlled vocabulary, interpret verified lyric themes, or propose scene settings. Their generated descriptions should not become measured frequency curves, stem envelopes, or beat timestamps. OpenAI’s documented file-transcription workflow targets speech-to-text; it does not establish suitability for instrument separation or precise singing alignment. [Official OpenAI transcription documentation](https://developers.openai.com/api/docs/guides/speech-to-text)
+
+### SAM Audio integration direction (access pending)
+
+The documented API isolates a prompted target and returns a residual, each as a one-dimensional waveform. It does not expose the same fixed four-stem interface as Demucs. This implies that separate instrument prompts need evaluation for overlap and omissions; their outputs must not automatically be treated as an exclusive partition of the mix. [Model card and output format](https://huggingface.co/facebook/sam-audio-base)
+
+Proposed integration steps:
+
+1. After access is granted, benchmark short “Billie Jean” excerpts with a small or base checkpoint and prompts for vocals, drums, and bass. Compare quality, elapsed time, and memory before selecting a model size. CUDA is recommended upstream; no GPU memory requirement has been established for this machine. [Setup and model variants](https://github.com/facebookresearch/sam-audio)
+2. Record checkpoint revision, prompt, temporal anchors, native sample rate/channel layout, gain handling, and inference settings in the analysis provenance. Preserve mono output as mono in provenance; duplicating it for feature extraction does not establish stereo width.
+3. Map output back to the original 48 kHz sample timeline and verify alignment, sample counts, and relative level. Establish a chunk/overlap policy for full songs and test boundary artifacts before catalog processing.
+4. Keep the worker in a separate inference environment. Its upstream dependencies include PyTorch, TorchAudio, TorchCodec, and Git-sourced packages; avoid coupling them to the lightweight analyzer/player environment. [Dependency manifest](https://github.com/facebookresearch/sam-audio/blob/main/pyproject.toml)
+5. Confirm the SAM License fits the eventual distribution/service design. It is a separate license from Demucs; checkpoint access does not make them interchangeable licenses. [SAM License](https://github.com/facebookresearch/sam-audio/blob/main/LICENSE)
+
+The current mix-only player remains usable while access is pending. No SAM Audio installation, checkpoint download, or inference benchmark has been performed. Track the actionable work in [TODO.md](TODO.md).
 
 ### Proposed first feature contract
 
@@ -165,7 +181,7 @@ The local-file design also avoids making Spotify playback a dependency. Any late
 | **ACRCloud** | Alternate identity/metadata supplier if commercial catalog coverage becomes important. Its metadata API accepts identifiers such as ISRC and returns cross-platform metadata; this does not substitute for checking exact recording alignment. [Metadata API](https://docs.acrcloud.com/reference/metadata-api) |
 | **Essentia** | Valuable music-analysis research toolkit and pretrained classifiers. Its library and model licensing differ: AGPLv3 for the library, and the official pretrained models are listed under CC BY-NC-ND 4.0 with proprietary licensing available. Evaluate the exact intended usage before making it part of a commercial service. [Licensing](https://essentia.upf.edu/licensing_information.html) |
 
-For your initial experiment, I would compare **one local separator against either Music.ai or AudioShake**, then evaluate **Cyanite as the single semantic tagger**. This is an evaluation recommendation, not a provider-quality ranking; no representative tracks have been processed yet.
+For the separation experiment, prioritize **SAM Audio once access is granted**, with Demucs or either Music.ai/AudioShake as an optional comparison. Evaluate **Cyanite as the single semantic tagger** afterward. No separation or provider-quality benchmark has been run; the supplied recording has so far been processed only for original-mix features.
 
 ## 7. Lyrics need their own pipeline
 
@@ -208,7 +224,7 @@ Do an early test with representative presets rather than assuming full visual co
 | --- | --- | --- |
 | **0. Resolve the expensive assumptions** | Pick the first target OS/GPU. Select 20–30 representative tracks. Draft feature/timing schemas. Compile a minimal SDL/OpenGL client and exercise one libprojectM preset. Get one separation-provider sample and clarify output reuse. | The proposed stack works on your machine, and no essential provider dependency is assumed without evidence. |
 | **1. One recording, full-track graphs** | Decode audio, import embedded tags, extract mix RMS/spectrum/onsets, write a manifest and artifact, and display bars/lines during playback. Add pause/seek and a timing offset control. | Graphs remain aligned through a complete song, repeated seeks, and pause/resume. The player can run without a network connection. |
-| **2. Stem-driven graphs** | Add a separation adapter and four-stem features. Preserve relative gain. Show mix and stem graphs, robust normalization, feature statistics, and optional waveform thumbnails. Discard temporary stem audio after a validated artifact is complete. | Instruments produce visibly distinct activity. Reimporting an unchanged input reuses analysis. A failed later stage does not redo separation. |
+| **2. Stem-driven graphs** | Integrate SAM Audio after checkpoint access, starting with prompted vocal/drum/bass targets. Define overlap/residual semantics and extend the bundle/player for multiple streams. Preserve timing and relative gain. Discard temporary separated audio after a validated artifact is complete. | Instruments produce visibly distinct activity; target overlap is understood. Reimporting an unchanged input reuses analysis. A failed later stage does not redo separation. |
 | **3. Lyrics and semantic context** | Import line-timed lyrics, add offset correction, integrate one tagger, and implement a restrained palette/background selector. | Missing lyrics or metadata do not interrupt playback. Provider observations and user corrections remain traceable. |
 | **4. A small visual repertoire** | Build one spatial stem scene, one drum/bass radial scene, and one vocal/lyric scene. Add scene transitions, projectM compositing, and shader reload during development. | The experience is attractive on representative music, survives a full playlist, and meets a stated frame-rate target on the chosen hardware. |
 | **5. Catalog and service** | Add resumable library processing, identity review, quotas/cost reporting, PostgreSQL metadata, object storage, and an authenticated artifact API with local client caching. | A second client can retrieve permitted analysis for a correctly matched recording without receiving the original audio. Revisions and provider failures are handled predictably. |

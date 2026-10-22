@@ -3,6 +3,7 @@
 A local music visualizer with offline, sample-aligned analysis. The first prototype
 plays an original recording while displaying its frequency spectrum, RMS envelope,
 peak level, and spectral-onset activity. See [PLAN.md](PLAN.md) for the longer roadmap.
+The running task checklist is [TODO.md](TODO.md).
 
 ## Common commands
 
@@ -151,6 +152,12 @@ long recordings need a future streaming/chunking pass. The small bitmap UI font
 supports ASCII; richer typography and translated metadata need a proper text
 renderer. The prototype uses native Linux OpenGL entry points; other platforms
 will need a portable GL loader and packaging work.
+
+The preferred next separation engine is [SAM Audio](https://huggingface.co/collections/facebook/sam-audio),
+with checkpoint access pending. Its prompted target/residual outputs need an
+adapter and timing/quality validation before they can drive additional graphs.
+Demucs is an optional comparison/fallback. SAM Audio has not been installed or
+benchmarked in this project; implementation tasks are tracked in [TODO.md](TODO.md).
 
 Provider credentials and uploads are not needed for this milestone. Review the
 licenses of the chosen FFmpeg/SDL/Arrow builds before distributing binaries.
