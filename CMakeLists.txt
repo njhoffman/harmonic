@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(harmonic VERSION 0.4.0 LANGUAGES C CXX)
+project(harmonic VERSION 0.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -53,34 +53,44 @@ endif()
 
 add_executable(harmonic-player
     native/src/main.cpp native/src/audio.cpp native/src/bundle.cpp
-    native/src/transport.cpp native/src/renderer.cpp)
+    native/src/transport.cpp native/src/renderer.cpp native/src/preset_renderer.cpp
+    native/src/compositor_check.cpp)
 target_include_directories(harmonic-player PRIVATE native/include)
 target_compile_definitions(harmonic-player PRIVATE GL_GLEXT_PROTOTYPES HARMONIC_VERSION="${PROJECT_VERSION}")
 target_compile_options(harmonic-player PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(harmonic-player PRIVATE SDL3::SDL3 OpenGL::GL
     PkgConfig::FFMPEG PkgConfig::JSONCPP ${HARMONIC_ARROW_TARGET})
 
+option(HARMONIC_PROJECTM "Enable optional projectM playback when supported by the installed library" ON)
 option(HARMONIC_PROJECTM_CHECK "Build the optional libprojectM preset checker when installed" ON)
-if(HARMONIC_PROJECTM_CHECK)
+if(HARMONIC_PROJECTM OR HARMONIC_PROJECTM_CHECK)
     find_package(projectM4 4 QUIET CONFIG)
     if(projectM4_FOUND)
         include(CheckCXXSymbolExists)
         set(CMAKE_REQUIRED_LIBRARIES libprojectM::projectM)
         check_cxx_symbol_exists(projectm_set_frame_time "projectM-4/parameters.h"
             HARMONIC_PROJECTM_FRAME_TIME)
+        check_cxx_symbol_exists(projectm_opengl_render_frame_fbo "projectM-4/render_opengl.h"
+            HARMONIC_PROJECTM_FRAMEBUFFER)
         unset(CMAKE_REQUIRED_LIBRARIES)
-        add_executable(harmonic-projectm-check native/src/projectm_check.cpp
-            native/src/audio.cpp native/src/bundle.cpp native/src/renderer.cpp)
-        target_include_directories(harmonic-projectm-check PRIVATE native/include)
-        target_compile_definitions(harmonic-projectm-check PRIVATE GL_GLEXT_PROTOTYPES
-            HARMONIC_VERSION="${PROJECT_VERSION}")
-        if(HARMONIC_PROJECTM_FRAME_TIME)
-            target_compile_definitions(harmonic-projectm-check PRIVATE HARMONIC_PROJECTM_FRAME_TIME)
+        if(HARMONIC_PROJECTM AND HARMONIC_PROJECTM_FRAME_TIME AND HARMONIC_PROJECTM_FRAMEBUFFER)
+            target_compile_definitions(harmonic-player PRIVATE HARMONIC_PROJECTM_PLAYBACK)
+            target_link_libraries(harmonic-player PRIVATE libprojectM::projectM)
         endif()
-        target_compile_options(harmonic-projectm-check PRIVATE -Wall -Wextra -Wpedantic)
-        target_link_libraries(harmonic-projectm-check PRIVATE SDL3::SDL3 OpenGL::GL
-            libprojectM::projectM PkgConfig::FFMPEG PkgConfig::JSONCPP ${HARMONIC_ARROW_TARGET})
+        if(HARMONIC_PROJECTM_CHECK)
+            add_executable(harmonic-projectm-check native/src/projectm_check.cpp
+                native/src/audio.cpp native/src/bundle.cpp native/src/renderer.cpp)
+            target_include_directories(harmonic-projectm-check PRIVATE native/include)
+            target_compile_definitions(harmonic-projectm-check PRIVATE GL_GLEXT_PROTOTYPES
+                HARMONIC_VERSION="${PROJECT_VERSION}")
+            if(HARMONIC_PROJECTM_FRAME_TIME)
+                target_compile_definitions(harmonic-projectm-check PRIVATE HARMONIC_PROJECTM_FRAME_TIME)
+            endif()
+            target_compile_options(harmonic-projectm-check PRIVATE -Wall -Wextra -Wpedantic)
+            target_link_libraries(harmonic-projectm-check PRIVATE SDL3::SDL3 OpenGL::GL
+                libprojectM::projectM PkgConfig::FFMPEG PkgConfig::JSONCPP ${HARMONIC_ARROW_TARGET})
+        endif()
     else()
-        message(STATUS "libprojectM 4 not found; skipping the optional preset checker")
+        message(STATUS "libprojectM 4 not found; building the player without optional preset support")
     endif()
 endif()

@@ -2,7 +2,7 @@
 
 Prepared October 22, 2026, from `OUTLINE.md`. Technology and provider observations below were checked against primary documentation where available. Recommendations, proposed specifications, and effort ranges are engineering judgments, not benchmark results or vendor quotes.
 
-Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Nineteen checks cover signal analysis, CLI behavior, native playback, the optional projectM checker, and command-status handling. Classic and shader-based projectM presets now render in a separate integration spike; measured results and API limits are below. Listening checks on the actual output device remain necessary for physical latency; stem separation awaits SAM Audio access.
+Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Twenty-three checks cover signal analysis, CLI behavior, native playback, projectM rendering/compositing, and command-status handling. Optional projectM presets now play with graph overlays, a preset view, cached pause behavior, and sample-based seek resets. Listening checks on the actual output device remain necessary for physical latency; stem separation awaits SAM Audio access.
 
 ## 1. Assessment of your objectives
 
@@ -260,10 +260,44 @@ fallback detection as unavailable. Regression checks cover the actual library
 load-error callback, invalid input, output preservation, and a known diagnostic
 preset.
 
-Next, integrate projectM behind a separate renderer/compositor, restore the GL
-state needed by the custom graphs, feed PCM from the playback position, and
-reset preset feedback after seeks. Test display presentation and frame times on
-the actual GPU before choosing presets or promising a frame-rate target.
+### Playback integration — v0.5.0
+
+`harmonic-player --preset FILE` now integrates projectM behind the existing UI.
+It renders into a separate framebuffer, copies the cached image before drawing
+graph overlays, and restores UI OpenGL state explicitly. The `V` key switches
+between combined, preset, and graph views; preset view retains playback controls
+and the track envelope. The corrected sample timeline drives both PCM submission
+and explicit preset animation time. A held sample position reuses the cached
+frame, keeping feedback frozen while the UI continues drawing.
+
+Seek/restart, offset changes, resize, and returning from graph view create a new
+preset history. Startup and explicit seek/reset preparation hold the audio clock
+until the first frame is ready, then restore the prior playback state. This is a
+clean reset policy, not a reconstruction of all earlier MilkDrop feedback.
+The optional integration probes for frame-time and user-framebuffer functions;
+builds without those APIs retain graph playback and can still use the older
+independent checker where supported. Both projectM features can be disabled at
+configure time; that build was compiled and its unavailable-preset behavior checked.
+
+The same classic and shader presets above passed the playback compositor check
+using “Billie Jean” at 30 seconds. Reports are stored locally at
+`data/compositor-v0.5.0-geiss/report.json` and
+`data/compositor-v0.5.0-flow/report.json`. Each verifies identical graph rendering
+before/after projectM GL-state changes, exact paused-frame stability, sample-clock
+advancement, forward/backward resets, EOF stability, and framebuffer resize.
+Reports preserve source/preset/view hashes. A separate test runs the real playback
+loop with SDL dummy audio, and the base player remains tested without projectM.
+The full suite contains 23 tests. A warmed-up 120-frame shader/graph preview was
+visually reviewed at `data/compositor-v0.5.0-combined.png`.
+
+These checks establish the rendering/playback integration on the offscreen Mesa
+software renderer. They do not measure target-GPU frame times, physical output
+latency, or desktop input handling. The local CMake package also emits a GLX
+runtime-path warning because `~/.local/lib` can shadow system GLX libraries;
+offscreen checks pass, and the desktop loader needs checking during hardware
+validation and packaging. Shader-fallback detection remains unavailable through
+the C API. Test display presentation, controls, and frame times on the actual GPU
+before choosing a wider preset set or promising a frame-rate target.
 
 ## 9. Roadmap with concrete completion gates
 

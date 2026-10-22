@@ -1,4 +1,5 @@
 #include "harmonic.hpp"
+#include "preset_file.hpp"
 #include "terminal.hpp"
 
 #include <SDL3/SDL_opengl.h>
@@ -97,18 +98,8 @@ double percentile(const std::vector<double>& sorted, double fraction) {
     const auto left = static_cast<std::size_t>(index);
     return std::lerp(sorted[left], sorted[std::min(left + 1, sorted.size() - 1)], index - left);
 }
-void validate_preset(const std::filesystem::path& path) {
-    std::ifstream input(path);
-    if (!input) throw std::runtime_error("Cannot read preset: " + path.string());
-    for (std::string line; std::getline(input, line);) {
-        const auto first = line.find_first_not_of(" \t\r");
-        if (first != std::string::npos &&
-            line.substr(first, line.find_last_not_of(" \t\r") - first + 1) == "[preset00]") return;
-    }
-    throw std::runtime_error("Preset loading failed: missing [preset00] section");
-}
 Json::Value run(const Options& options) {
-    validate_preset(options.preset);
+    harmonic::validate_preset_file(options.preset);
     const auto bundle = harmonic::load_bundle(options.bundle);
     const auto audio = harmonic::decode_audio(bundle.audio_path);
     const auto audio_frames = audio.size() / harmonic::channels;

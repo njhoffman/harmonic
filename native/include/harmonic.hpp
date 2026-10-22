@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -74,8 +75,11 @@ public:
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
     SDL_Window* window() const { return window_; }
-    void draw(const Bundle& bundle, double seconds, bool paused, double offset, bool relative);
+    enum class View { graphs, combined, preset };
+    void draw(const Bundle& bundle, double seconds, bool paused, double offset, bool relative,
+              View view = View::graphs);
     void screenshot(const std::filesystem::path& path);
+    std::string frame_checksum();
     // Coordinates below are logical window coordinates, unaffected by display DPI.
     static constexpr float timeline_left = 42, timeline_top = 470;
 
@@ -89,5 +93,27 @@ private:
     int resolution_ = -1;
     std::vector<Vertex> vertices_;
 };
+
+bool projectm_playback_available();
+
+// Owns preset feedback separately from the UI. Its GL resources must be destroyed
+// before the Renderer/context. PCM and animation follow the same sample clock.
+class PresetRenderer {
+public:
+    PresetRenderer(const std::vector<float>& audio, const std::filesystem::path& preset,
+                   const std::vector<std::string>& textures = {});
+    ~PresetRenderer();
+    PresetRenderer(const PresetRenderer&) = delete;
+    PresetRenderer& operator=(const PresetRenderer&) = delete;
+    void reset();
+    void draw(double seconds, int width, int height);
+    Json::Value diagnostics() const;
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
+void compositor_check(Renderer& renderer, PresetRenderer& preset, const Bundle& bundle,
+                      double start, const std::filesystem::path& output);
 
 } // namespace harmonic

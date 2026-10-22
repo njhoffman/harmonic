@@ -37,6 +37,10 @@ analyze audio=default_audio bundle=default_bundle: sync
 play bundle=default_bundle: build
     {{ quote(player) }} {{ quote(bundle) }}
 
+# Play a local projectM preset with graph overlays; V cycles views.
+play-preset preset bundle=default_bundle view="combined": build
+    {{ quote(player) }} {{ quote(bundle) }} --preset {{ quote(preset) }} --view {{ quote(view) }}
+
 # Build and run all Python and native integration tests.
 test: build
     @python3 scripts/run_status.py "Running tests" {{ quote(python) }} -m unittest discover -s tests -v
@@ -56,6 +60,10 @@ render-check bundle=default_bundle seconds="35" output="data/preview.ppm": build
 # Check a local projectM preset offscreen; requires installed libprojectM 4.
 projectm-check preset bundle=default_bundle output="data/projectm-check" frames="180": build
     ./build/harmonic-projectm-check {{ quote(bundle) }} --preset {{ quote(preset) }} --output {{ quote(output) }} --frames {{ quote(frames) }}
+
+# Verify preset/UI composition, pause, seeking, EOF, and resize offscreen without audio.
+compositor-check preset bundle=default_bundle output="data/compositor-check": build
+    {{ quote(player) }} {{ quote(bundle) }} --preset {{ quote(preset) }} --compositor-check {{ quote(output) }}
 
 # Print the current project version.
 version:

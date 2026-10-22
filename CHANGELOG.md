@@ -5,6 +5,28 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-22
+
+### Added
+
+- Optional projectM preset playback through `harmonic-player --preset`, with
+  combined graph overlays, a preset view, graph-only mode, and a `V` view toggle.
+- Sample-clock-driven preset timing, a separate framebuffer that stays frozen
+  during pause, and feedback resets after seeks, offset changes, resizing, and
+  returning from graph-only mode. Preset preparation holds the audio clock
+  during startup and explicit seek/reset operations.
+- `just play-preset`, `just compositor-check`, offscreen multi-frame preview
+  rendering, and compositor reports covering GL state, pause, sample advancement,
+  forward/backward seeks, EOF, resize, and saved view checksums.
+- Playback remains usable without projectM. Optional playback probes the actual
+  frame-time/framebuffer APIs; the older-library preset checker remains separate.
+
+### Fixed
+
+- Dummy-audio verification now polls for actual clock progress with bounded
+  deadlines and elapsed-time bounds, avoiding scheduler-dependent fixed sleeps
+  while still rejecting cursor jumps, frozen playback, and incomplete EOF.
+
 ## [0.4.0] - 2026-10-22
 
 ### Added
@@ -71,8 +93,9 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.5.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
 [0.4.0]: https://github.com/njhoffman/harmonic/tree/v0.4.0
+[0.5.0]: https://github.com/njhoffman/harmonic/tree/v0.5.0

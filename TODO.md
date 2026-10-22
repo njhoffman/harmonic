@@ -16,7 +16,7 @@ checklist as part of each approved update.
 - [x] Display spectrum bars and a whole-track amplitude envelope.
 - [x] Implement pause/resume, seeking, restart, normalization, and timing offset.
 - [x] Pass five signal-analysis tests, six CLI checks, three player integration tests,
-  three projectM integration checks, and two command-status tests.
+  three projectM integration checks, four compositor/playback tests, and two command-status tests.
 - [x] Verify the real recording with dummy-audio playback/seek/end-of-track checks.
 - [x] Render and visually inspect an offscreen OpenGL preview.
 - [x] Add `just` commands for build, analysis, playback, verification, and release.
@@ -27,7 +27,11 @@ checklist as part of each approved update.
 - [x] Add `just todo` and a repeatable global installer that preserves customized files.
 - [x] Add gradient progress bars, colored status markers, and elapsed-time activity
   displays while preserving command logs, failure exit codes, and color controls.
-- [x] Verify the base player builds with the optional projectM dependency disabled.
+- [x] Verify the base player builds and runs with both optional projectM features disabled.
+- [x] Add live preset playback, graph overlays, view switching, sample-clock timing,
+  cached pause behavior, and feedback resets after seeks and offset changes.
+- [x] Verify compositor state, pause, seeks, EOF, and resize with two real presets;
+  run the actual preset playback path with dummy audio.
 - [x] Establish SemVer, `CHANGELOG.md`, synchronized versions, and annotated tags.
 - [x] Publish the prototype and task runner as `v0.2.0`; verify its final build.
 
@@ -73,7 +77,7 @@ download or SAM Audio inference has been performed here.
 - [ ] Evaluate one mood/genre tagger and preserve provenance and user overrides.
 - [ ] Implement a small scene controller and restrained mood/palette mappings.
 - [ ] Build spatial, radial drum/bass, and vocal/lyric scenes.
-- [ ] Integrate projectM compositing and representative preset compatibility checks.
+- [x] Integrate projectM compositing and representative preset compatibility checks.
 - [ ] Add resumable library analysis and cost/resource reporting.
 - [ ] Build the authenticated metadata/artifact service after the local experience
   and output-redistribution permissions are established.

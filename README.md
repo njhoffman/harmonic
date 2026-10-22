@@ -2,7 +2,9 @@
 
 A local music visualizer with offline, sample-aligned analysis. The first prototype
 plays an original recording while displaying its frequency spectrum, RMS envelope,
-peak level, and spectral-onset activity. See [PLAN.md](PLAN.md) for the longer roadmap.
+peak level, and spectral-onset activity. With optional projectM support, it can
+also play MilkDrop presets with graph overlays and playback controls.
+See [PLAN.md](PLAN.md) for the longer roadmap.
 The running task checklist is [TODO.md](TODO.md).
 
 ## Common commands
@@ -102,10 +104,11 @@ Controls:
 | Seek | Click the track envelope; Left/Right for 5 seconds; Shift+Left/Right for 30 seconds |
 | Restart | Home or Restart |
 | Switch absolute/track-normalized display | N or the scale button |
+| Cycle combined, preset, and graph views when a preset is loaded | V |
 | Adjust visual synchronization | Comma/period: -/+10 ms; Backspace: reset |
 | Quit | Escape or close the window |
 
-Positive synchronization offset reads features ahead of the displayed audio time.
+Positive synchronization offset reads features and preset PCM ahead of the displayed audio time.
 An amber envelope marker shows the adjusted feature position. Playback starts
 automatically; it pauses at the end and Play restarts it.
 
@@ -148,11 +151,56 @@ The tests use synthetic tones, silence, impulses, anti-phase stereo, resampled
 audio, and invalid bundles. When `build/harmonic-player` exists, the native
 integration checks run too; otherwise they are reported as skipped.
 
-## Optional projectM preset check
+## Optional projectM playback and checks
 
 When an installed libprojectM 4 CMake package is available, the build also creates
-`harmonic-projectm-check`. The main player does not depend on libprojectM. Set
-`-DHARMONIC_PROJECTM_CHECK=OFF` when configuring CMake to disable this extra tool.
+`harmonic-projectm-check`. Playback integration additionally requires the library's
+explicit frame-time and user-framebuffer APIs; CMake probes the actual linked
+symbols. `harmonic-player --help` reports whether preset playback is enabled.
+Builds without those APIs retain the original graph player. Configure with both
+`-DHARMONIC_PROJECTM=OFF -DHARMONIC_PROJECTM_CHECK=OFF` to build without projectM;
+either option can also disable its respective feature separately.
+
+Load a local preset for playback:
+
+```sh
+just play-preset '/path/to/preset.milk'
+just play-preset '/path/to/preset.milk' data/analysis/billie-jean preset
+./build/harmonic-player data/analysis/billie-jean --preset '/path/to/preset.milk' \
+  --textures '/path/to/textures' --start 30 --view combined
+```
+
+The default preset view combines the background with translucent graph panels.
+Press **V** to cycle combined → preset → graphs → combined. Preset view keeps the
+transport, time, activity readouts, and clickable track envelope. Its animation
+and PCM input follow the same corrected sample timeline as the graphs. The
+preset image is cached separately from the UI, so pausing freezes feedback while
+controls remain responsive. Seeking, changing the timing offset, resizing, and
+returning from graph view reset preset feedback. Startup and explicit seek/reset
+preparation hold the audio clock until the first preset frame is ready. Resetting
+starts a fresh preset history; it does not reconstruct all preceding effects.
+
+Verify the compositor or save a warmed-up playback preview without audio output:
+
+```sh
+just compositor-check '/path/to/preset.milk'
+./build/harmonic-player data/analysis/billie-jean --preset '/path/to/preset.milk' \
+  --compositor-check data/my-compositor-check --start 30
+./build/harmonic-player data/analysis/billie-jean --preset '/path/to/preset.milk' \
+  --render-check data/combined.ppm --render-frames 120 --start 30
+```
+
+The compositor check requires a new output directory. It verifies graph GL-state
+restoration, exact paused-frame stability, sample-clock advancement, forward and
+backward seek resets, EOF, and resize behavior. It saves combined/preset/graph
+PPMs and a JSON report with source, preset, and preview hashes. This mode uses a
+controlled timeline and opens no audio device. The test suite also exercises the
+real playback path with SDL's dummy audio driver. Desktop controls, physical
+output latency, and target-GPU performance still need manual validation.
+`--render-frames` renders at a 60 Hz timeline from `--start`; the screenshot shows
+the last frame. Its default remains a single frame.
+
+The independent preset checker remains available:
 
 ```sh
 just projectm-check '/path/to/preset.milk'
@@ -176,12 +224,11 @@ display presentation and pacing. When supported, explicit projectM frame times
 use a 60 Hz timeline independently of render speed. Older libraries use wall-clock
 timing with pacing; the report identifies the mode actually used.
 
-This is a rendering spike. It rejects missing preset headers, explicit library
+The checker rejects missing preset headers, explicit library
 load failures, OpenGL errors, and empty/uniform final frames. libprojectM can
 recover internally from shader failures without exposing them through its C API;
 the report marks shader-fallback detection as unavailable. Visually review output
-before claiming preset fidelity. Full compositing, seek/reset behavior, and
-interactive playback integration remain later tasks. See [PLAN.md](PLAN.md) for
+before claiming preset fidelity. See [PLAN.md](PLAN.md) for
 the recorded results and software-rendering performance limits.
 
 ## Bundle contract: schema version 1
@@ -222,9 +269,9 @@ changes and physical-output timestamps remain future work.
 
 ## Current scope
 
-This milestone analyzes the original mix. Stem separation, lyric display,
-semantic/mood services, a persistent catalog, and projectM compositing are later
-steps. The current analyzer and player decode the complete track into memory;
+This milestone analyzes the original mix and supports optional projectM
+compositing. Stem separation, lyric display, semantic/mood services, and a
+persistent catalog are later steps. The analyzer and player decode the complete track into memory;
 long recordings need a future streaming/chunking pass. The small bitmap UI font
 supports ASCII; richer typography and translated metadata need a proper text
 renderer. The prototype uses native Linux OpenGL entry points; other platforms

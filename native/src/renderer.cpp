@@ -154,18 +154,38 @@ void Renderer::text(float x, float y, const std::string& value, float scale, flo
     }
 }
 
-void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double offset, bool relative) {
+void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double offset, bool relative, View view) {
     int width, height, pixels_w, pixels_h;
     SDL_GetWindowSize(window_, &width, &height);
     SDL_GetWindowSizeInPixels(window_, &pixels_w, &pixels_h);
+    // projectM owns its GL state. Establish the complete UI state each frame.
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDrawBuffer(GL_BACK);
     glViewport(0, 0, pixels_w, pixels_h);
-    glClearColor(0.031f, 0.047f, 0.067f, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_FRAMEBUFFER_SRGB);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    if (view == View::graphs) {
+        glClearColor(0.031f, 0.047f, 0.067f, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
     vertices_.clear();
     const float left = timeline_left, span = width - 2 * left;
+    if (view != View::graphs) {
+        rect(0, 0, width, 132, 0.031f, 0.047f, 0.067f, 0.85f);
+        rect(0, 610, width, height - 610, 0.031f, 0.047f, 0.067f, 0.85f);
+    }
     rect(0, 0, width, 4, 0.22f, 0.86f, 0.72f);
     text(left, 26, "HARMONIC", 3, 0.88f, 0.94f, 0.96f);
-    text(left + 186, 34, "/ MIX INSPECTOR", 1.5f, 0.43f, 0.56f, 0.65f);
+    text(left + 186, 34, view == View::graphs ? "/ MIX INSPECTOR" :
+        (view == View::combined ? "/ PROJECTM + GRAPHS" : "/ PROJECTM"), 1.5f, 0.43f, 0.56f, 0.65f);
     std::string title = bundle.audio_path.stem().string();
     const auto max_title = static_cast<std::size_t>((span - 240) / 12);
     if (title.size() > max_title) title = title.substr(0, max_title - 3) + "...";
@@ -182,32 +202,36 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
     rect(left + 502, 108, 95 * onset, 12, 0.96f, 0.65f, 0.32f);
     text(width - 260, 109, "OFFSET " + number(offset * 1000, 0) + " MS", 1.5f, 0.51f, 0.65f, 0.73f);
 
-    constexpr float top = 154, graph_height = 270;
-    rect(left - 14, top - 16, span + 28, graph_height + 57, 0.046f, 0.072f, 0.1f);
-    for (int line = 0; line <= 3; ++line) {
-        const float y = top + line * graph_height / 3;
-        rect(left, y, span, 1, 0.1f, 0.15f, 0.2f);
-    }
-    const auto spectrum = bundle.spectrum_at(feature_time);
-    const float top_db = relative ? bundle.spectrum_top_db : 0;
-    const float band_width = span / bundle.bands;
-    for (int i = 0; i < bundle.bands; ++i) {
-        const float db = 20 * std::log10(std::max(1e-12f, spectrum[i]));
-        const float amount = std::clamp((db - (top_db - 70)) / 70, 0.0f, 1.0f);
-        const float color = static_cast<float>(i) / bundle.bands;
-        const float r = std::lerp(0.18f, 0.95f, color), g = std::lerp(0.82f, 0.64f, color);
-        const float b = std::lerp(0.76f, 0.37f, color);
-        rect(left + i * band_width + 1, top + graph_height * (1 - amount), std::max(1.0f, band_width - 3), graph_height * amount, r, g, b);
-    }
-    for (float frequency : {20.0f, 100.0f, 1000.0f, 10000.0f, 24000.0f}) {
-        const float fraction = std::log(frequency / 20) / std::log(24000.0f / 20);
-        const auto label = frequency >= 1000 ? number(frequency / 1000, 0) + " KHZ" : number(frequency, 0) + " HZ";
-        text(std::clamp(left + fraction * span - 15, left, left + span - 72), 438, label, 1.4f, 0.4f, 0.54f, 0.62f);
+    if (view != View::preset) {
+        constexpr float top = 154, graph_height = 270;
+        rect(left - 14, top - 16, span + 28, graph_height + 57, 0.046f, 0.072f, 0.1f,
+             view == View::combined ? 0.7f : 1.0f);
+        for (int line = 0; line <= 3; ++line) {
+            const float y = top + line * graph_height / 3;
+            rect(left, y, span, 1, 0.1f, 0.15f, 0.2f);
+        }
+        const auto spectrum = bundle.spectrum_at(feature_time);
+        const float top_db = relative ? bundle.spectrum_top_db : 0;
+        const float band_width = span / bundle.bands;
+        for (int i = 0; i < bundle.bands; ++i) {
+            const float db = 20 * std::log10(std::max(1e-12f, spectrum[i]));
+            const float amount = std::clamp((db - (top_db - 70)) / 70, 0.0f, 1.0f);
+            const float color = static_cast<float>(i) / bundle.bands;
+            const float r = std::lerp(0.18f, 0.95f, color), g = std::lerp(0.82f, 0.64f, color);
+            const float b = std::lerp(0.76f, 0.37f, color);
+            rect(left + i * band_width + 1, top + graph_height * (1 - amount), std::max(1.0f, band_width - 3), graph_height * amount, r, g, b);
+        }
+        for (float frequency : {20.0f, 100.0f, 1000.0f, 10000.0f, 24000.0f}) {
+            const float fraction = std::log(frequency / 20) / std::log(24000.0f / 20);
+            const auto label = frequency >= 1000 ? number(frequency / 1000, 0) + " KHZ" : number(frequency, 0) + " HZ";
+            text(std::clamp(left + fraction * span - 15, left, left + span - 72), 438, label, 1.4f, 0.4f, 0.54f, 0.62f);
+        }
     }
 
+    if (view != View::graphs) rect(left - 14, 464, span + 28, 141, 0.031f, 0.047f, 0.067f, 0.8f);
     text(left, 470, "TRACK ENVELOPE / CLICK TO SEEK", 1.4f, 0.51f, 0.65f, 0.73f);
     constexpr float envelope_top = 494, envelope_height = 105;
-    rect(left, envelope_top, span, envelope_height, 0.046f, 0.072f, 0.1f);
+    rect(left, envelope_top, span, envelope_height, 0.046f, 0.072f, 0.1f, view == View::graphs ? 1.0f : 0.65f);
     const int columns = static_cast<int>(span);
     const float amplitude_scale = relative ? bundle.rms_scale : 1;
     for (int x = 0; x < columns; ++x) {
@@ -230,7 +254,9 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
     text(left + 284, 637, relative ? "NORMALIZED" : "ABSOLUTE", 2, 0.65f, 0.77f, 0.83f);
     text(left + 492, 629, "SPACE PLAY/PAUSE   ARROWS SEEK", 1.3f, 0.43f, 0.56f, 0.65f);
     text(left + 492, 648, "N SCALE   ,/. OFFSET   HOME RESTART", 1.3f, 0.43f, 0.56f, 0.65f);
-    text(left, 690, "ORIGINAL MIX / 48 KHZ STEREO / 64 LOG BANDS / 50 FRAMES PER SECOND", 1.3f, 0.3f, 0.43f, 0.52f);
+    text(left, 690, view == View::graphs ? "ORIGINAL MIX / 48 KHZ STEREO / 64 LOG BANDS / 50 FRAMES PER SECOND" :
+        (view == View::combined ? "ORIGINAL MIX / PROJECTM + GRAPHS / V CHANGE VIEW" :
+                                 "ORIGINAL MIX / PROJECTM / V CHANGE VIEW"), 1.3f, 0.3f, 0.43f, 0.52f);
     glUseProgram(program_);
     glUniform2f(resolution_, width, height);
     glBindVertexArray(vao_);
@@ -243,6 +269,9 @@ void Renderer::screenshot(const std::filesystem::path& path) {
     int width, height;
     SDL_GetWindowSizeInPixels(window_, &width, &height);
     std::vector<unsigned char> pixels(static_cast<std::size_t>(width) * height * 3);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glReadBuffer(GL_BACK);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
     std::ofstream out(path, std::ios::binary);
@@ -251,5 +280,18 @@ void Renderer::screenshot(const std::filesystem::path& path) {
     for (int y = height - 1; y >= 0; --y)
         out.write(reinterpret_cast<const char*>(pixels.data() + static_cast<std::size_t>(y) * width * 3), width * 3);
     if (!out) throw std::runtime_error("Failed writing screenshot");
+}
+
+std::string Renderer::frame_checksum() {
+    int width = 0, height = 0;
+    SDL_GetWindowSizeInPixels(window_, &width, &height);
+    std::vector<unsigned char> pixels(static_cast<std::size_t>(width) * height * 3);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glReadBuffer(GL_BACK);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    if (glGetError() != GL_NO_ERROR) throw std::runtime_error("Could not read compositor framebuffer");
+    return sha256(pixels.data(), pixels.size());
 }
 } // namespace harmonic
