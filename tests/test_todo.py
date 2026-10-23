@@ -6,11 +6,9 @@ import subprocess
 import tempfile
 import unittest
 
-from harmonic_analysis import __version__
-
 ROOT = Path(__file__).resolve().parent.parent
-STATUS = ROOT / "todo-status"
-PICKER = ROOT / "todo-fzf"
+STATUS = shutil.which("todo-status")
+PICKER = shutil.which("todo-fzf")
 CONTENT = """# Checklist
 Categories: infra
 
@@ -34,6 +32,7 @@ Categories: infra
 """
 
 
+@unittest.skipUnless(STATUS and PICKER, "Global todo-status and todo-fzf are optional integrations")
 class TodoViewerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="harmonic todo ")
@@ -152,7 +151,7 @@ class TodoViewerTests(unittest.TestCase):
                 self.assertIn("Examples:", result.stdout)
             version = self.run_tool(script, "-v")
             self.assertEqual(version.returncode, 0, version.stderr)
-            self.assertEqual(version.stdout.split()[-1], __version__)
+            self.assertRegex(version.stdout, r"^todo-(?:status|fzf) \d+\.\d+\.\d+\n$")
             bad = self.run_tool(script, "--unknown")
             self.assertEqual(bad.returncode, 2)
             missing = subprocess.run([str(script), "-f"], env=self.environment,

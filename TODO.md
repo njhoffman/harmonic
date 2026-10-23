@@ -9,7 +9,7 @@ each approved change. Tasks carry an explicit priority and category:
 - **P3 `(p3)`**: deferred scenes, scale, service work, and optional comparisons.
 
 Categories are `[feature]`, `[test]`, `[perf]`, `[bug]`, `[docs]`, and `[chore]`.
-`☐` means incomplete; `☑` means completed. `./todo-status` and `./todo-fzf`
+`☐` means incomplete; `☑` means completed. Global `todo-status` and `todo-fzf`
 show incomplete tasks by default; add `--all` to include completed tasks, or
 `--help` for options and examples. `just todo` retains the full Markdown checklist.
 
@@ -51,10 +51,12 @@ chose to run inference later on a GPU host. See the
 
 ## Playback: real-device validation (P1)
 
-- [ ] **Listen through Billie Jean on the actual audio output** (p1) [test]
+- [x] **Listen through Billie Jean on the actual audio output** (p1) [test]
   Check visual alignment at the start, throughout the song, and after repeated seeks.
-- [ ] **Exercise visible desktop controls and end-of-track behavior** (p1) [test]
+  Completed: owner confirmed physical-output listening validation.
+- [x] **Exercise visible desktop controls and end-of-track behavior** (p1) [test]
   Verify mouse seeking, keyboard shortcuts, pause/resume, view switching, and restart.
+  Completed: owner confirmed visible desktop controls and end-of-track behavior.
 - [ ] **Measure 1080p frame times on the target GPU** (p1) [perf]
   Check drift/stutters and the desktop OpenGL loader, including the known GLX
   runtime-search-path warning involving `~/.local/lib`.
@@ -104,9 +106,9 @@ chose to run inference later on a GPU host. See the
   Choose a registered bundle and usable recording location, then add basic
   playlist navigation without bypassing checksum validation.
 - [ ] **Make todo-fzf clipboard shortcuts portable** (p2) [bug]
-  The supplied script references `clip/pushclip.sh`, which is absent here.
-  Provide a local implementation or supported clipboard fallback and verify
-  the copy shortcuts without submitting text to another pane.
+  The helper exists at `~/.shell/scripts/clip/pushclip.sh` on this workstation.
+  Verify Ctrl-Y/Alt-Y here and provide a supported fallback for other hosts
+  without that helper; do not submit copied text to another pane.
 
 ## Later milestones (P3)
 
@@ -187,3 +189,8 @@ chose to run inference later on a GPU host. See the
   Add explicit priorities/categories, recent SAM follow-ups, help/version flags,
   default incomplete-only views, and `--all` with checked/empty boxes. Verify
   filtering, previews, sorting/reload, metadata audits, and real fzf selection.
+
+- [x] **Use global task viewers and enable the tmux picker** (p2) [chore]
+  Remove repository copies, discover optional integrations on PATH, and fix
+  standalone viewer versions. Activate the existing Alt-I popup binding; six
+  automated viewer checks pass. Interactive prompt pasting awaits owner use.

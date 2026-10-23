@@ -5,6 +5,25 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-22
+
+### Changed
+
+- Remove repository-local `./todo-status` and `./todo-fzf` entry points. Use the
+  global commands on PATH instead; this is an incompatible 0.x interface change.
+- Discover installed global viewers for six optional integration checks and
+  accept their independent SemVer versions. Skip these checks on hosts without
+  the personal scripts; application verification remains available.
+- Document the workstation's Alt-I tmux popup for selecting tasks and pasting
+  into the Codex prompt without submitting. The global scripts and tmux binding
+  are managed outside this repository; standalone viewer version lookup was
+  repaired and the existing binding activated on this workstation.
+- Mark owner-confirmed Billie Jean physical-output listening and visible desktop
+  controls/end-of-track checks complete. Keep quantitative latency, GPU timing,
+  and contrasting-recording checks pending.
+- Correct the clipboard follow-up: the helper exists in the global scripts
+  directory; cross-host portability and interactive shortcuts remain unverified.
+
 ## [0.8.0] - 2026-10-22
 
 ### Added
@@ -158,7 +177,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.9.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -167,3 +186,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.6.0]: https://github.com/njhoffman/harmonic/tree/v0.6.0
 [0.7.0]: https://github.com/njhoffman/harmonic/tree/v0.7.0
 [0.8.0]: https://github.com/njhoffman/harmonic/tree/v0.8.0
+[0.9.0]: https://github.com/njhoffman/harmonic/tree/v0.9.0

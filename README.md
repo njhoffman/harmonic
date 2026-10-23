@@ -66,17 +66,19 @@ amber pending tasks, and cyan headings; chat uses green/yellow status markers.
 It only reads the checklist. `just todo` provides the same terminal view in this
 repository without requiring a build or virtual environment.
 
-## Local task viewers
+## Global task viewers
 
-The repository also includes executable `todo-status` and `todo-fzf` viewers:
+Use the global `todo-status` and `todo-fzf` commands on your PATH. On this
+workstation they live in `~/.shell/scripts/`, with both scripts kept together.
+These personal tools are no longer shipped in this repository:
 
 ```sh
-./todo-status --pretty          # Incomplete tasks, grouped by section
-./todo-status --all --pretty    # Include completed tasks
-./todo-fzf                      # Search/select incomplete tasks
-./todo-fzf --all                # Search/select both states
-./todo-status --help
-./todo-fzf --help
+todo-status --pretty          # Incomplete tasks, grouped by section
+todo-status --all --pretty    # Include completed tasks
+todo-fzf                      # Search/select incomplete tasks
+todo-fzf --all                # Search/select both states
+todo-status --help
+todo-fzf --help
 ```
 
 Unchecked boxes (`☐`) are dim white, checked boxes (`☑`) are green, and two
@@ -87,15 +89,26 @@ the checkbox icons. The full Markdown checklist remains available through `just 
 TODO.md assigns explicit `(p1)`/`(p2)`/`(p3)` priorities and categories to every
 task. P1 covers GPU/SAM and real-device playback validation; P2 covers integration
 and local improvements; P3 covers later scenes, scaling, and services.
-`./todo-status --all --check` audits this metadata. Both scripts support
+`todo-status --all --check` audits this metadata. Both scripts support
 `--version`/`-v`, another file through `-f FILE`, and help without reading a checklist.
 
 The picker keeps incomplete work before completed work in its urgency sort;
 Ctrl-S switches to source-file order. Previews and printed selections retain task
 line references and completion state. Its optional clipboard helper is tracked
-as a follow-up in TODO.md. For integrations, `todo-status -l` preserves the original
+as a portability/verification follow-up in TODO.md. For integrations, `todo-status -l` preserves the original
 eight TSV columns and appends `done` (0/1) and the checkbox icon as columns 9/10;
 `--all -l` includes completed records.
+
+In this workstation’s tmux session, **Alt-I** opens the picker in a popup from
+the current pane’s directory. Press Tab to mark multiple tasks and Enter to paste
+the selection into the Codex prompt. Review or edit it, then press Enter again
+to submit. Escape cancels. The binding is in `~/.config/tmux/tmux.conf` and uses
+`todo-fzf --paste PANE` with bracketed paste; it sends no submission key.
+
+Six optional integration checks discover these commands on PATH and exercise the
+installed global tools. They are skipped when either command is unavailable;
+the remaining application checks run normally. Viewer versions are independent
+of the Harmonic application version.
 
 ## Build
 
@@ -285,8 +298,10 @@ restoration, exact paused-frame stability, sample-clock advancement, forward and
 backward seek resets, EOF, and resize behavior. It saves combined/preset/graph
 PPMs and a JSON report with source, preset, and preview hashes. This mode uses a
 controlled timeline and opens no audio device. The test suite also exercises the
-real playback path with SDL's dummy audio driver. Desktop controls, physical
-output latency, and target-GPU performance still need manual validation.
+real playback path with SDL's dummy audio driver. The owner has confirmed
+Billie Jean listening checks on the actual output and desktop controls, including
+end-of-track behavior. Quantitative physical-output latency and target-GPU
+performance remain unmeasured.
 `--render-frames` renders at a 60 Hz timeline from `--start`; the screenshot shows
 the last frame. Its default remains a single frame.
 
