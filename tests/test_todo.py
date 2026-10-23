@@ -1,4 +1,10 @@
 import os
+import fcntl
+import pty
+import select
+import struct
+import termios
+import time
 from pathlib import Path
 import shlex
 import shutil
@@ -139,6 +145,90 @@ class TodoViewerTests(unittest.TestCase):
         default = self.run_tool(PICKER, environment=environment)
         self.assertEqual(default.returncode, 0, default.stderr)
         self.assertEqual(default.stdout, "")
+
+    def test_completion_preserves_bytes_permissions_and_refuses_stale_rows(self):
+        self.file.write_bytes(CONTENT.replace("\n", "\r\n").encode())
+        self.file.chmod(0o640)
+        before = self.file.read_bytes()
+        state = self.root / "order state"
+        state.write_text("file\n")
+        refreshed = self.run_tool(PICKER, "--refresh", str(state))
+        self.assertEqual(refreshed.returncode, 0, refreshed.stderr)
+        line = str(next(index for index, item in enumerate(CONTENT.splitlines(), 1) if "Normal work" in item))
+        completed = self.run_tool(PICKER, "--complete", str(state), line)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("+reload(", completed.stdout)
+        self.assertEqual(self.file.read_bytes(), before.replace(b"- [ ] **Normal work**", b"- [x] **Normal work**"))
+        self.assertEqual(self.file.stat().st_mode & 0o777, 0o640)
+        reload = completed.stdout.strip().split("+reload(", 1)[1][:-1]
+        pending = subprocess.run(shlex.split(reload), env=self.environment, text=True,
+                                 capture_output=True, timeout=10)
+        self.assertEqual(pending.returncode, 0, pending.stderr)
+        self.assertNotIn("Normal work", pending.stdout)
+        changed = b"Added externally\r\n" + self.file.read_bytes()
+        self.file.write_bytes(changed)
+        rejected = self.run_tool(PICKER, "--complete", str(state), line)
+        self.assertIn("Check failed", rejected.stdout)
+        self.assertEqual(self.file.read_bytes(), changed)
+
+    def test_completion_with_all_keeps_checked_item_and_does_not_uncheck_it(self):
+        state = self.root / "order"
+        state.write_text("urgency\n")
+        rows = self.run_tool(PICKER, "--all", "--refresh", str(state))
+        line = next(row.split("\t")[0] for row in rows.stdout.splitlines() if "Normal work" in row)
+        result = self.run_tool(PICKER, "--all", "--complete", str(state), line)
+        self.assertIn("--all", result.stdout)
+        updated = self.file.read_bytes()
+        again = self.run_tool(PICKER, "--all", "--complete", str(state), line)
+        self.assertNotIn("Check failed", again.stdout)
+        self.assertEqual(self.file.read_bytes(), updated)
+        rows = self.run_tool(PICKER, "--all", "--refresh", str(state))
+        normal = next(row for row in rows.stdout.splitlines() if "Normal work" in row)
+        self.assertIn("☑", normal)
+
+    @unittest.skipUnless(shutil.which("fzf"), "fzf is required for the interactive completion check")
+    def test_ctrl_d_completes_in_live_fzf_without_exiting(self):
+        master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 160, 0, 0))
+        def terminal_session():
+            os.setsid()
+            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+        environment = {**self.environment, "TERM": "xterm-256color"}
+        process = subprocess.Popen([PICKER, "-f", str(self.file), "--all", "Normal work"],
+                                   env=environment, stdin=slave, stdout=slave, stderr=slave,
+                                   preexec_fn=terminal_session)
+        os.close(slave)
+        try:
+            output = b""
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline and b"Normal work" not in output:
+                if select.select([master], [], [], 0.1)[0]:
+                    output += os.read(master, 65536)
+            self.assertIn(b"Normal work", output)
+            self.assertIn("\uf0ae".encode(), output)
+            os.write(master, b"\x04")
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                if "- [x] **Normal work**" in self.file.read_text():
+                    break
+                if select.select([master], [], [], 0.1)[0]:
+                    output += os.read(master, 65536)
+            self.assertIn("- [x] **Normal work**", self.file.read_text())
+            self.assertIsNone(process.poll(), "Completing a task closed the picker")
+            # Enter after the reload must return the updated, checked selection.
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline and "☑".encode() not in output:
+                if select.select([master], [], [], 0.1)[0]:
+                    output += os.read(master, 65536)
+            self.assertIn("☑".encode(), output)
+            os.write(master, b"\r")
+            process.wait(timeout=5)
+            self.assertEqual(process.returncode, 0)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
+            os.close(master)
 
     def test_help_version_and_invalid_options_need_no_todo_file(self):
         self.file.unlink()

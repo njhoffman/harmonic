@@ -194,3 +194,8 @@ chose to run inference later on a GPU host. See the
   Remove repository copies, discover optional integrations on PATH, and fix
   standalone viewer versions. Activate the existing Alt-I popup binding; six
   automated viewer checks pass. Interactive prompt pasting awaits owner use.
+
+- [x] **Complete tasks inside the global fzf picker** (p2) [feature]
+  Ctrl-D checks the highlighted task and reloads without exiting. Preserve file
+  bytes/permissions, reject stale snapshots, and keep checked items with --all.
+  Verify completion in a real fzf terminal; use a list-check icon prompt.

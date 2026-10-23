@@ -93,7 +93,12 @@ and local improvements; P3 covers later scenes, scaling, and services.
 `--version`/`-v`, another file through `-f FILE`, and help without reading a checklist.
 
 The picker keeps incomplete work before completed work in its urgency sort;
-Ctrl-S switches to source-file order. Previews and printed selections retain task
+Ctrl-S switches to source-file order. **Ctrl-D** checks off the highlighted
+task in TODO.md and reloads without closing fzf; it disappears from the default
+view and stays checked with `--all`. Already completed tasks stay complete.
+Checking requires Python 3. If the file changes externally, completion refuses
+the stale selection; press Ctrl-S to refresh first. The prompt is the Nerd Font
+list-check icon (`U+F0AE`) followed by one space. Previews and printed selections retain task
 line references and completion state. Its optional clipboard helper is tracked
 as a portability/verification follow-up in TODO.md. For integrations, `todo-status -l` preserves the original
 eight TSV columns and appends `done` (0/1) and the checkbox icon as columns 9/10;
@@ -105,7 +110,7 @@ the selection into the Codex prompt. Review or edit it, then press Enter again
 to submit. Escape cancels. The binding is in `~/.config/tmux/tmux.conf` and uses
 `todo-fzf --paste PANE` with bracketed paste; it sends no submission key.
 
-Six optional integration checks discover these commands on PATH and exercise the
+Nine optional integration checks discover these commands on PATH and exercise the
 installed global tools. They are skipped when either command is unavailable;
 the remaining application checks run normally. Viewer versions are independent
 of the Harmonic application version.
