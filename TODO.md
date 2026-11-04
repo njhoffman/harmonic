@@ -18,7 +18,10 @@ show incomplete tasks by default; add `--all` to include completed tasks, or
 is granted. The worker and 10-second Billie Jean job are prepared, but there has
 been no real SAM inference. This laptop exposes Intel Iris Xe graphics, 16 GB
 RAM, no working CUDA device, and no configured Hugging Face token. The owner
-chose to run inference later on a GPU host. See the
+chose to run inference later on a GPU host. AWS environment credentials were
+verified on 2026-11-04. Both On-Demand and Spot G/VT quotas in `us-east-2` are
+currently zero; a request for 16 On-Demand vCPUs is pending. No instance has been
+launched and NVIDIA tests remain unrun. See the
 [worker guide](workers/sam_audio/README.md).
 
 ## SAM Audio: GPU validation (P1)
@@ -26,6 +29,11 @@ chose to run inference later on a GPU host. See the
 - [ ] **Select the GPU worker host** (p1) [chore]
   Record GPU/VRAM, host RAM, driver/CUDA support, and available disk space before
   installing the large inference environment. Keep the laptop environment separate.
+  AWS candidate: `g6e.4xlarge` in `us-east-2` (one NVIDIA L40S, 45,776 MiB
+  reported GPU memory, 128 GiB host RAM, 16 vCPUs). Availability was verified;
+  capacity, installed driver, and runtime fit remain unverified. Quota request
+  `ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2` requests 16 On-Demand G/VT vCPUs
+  (`L-DB2E81BA`); status at submission: `PENDING`. Await approval before launch.
 - [ ] **Transfer the release and unchanged excerpt job** (p1) [chore]
   Use the matching Harmonic release and copy `data/sam-jobs/billie-jean-v0.7.0/`;
   verify its hashes on the host. The complete recording need not be transferred.

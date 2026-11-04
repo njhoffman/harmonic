@@ -40,6 +40,44 @@ paid infrastructure. Keep both files unchanged when copying a job.
 
 ## Set up and run on the GPU host
 
+### AWS preparation status (2026-11-04)
+
+AWS environment credentials are verified. In the configured `us-east-2` region,
+the On-Demand and Spot G/VT vCPU quotas are both zero. An increase to **16
+On-Demand G/VT vCPUs** has been requested, with request ID
+`ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2`; its initial status is `PENDING`.
+Check approval and the applied quota before provisioning:
+
+```sh
+aws service-quotas get-requested-service-quota-change --region us-east-2 \
+  --request-id ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2
+aws service-quotas get-service-quota --region us-east-2 \
+  --service-code ec2 --quota-code L-DB2E81BA
+```
+
+The candidate is one `g6e.4xlarge`: NVIDIA L40S (45,776 MiB reported GPU memory),
+128 GiB host RAM, and 16 vCPUs. EC2 reports this type is supported in the region;
+that does not reserve capacity or prove the large-TV checkpoint fits. The
+default VPC and three default subnets exist, and no instances were present at
+inspection. No test instance or other billable infrastructure was created.
+
+After quota approval, use an Amazon-owned Deep Learning Base OSS NVIDIA Driver
+Ubuntu x86_64 AMI supporting G6e; resolve it again at launch. The Ubuntu 24.04
+candidate observed was `ami-0551751cdee802c2c` (2026-10-30). Plan an encrypted
+200 GiB gp3 root volume, IMDSv2, Session Manager access with no inbound ports,
+and a timed shutdown before installing dependencies. Retrieve logs/results
+before deleting temporary resources; stopped EBS volumes still incur charges.
+Check current pricing before launch. No driver, CUDA runtime, or available disk
+space has been measured on an actual host yet.
+
+Hugging Face authentication is a separate prerequisite: neither `HF_TOKEN` nor
+a cached login is available locally. Authenticate on the worker with `sam-auth`;
+never copy AWS credentials or put a Hugging Face token in EC2 user data, command
+arguments, logs, or Git. Quota approval and worker authentication remain open
+gates; the preparation above does not count as a successful NVIDIA test.
+
+### Worker commands
+
 Use the same Harmonic release (`v0.7.0`) on the GPU host. Copy the prepared job
 there, then run from the repository root:
 
