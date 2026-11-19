@@ -184,9 +184,13 @@ alignment. Copy results back, then validate them against the unchanged job:
 just sam-validate data/sam-jobs/billie-jean-v0.7.0 data/sam-results/billie-jean-v0.7.0
 ```
 
-Listen to the target/residual files and inspect their activity before extending
-the player. Full-song chunking/overlap, multi-stream bundles/native graphs,
-stage-level retries, catalog caching of SAM results, and cleanup of temporary
+The owner approved listening to the experiment's target/residual files. They can
+now be adapted into a schema-2 bundle with `just sam-features MIX JOB RESULT NEW`;
+see [source features and graphs](../../README.md#sam-source-features-and-graphs).
+The adapter validates WAVs, preserves mono levels and sample positions, and
+retains the report and features without embedding separated audio. The original
+stereo mix remains the playback source. Full-song chunking/overlap, stage-level
+retries, catalog caching of SAM results, and automated cleanup of temporary
 separated audio remain future work. Preserve these experimental outputs for review.
 
 ## First AWS GPU benchmark (2026-11-19)
@@ -237,7 +241,9 @@ pairs and confirmed clear instrument extraction, no audible unwanted bleed,
 and no unwanted target instrument remaining in residuals. This is listening
 approval for the tested excerpt; it does not establish exclusive targets,
 full-song quality, or instrument-level latency. Instrument-transient and
-comparative gain checks remain open before player integration.
+comparative gain review remain open. The local feature adapter introduces no
+additional gain or latency correction; its RMS/peak and sample-offset checks
+passed for all six streams.
 
 System-package setup initially stalled on the regional Ubuntu HTTP mirror.
 Retrying with the Ubuntu HTTPS mirror and `apt-get install --no-install-recommends`

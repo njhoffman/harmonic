@@ -1,4 +1,4 @@
-"""Centered, stereo-power analysis on a single decoded sample timeline."""
+"""Centered mono/stereo-power analysis on a single decoded sample timeline."""
 
 from __future__ import annotations
 
@@ -58,8 +58,8 @@ def decode_audio(path: Path) -> np.ndarray:
 
 
 def extract_features(samples: np.ndarray, *, progress: Callable[[int], None] | None = None) -> dict[str, np.ndarray]:
-    if samples.ndim != 2 or samples.shape[1] != 2 or not len(samples):
-        raise ValueError("Expected nonempty stereo samples shaped (frames, 2)")
+    if samples.ndim != 2 or samples.shape[1] not in (1, 2) or not len(samples):
+        raise ValueError("Expected nonempty mono/stereo samples shaped (frames, 1 or 2)")
     if not np.isfinite(samples).all():
         raise ValueError("Audio contains nonfinite samples")
 
@@ -103,6 +103,23 @@ def stats(values: np.ndarray) -> dict[str, float]:
             "p99": float(np.percentile(values, 99))}
 
 
+def feature_table(features: dict, name: str = "mix", version: int = 1) -> pa.Table:
+    schema = pa.schema([
+        pa.field("sample_index", pa.int64(), nullable=False),
+        pa.field("rms", pa.float32(), nullable=False),
+        pa.field("peak", pa.float32(), nullable=False),
+        pa.field("onset", pa.float32(), nullable=False),
+        pa.field("spectrum", pa.list_(pa.float32(), BAND_COUNT), nullable=False),
+    ], metadata={b"harmonic.schema_version": str(version).encode(), b"harmonic.stream": name.encode()})
+    table = pa.Table.from_arrays([
+        pa.array(features["sample_index"]), pa.array(features["rms"]),
+        pa.array(features["peak"]), pa.array(features["onset"]),
+        pa.FixedSizeListArray.from_arrays(pa.array(features["spectrum"].ravel()), BAND_COUNT),
+    ], schema=schema)
+
+    return table
+
+
 def analyze(source: Path, output: Path, *, show_progress: bool = False) -> Path:
     source, output = source.resolve(), output.resolve()
     if not source.is_file():
@@ -127,25 +144,13 @@ def analyze(source: Path, output: Path, *, show_progress: bool = False) -> Path:
     if sha256_file(source) != source_hash:
         raise ValueError("The source changed during analysis; retry with an unchanged file")
 
-    schema = pa.schema([
-        pa.field("sample_index", pa.int64(), nullable=False),
-        pa.field("rms", pa.float32(), nullable=False),
-        pa.field("peak", pa.float32(), nullable=False),
-        pa.field("onset", pa.float32(), nullable=False),
-        pa.field("spectrum", pa.list_(pa.float32(), BAND_COUNT), nullable=False),
-    ], metadata={b"harmonic.schema_version": b"1", b"harmonic.stream": b"mix"})
-    table = pa.Table.from_arrays([
-        pa.array(features["sample_index"]), pa.array(features["rms"]),
-        pa.array(features["peak"]), pa.array(features["onset"]),
-        pa.FixedSizeListArray.from_arrays(pa.array(features["spectrum"].ravel()), BAND_COUNT),
-    ], schema=schema)
-
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}-", dir=output.parent))
     try:
         artifact = temporary / "mix.arrow"
+        table = feature_table(features)
         with pa.OSFile(str(artifact), "wb") as handle:
-            with ipc.new_file(handle, schema) as writer:
+            with ipc.new_file(handle, table.schema) as writer:
                 writer.write_table(table)
         version = run_tool(["ffmpeg", "-version"]).decode().splitlines()[0]
         manifest = {

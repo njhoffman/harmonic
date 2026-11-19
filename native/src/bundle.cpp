@@ -8,6 +8,8 @@
 #include <cmath>
 #include <fstream>
 #include <stdexcept>
+#include <regex>
+#include <set>
 
 namespace harmonic {
 namespace {
@@ -31,6 +33,56 @@ std::vector<float> floats(const std::shared_ptr<arrow::Table>& table, const char
     for (float value : result) require(std::isfinite(value) && value >= 0, std::string("invalid ") + name + " value");
     return result;
 }
+FeatureStream read_features(const std::filesystem::path& artifact, const Json::Value& stream,
+                            std::int64_t start, std::int64_t count, int hop, int version) {
+    FeatureStream features;
+    features.name = stream["name"].asString();
+    features.start_sample = start;
+    features.sample_count = count;
+    features.hop = hop;
+    features.bands = stream["bands"].asInt();
+    auto file = unwrap(arrow::io::ReadableFile::Open(artifact.string()));
+    auto reader = unwrap(arrow::ipc::RecordBatchFileReader::Open(file));
+    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+    for (int i = 0; i < reader->num_record_batches(); ++i) batches.push_back(unwrap(reader->ReadRecordBatch(i)));
+    auto table = unwrap(arrow::Table::FromRecordBatches(batches));
+    auto metadata = table->schema()->metadata();
+    require(metadata && unwrap(metadata->Get("harmonic.schema_version")) == std::to_string(version) &&
+            unwrap(metadata->Get("harmonic.stream")) == features.name, "feature metadata mismatch");
+    require(table->num_columns() == 5, "invalid feature columns");
+    const auto status = table->ValidateFull();
+    require(status.ok(), status.ToString());
+    table = unwrap(table->CombineChunks());
+    const auto frames = (count - 1) / hop + 1;
+    require(table->num_rows() == frames && stream["frames"].asInt64() == frames, "frame count does not match audio timebase");
+    auto indices = std::static_pointer_cast<arrow::Int64Array>(column(table, "sample_index", arrow::Type::INT64));
+    for (std::int64_t i = 0; i < frames; ++i) require(indices->Value(i) == start + i * hop, "nonuniform sample indices");
+    features.rms = floats(table, "rms");
+    features.peak = floats(table, "peak");
+    features.onset = floats(table, "onset");
+    auto spectrum = std::static_pointer_cast<arrow::FixedSizeListArray>(column(table, "spectrum", arrow::Type::FIXED_SIZE_LIST));
+    require(spectrum->value_type()->id() == arrow::Type::FLOAT && spectrum->value_length() == stream["bands"].asInt(),
+            "invalid spectrum shape");
+    auto values = std::static_pointer_cast<arrow::FloatArray>(spectrum->values());
+    require(values->null_count() == 0, "null spectrum values");
+    features.spectrum.reserve(static_cast<std::size_t>(frames) * stream["bands"].asInt());
+    for (std::int64_t i = 0; i < frames; ++i) {
+        const float* row = values->raw_values() + spectrum->value_offset(i);
+        for (int band = 0; band < stream["bands"].asInt(); ++band) {
+            require(std::isfinite(row[band]) && row[band] >= 0, "invalid spectrum value");
+            features.spectrum.push_back(row[band]);
+        }
+    }
+    auto scale = [&](const char* field) {
+        const auto& value = stream["stats"][field]["p99"];
+        require(value.isNumeric() && std::isfinite(value.asDouble()) && value.asDouble() >= 0, "invalid feature scale");
+        return std::max(1e-6f, value.asFloat());
+    };
+    features.rms_scale = scale("rms");
+    features.onset_scale = scale("onset");
+    features.spectrum_top_db = std::max(-80.0f, 20 * std::log10(scale("spectrum")));
+    return features;
+}
 } // namespace
 
 Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::path& audio_override) {
@@ -40,8 +92,10 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
     Bundle bundle;
     input >> bundle.manifest;
     const auto& m = bundle.manifest;
-    require(m["schema_version"].isInt() && m["schema_version"].asInt() == 1, "unsupported schema version");
-    require(m["pipeline"].asString() == "harmonic.mix.v1", "unsupported pipeline");
+    require(m["schema_version"].isInt(), "unsupported schema version");
+    const int version = m["schema_version"].asInt();
+    require((version == 1 && m["pipeline"].asString() == "harmonic.mix.v1") ||
+            (version == 2 && m["pipeline"].asString() == "harmonic.sam.features.v1"), "unsupported schema or pipeline");
     require(m["audio"]["sample_rate"].asInt() == sample_rate && m["audio"]["channels"].asInt() == channels,
             "expected 48 kHz stereo");
     require(m["audio"]["sample_count"].isInt64(), "missing sample count");
@@ -49,7 +103,8 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
     require(bundle.sample_count > 0, "empty audio");
     bundle.hop = m["analysis"]["hop_size"].asInt();
     require(bundle.hop > 0 && m["analysis"]["frame_offset_samples"].asInt64() == 0, "invalid timebase");
-    require(m["streams"].isArray() && m["streams"].size() == 1, "expected a single mix stream");
+    require(m["streams"].isArray() && !m["streams"].empty() &&
+            (version == 2 || m["streams"].size() == 1), "expected a single mix stream");
     const auto& stream = m["streams"][0];
     require(stream["name"].asString() == "mix", "expected mix stream");
     bundle.bands = stream["bands"].asInt();
@@ -61,34 +116,7 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
     bundle.audio_path = audio_override.empty() ? std::filesystem::path(m["source"]["path"].asString()) : audio_override;
     require(sha256_file(bundle.audio_path) == m["source"]["sha256"].asString(), "audio checksum mismatch; analyze this recording again");
 
-    auto file = unwrap(arrow::io::ReadableFile::Open(artifact.string()));
-    auto reader = unwrap(arrow::ipc::RecordBatchFileReader::Open(file));
-    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
-    for (int i = 0; i < reader->num_record_batches(); ++i) batches.push_back(unwrap(reader->ReadRecordBatch(i)));
-    auto table = unwrap(arrow::Table::FromRecordBatches(batches));
-    const auto status = table->ValidateFull();
-    require(status.ok(), status.ToString());
-    table = unwrap(table->CombineChunks());
-    const auto frames = (bundle.sample_count - 1) / bundle.hop + 1;
-    require(table->num_rows() == frames && stream["frames"].asInt64() == frames, "frame count does not match audio timebase");
-    auto indices = std::static_pointer_cast<arrow::Int64Array>(column(table, "sample_index", arrow::Type::INT64));
-    for (std::int64_t i = 0; i < frames; ++i) require(indices->Value(i) == i * bundle.hop, "nonuniform sample indices");
-    bundle.rms = floats(table, "rms");
-    bundle.peak = floats(table, "peak");
-    bundle.onset = floats(table, "onset");
-    auto spectrum = std::static_pointer_cast<arrow::FixedSizeListArray>(column(table, "spectrum", arrow::Type::FIXED_SIZE_LIST));
-    require(spectrum->value_type()->id() == arrow::Type::FLOAT && spectrum->value_length() == bundle.bands,
-            "invalid spectrum shape");
-    auto values = std::static_pointer_cast<arrow::FloatArray>(spectrum->values());
-    require(values->null_count() == 0, "null spectrum values");
-    bundle.spectrum.reserve(static_cast<std::size_t>(frames) * bundle.bands);
-    for (std::int64_t i = 0; i < frames; ++i) {
-        const float* row = values->raw_values() + spectrum->value_offset(i);
-        for (int band = 0; band < bundle.bands; ++band) {
-            require(std::isfinite(row[band]) && row[band] >= 0, "invalid spectrum value");
-            bundle.spectrum.push_back(row[band]);
-        }
-    }
+    static_cast<FeatureStream&>(bundle) = read_features(artifact, stream, 0, bundle.sample_count, bundle.hop, 1);
     const auto& edges = m["analysis"]["band_edges_hz"];
     require(edges.isArray() && edges.size() == static_cast<unsigned>(bundle.bands + 1), "missing band edges");
     for (const auto& edge : edges) {
@@ -96,20 +124,114 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
         require(std::isfinite(value) && value > 0 && (bundle.band_edges.empty() || value > bundle.band_edges.back()), "invalid band edges");
         bundle.band_edges.push_back(value);
     }
-    bundle.rms_scale = std::max(1e-6f, stream["stats"]["rms"]["p99"].asFloat());
-    bundle.onset_scale = std::max(1e-6f, stream["stats"]["onset"]["p99"].asFloat());
-    bundle.spectrum_top_db = std::max(-80.0f, 20 * std::log10(std::max(1e-6f, stream["stats"]["spectrum"]["p99"].asFloat())));
+    if (version == 2) {
+        require(bundle.hop == 960 && bundle.bands == 64 && m["analysis"]["window_size"].asInt() == 4096 &&
+                m["analysis"]["window"].asString() == "hann_symmetric" &&
+                m["analysis"]["padding"].asString() == "zeros_centered" &&
+                m["analysis"]["spectrum_scale"].asString() == "linear_rms_amplitude" &&
+                m["analysis"]["channel_reduction"].asString() == "mean_power", "unsupported source feature configuration");
+        require(m["separation"]["artifact"].asString() == "sam-report.json", "unexpected separation report path");
+        const auto report_path = manifest_path.parent_path() / "sam-report.json";
+        require(sha256_file(report_path) == m["separation"]["sha256"].asString(), "separation report checksum mismatch");
+        Json::Value report;
+        std::ifstream report_input(report_path);
+        report_input >> report;
+        require(report["schema_version"].asInt() == 1 && report["kind"].asString() == "harmonic.sam-audio-result.v1" &&
+                report["sample_rate"].asInt() == sample_rate && report["channels"].asInt() == 1,
+                "unsupported separation provenance");
+        require(report["source"]["sha256"] == m["source"]["sha256"] &&
+                report["source"]["pcm_sha256"] == m["source"]["pcm_sha256"] &&
+                report["source"]["sample_count"].asInt64() == bundle.sample_count, "separation source identity mismatch");
+        require(report["start_sample"].isInt64() && report["sample_count"].isInt64(), "invalid separation coverage");
+        const auto start = report["start_sample"].asInt64(), count = report["sample_count"].asInt64();
+        require(start >= 0 && start < bundle.sample_count && count > 0 && count <= 30 * sample_rate &&
+                count <= bundle.sample_count - start, "invalid separation coverage");
+        require(report["semantics"].asString() == "independent_prompted_target_and_residual_pairs; targets_may_overlap" &&
+                report["channel_reduction"].asString() == "arithmetic_mean_to_mono; no_gain_normalization" &&
+                report["anchors"].isNull(), "unsupported separation semantics");
+        require(report["model"]["id"].asString() == "facebook/sam-audio-large-tv" &&
+                report["model"]["revision"].asString() == "b9fc94687ec044c570cbe30b8c28100cd056f1cb" &&
+                report["model"]["source_revision"].asString() == "bb4c6999d2677c7402360e426afc01ddfad6dce0",
+                "unsupported separation model");
+        const auto& settings = report["settings"];
+        require(settings["dtype"].asString() == "float32" && settings["ode_method"].asString() == "midpoint" &&
+                settings["ode_step_size"].asDouble() == 0.0625 && settings["predict_spans"].isBool() &&
+                !settings["predict_spans"].asBool() && settings["reranking_candidates"].asInt() == 1,
+                "unsupported separation settings");
+        require(report["pairs"].isObject() && report["pairs"].size() >= 1 && report["pairs"].size() <= 8 &&
+                m["streams"].size() == 1 + report["pairs"].size() * 2, "separation stream set mismatch");
+        for (int i = 0; i <= bundle.bands; ++i) {
+            const double expected = 20.0 * std::pow(1200.0, static_cast<double>(i) / bundle.bands);
+            require(std::abs(edges[i].asDouble() - expected) <= expected * 1e-9, "unsupported frequency bands");
+        }
+        const auto& extraction = m["feature_extraction"];
+        require(extraction["gain_correction"].asString() == "none" &&
+                extraction["latency_correction_samples"].isInt64() && extraction["latency_correction_samples"].asInt64() == 0,
+                "invalid feature extraction corrections");
+        const std::regex hash_pattern("[0-9a-f]{64}"), revision_pattern("[0-9a-f]{40}");
+        for (const auto* key : {"code_sha256", "mix_manifest_sha256"})
+            require(std::regex_match(extraction[key].asString(), hash_pattern), "invalid feature extraction provenance");
+        for (const auto* key : {"app_version", "numpy_version", "pyarrow_version"})
+            require(!extraction[key].asString().empty(), "missing feature extraction version");
+        for (const auto* key : {"job_sha256", "worker_code_sha256", "worker_lock_sha256"})
+            require(std::regex_match(report[key].asString(), hash_pattern), "invalid separation checksum provenance");
+        for (const auto* key : {"config.json", "checkpoint.pt", "LICENSE"})
+            require(std::regex_match(report["model"]["files_sha256"][key].asString(), hash_pattern), "missing model hash");
+        require(!report["auxiliary_text_model"]["id"].asString().empty() &&
+                std::regex_match(report["auxiliary_text_model"]["revision"].asString(), revision_pattern),
+                "invalid auxiliary model provenance");
+        require(report["seed"].isUInt64() && report["seed"].asUInt64() < (1ULL << 32) &&
+                report["codec_hop_samples"].isInt() && report["codec_hop_samples"].asInt() > 0 &&
+                report["codec_hop_samples"].asInt() <= sample_rate, "invalid seed or codec hop");
+        std::set<std::string> seen;
+        for (Json::ArrayIndex i = 1; i < m["streams"].size(); ++i) {
+            const auto& item = m["streams"][i];
+            const auto target = item["target"].asString(), role = item["role"].asString();
+            require(std::regex_match(target, std::regex("[a-z][a-z0-9_-]{0,31}")) &&
+                    (role == "target" || role == "residual") && report["pairs"].isMember(target), "invalid source role/target");
+            const auto name = "sam." + target + "." + role;
+            const auto filename = "sam-" + target + "-" + role + ".arrow";
+            const auto& pair = report["pairs"][target];
+            require(item["name"].asString() == name && item["artifact"].asString() == filename && seen.insert(name).second,
+                    "invalid or duplicate source artifact");
+            require(item["start_sample"].isInt64() && item["sample_count"].isInt64() &&
+                    item["start_sample"].asInt64() == start && item["sample_count"].asInt64() == count &&
+                    item["channels"].asInt() == 1 && item["bands"].asInt() == bundle.bands &&
+                    item["channel_reduction"].asString() == "mono_no_gain_normalization" &&
+                    item["prompt"] == pair["description"] && item["wave_sha256"] == pair[role]["sha256"],
+                    "separation stream provenance mismatch");
+            const auto& wave = pair[role];
+            require(!pair["description"].asString().empty() && wave["artifact"].asString() == target + "-" + role + ".wav" &&
+                    std::regex_match(wave["sha256"].asString(), hash_pattern) &&
+                    wave["sample_count"].isInt64() && wave["sample_count"].asInt64() == count &&
+                    wave["raw_sample_count"].isInt64() && wave["raw_sample_count"].asInt64() >= count &&
+                    wave["raw_sample_count"].asInt64() - count < report["codec_hop_samples"].asInt() &&
+                    wave["right_trim_samples"].asInt64() == wave["raw_sample_count"].asInt64() - count,
+                    "invalid separation waveform provenance");
+            const auto source_artifact = manifest_path.parent_path() / filename;
+            require(sha256_file(source_artifact) == item["sha256"].asString(), "feature checksum mismatch");
+            auto features = read_features(source_artifact, item, start, count, bundle.hop, 2);
+            features.target = target;
+            features.role = role;
+            bundle.sources.push_back(std::move(features));
+        }
+    }
     return bundle;
 }
 
-float Bundle::interpolate(const std::vector<float>& values, double seconds) const {
-    const double frame = std::clamp(seconds * sample_rate / hop, 0.0, static_cast<double>(values.size() - 1));
+bool FeatureStream::covers(double seconds) const {
+    const double frame = seconds * sample_rate;
+    return frame >= start_sample && frame < start_sample + sample_count;
+}
+
+float FeatureStream::interpolate(const std::vector<float>& values, double seconds) const {
+    const double frame = std::clamp((seconds * sample_rate - start_sample) / hop, 0.0, static_cast<double>(values.size() - 1));
     const auto a = static_cast<std::size_t>(frame), b = std::min(a + 1, values.size() - 1);
     return std::lerp(values[a], values[b], static_cast<float>(frame - a));
 }
 
-std::vector<float> Bundle::spectrum_at(double seconds) const {
-    const double frame = std::clamp(seconds * sample_rate / hop, 0.0, static_cast<double>(rms.size() - 1));
+std::vector<float> FeatureStream::spectrum_at(double seconds) const {
+    const double frame = std::clamp((seconds * sample_rate - start_sample) / hop, 0.0, static_cast<double>(rms.size() - 1));
     const auto a = static_cast<std::size_t>(frame), b = std::min(a + 1, rms.size() - 1);
     std::vector<float> result(bands);
     for (int i = 0; i < bands; ++i)

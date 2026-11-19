@@ -70,6 +70,10 @@ sam-run job="data/sam-jobs/billie-jean" output="data/sam-results/billie-jean":
 sam-validate job="data/sam-jobs/billie-jean" result="data/sam-results/billie-jean": sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli validate {{ quote(job) }} {{ quote(result) }}
 
+# Add validated excerpt targets/residuals to a new bundle; no GPU or model environment needed.
+sam-features mix job result output: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli features {{ quote(mix) }} {{ quote(job) }} {{ quote(result) }} --output {{ quote(output) }}
+
 # Build and play a previously analyzed recording.
 play bundle=default_bundle: build
     {{ quote(player) }} {{ quote(bundle) }}

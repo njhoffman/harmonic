@@ -95,6 +95,8 @@ def import_track(audio: Path, database: Path = DEFAULT_DATABASE, *, bundle: Path
         with (Progress("Verifying analysis bundle") if show_progress else nullcontext()):
             manifest_digest = sha256_file(manifest_path)
             manifest = read_bundle(manifest_path, source_hash, manifest_hash=expected_hash)
+            if manifest["schema_version"] != 1:
+                raise ValueError("SAM feature bundles are not supported by the mix catalog cache; open them directly in the player")
             # Previously verified exact file bytes need no second decode. New
             # external/orphaned bundles must demonstrate their PCM provenance.
             if state in ("registered", "recovered"):

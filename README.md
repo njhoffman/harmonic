@@ -341,9 +341,53 @@ the report marks shader-fallback detection as unavailable. Visually review outpu
 before claiming preset fidelity. See [PLAN.md](PLAN.md) for
 the recorded results and software-rendering performance limits.
 
-## Bundle contract: schema version 1
+## SAM source features and graphs
 
-Each bundle contains `manifest.json` and `mix.arrow`. The manifest records the
+Add the validated target/residual WAVs to a new feature bundle using the local
+analyzer environment. This command installs no models and uses no GPU:
+
+```sh
+just sam-features data/analysis/billie-jean \
+  data/sam-jobs/billie-jean-v0.7.0 \
+  data/aws-gpu/2026-11-19/output/results/billie-jean-v0.7.0 \
+  data/analysis/billie-jean-sam-v0.11.0
+just play data/analysis/billie-jean-sam-v0.11.0
+```
+
+Playback uses the original stereo recording. The mix spectrum stays on the left;
+source cards show RMS history over the last two seconds, spectrum, RMS level,
+and onset activity. Press **R** to switch targets/residuals, or start with
+`--sources residuals`. The **N** display toggle uses a shared mix reference for
+all streams; it does not normalize source files or independently inflate quiet
+sources. An underline on the track envelope marks source-feature coverage.
+Outside that interval cards say **NO DATA**, rather than showing silence or
+extrapolating the last frame. Seeking, pausing, offsets, and projectM composition
+use the original sample clock.
+
+For the reviewed experiment, source features cover only 30–40 seconds. To start
+inside that interval:
+
+```sh
+./build/harmonic-player data/analysis/billie-jean-sam-v0.11.0 --start 30
+./build/harmonic-player data/analysis/billie-jean-sam-v0.11.0 --inspect --start 35
+```
+
+The equivalent CLI is `harmonic-sam features MIX_BUNDLE JOB RESULT --output NEW`;
+`--audio PATH` handles an unchanged recording at a new location. The adapter
+validates the original job/result, source identity, and every WAV, preserves the
+mix artifact, and writes a new immutable bundle. It preserves mono gain and
+sample positions without applying an estimated latency or reconstruction-gain
+correction. Copied provenance and derived features remain usable after the
+separated WAVs/job are moved or removed. The experiment's WAVs remain available
+for listening; the adapter never deletes inputs.
+
+Schema-2 bundles are opened directly in the player. The mix catalog explicitly
+rejects them until SAM-specific cache keys/retries are implemented. Full-song
+chunking and instrument-level perceptual latency remain separate work.
+
+## Bundle contract: schema versions 1 and 2
+
+A schema-1 mix bundle contains `manifest.json` and `mix.arrow`. The manifest records the
 original audio path, source-file and canonical-PCM SHA-256 checksums, embedded
 format tags, decoded sample count, feature configuration, dependency versions,
 artifact checksum, and measured min/max/percentile summaries. A relocated source
@@ -359,10 +403,10 @@ Arrow rows have the following non-null fields:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `sample_index` | int64 | Frame center on the original decoded timeline |
-| `rms` | float32 | RMS amplitude across stereo samples in the analysis window |
+| `rms` | float32 | RMS amplitude across the window and available channels |
 | `peak` | float32 | Maximum absolute sample amplitude in the window |
 | `onset` | float32 | Positive change in band amplitudes; not a beat prediction |
-| `spectrum` | fixed-size list of 64 float32 | Linear RMS band amplitudes, with stereo power averaged |
+| `spectrum` | fixed-size list of 64 float32 | Linear RMS band amplitudes; stereo power averaged for the mix |
 
 The 4096-sample symmetric Hann spectral windows have zero padding at the edges,
 centers at sample 0 and every 960 samples thereafter (50 frames/second), and 64
@@ -370,6 +414,23 @@ logarithmic bands spanning 20 Hz–24 kHz. The manifest contains the exact edges
 Frequency resolution is limited by the FFT window; narrow low bands can be empty.
 RMS and peak use the unwindowed frame. Continuous features are interpolated during
 rendering. Display normalization never changes stored measurements.
+
+Schema 2 (`harmonic.sam.features.v1`) retains the schema-1 `mix.arrow` unchanged
+and adds a checksum-protected `sam-report.json` and `sam-NAME-target.arrow` /
+`sam-NAME-residual.arrow` artifacts. Old schema-1 bundles remain supported;
+older players reject schema 2 and require upgrading. The added Arrow streams
+use metadata version 2 and names `sam.NAME.target` / `sam.NAME.residual`. Their
+`sample_index` values are `start_sample + row * 960`, even when the excerpt start
+falls between mix frames. Each stream declares its half-open coverage interval,
+mono channel layout, prompt, role, original WAV hash, feature hash, and statistics.
+Windows use zeros beyond the excerpt edges; rows outside coverage do not exist.
+
+The retained report preserves source/job/model/code/lock hashes, checkpoint and
+auxiliary revisions, seed/settings, mono conversion, padding, and measurements.
+`feature_extraction` records the adapter version/code hash, input mix manifest
+hash, NumPy/PyArrow versions, and explicitly absent gain/latency corrections.
+No WAV or input audio is embedded in the feature bundle. Independent targets
+may overlap; residuals are model-generated and are not an exact subtraction.
 
 The playback clock follows source frames consumed by SDL, interpolates between
 device chunks, and subtracts one reported chunk of buffering. Backend/hardware
@@ -380,8 +441,9 @@ changes and physical-output timestamps remain future work.
 ## Current scope
 
 This milestone analyzes the original mix, supports optional projectM compositing,
-and catalogs local recordings with verified analysis reuse. Stem separation,
-lyric display, semantic/mood services, and bulk processing are later steps.
+and catalogs local recordings with verified mix analysis reuse. Validated SAM
+excerpt outputs now drive separate source graphs. Full-song separation, lyric
+display, semantic/mood services, and bulk processing are later steps.
 The analyzer and player decode the complete track into memory;
 long recordings need a future streaming/chunking pass. The small bitmap UI font
 supports ASCII; richer typography and translated metadata need a proper text
@@ -396,7 +458,7 @@ separations passed on an AWS NVIDIA Blackwell worker on 2026-11-19. Returned
 artifacts passed checksum/sample-count validation. The owner confirmed clear
 extraction and clean residuals for all three prompts. Instrument-level transient
 alignment and observed reconstruction/gain differences remain validation work. No checkpoint
-weights were downloaded on this laptop. SAM outputs are not yet part of the native player bundle.
+weights were downloaded on this laptop. Validated SAM outputs can be adapted into schema-2 source-feature bundles.
 Demucs remains an optional comparison/fallback.
 
 On 2026-11-19, the applied AWS GPU quota and local authenticated access to the

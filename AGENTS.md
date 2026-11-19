@@ -38,7 +38,8 @@
   update, check off only verified work, and record blockers such as pending
   model access without marking the dependent implementation complete.
 - SAM Audio is the preferred separation engine; the owner has access to
-  `facebook/sam-audio-large-tv`. The isolated worker is prepared for a GPU host;
-  worker authentication and actual CUDA inference remain unverified.
+  `facebook/sam-audio-large-tv`. GPU authentication/inference and owner listening
+  checks passed on AWS NVIDIA Blackwell. The local source-feature adapter is
+  integrated; full-song chunking and instrument-level model latency remain open.
   Keep Demucs optional as a comparison/fallback, and isolate model dependencies
   from the current analyzer/player environment.

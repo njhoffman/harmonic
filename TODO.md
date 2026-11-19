@@ -20,8 +20,9 @@ three prompted separations, returned-file hashes, and exact sample counts passed
 The output is saved locally under `data/aws-gpu/2026-11-19/`. The owner
 confirmed all three targets and residuals sound good, with clear instrument
 extraction, no audible unwanted bleed, and no unwanted target instrument left
-in the residuals. Instrument-level transient alignment and the measured
-reconstruction/gain differences still need review before player integration.
+in the residuals. Instrument-level transient alignment and comparative gain review remain open.
+The source-feature adapter now preserves the measured samples/levels without
+corrections and provides partial-coverage graphs alongside original playback.
 The GPU quota is 16 vCPUs; the owner completed the approved Paid plan upgrade.
 L40S hosts lacked capacity, so no L40S inference compatibility is claimed.
 See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
@@ -79,9 +80,10 @@ See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
   Pinned processor checks confirm arithmetic-mean mono conversion, unchanged
   double-amplitude inputs, and complete anti-phase cancellation. The model
   generates residuals independently; exact mixture reconstruction is not enforced.
-  Owner listening approval covers separation quality. Instrument-level timing
-  and comparative gain checks remain open. Float WAV peaks above 1.0 were
-  preserved without normalization or clipping.
+  Owner listening approval covers separation quality. Adapter window RMS/peak
+  checks passed for all six WAVs (RMS error below 1.5e-8, exact peaks), with no
+  added gain or latency correction. Instrument-level model timing and comparative
+  gain review remain open. Float peaks above 1.0 were preserved without clipping.
 
 ## Playback: real-device validation (P1)
 
@@ -100,15 +102,20 @@ See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
 
 ## SAM Audio: feature integration (P2)
 
-- [ ] **Validate the adapter with real inference outputs** (p2) [feature]
-  Preserve measured timing, sample rate/channel provenance, relative gain,
-  prompts/anchors, settings, and model revisions when producing feature artifacts.
-- [ ] **Version the multi-stream bundle contract** (p2) [feature]
-  Extend JSON/Arrow validation and the native reader for mix plus named target
-  streams. Bump the schema for incompatible changes and reject mismatched timelines.
-- [ ] **Display separate source graphs alongside the mix** (p2) [feature]
-  Use distinct activity curves without implying that independent targets sum to
-  the original mix or contain stereo-width information.
+- [x] **Validate the adapter with real inference outputs** (p2) [feature]
+  Validated all six real WAV streams against source-window RMS/peak measurements;
+  preserve mono levels, exact source sample offsets, prompts/settings, and model
+  provenance without implicit gain/latency correction. Synthetic impulse and
+  native-reader tests cover non-hop-aligned offsets, full-scale peaks, and coverage.
+- [x] **Version the multi-stream bundle contract** (p2) [feature]
+  Schema 2 adds partial-coverage target/residual Arrow streams and a retained
+  SAM report. Python and native readers validate checksums, identity, metadata,
+  and sample positions; existing schema-1 mix bundles remain supported.
+- [x] **Display separate source graphs alongside the mix** (p2) [feature]
+  Source cards show distinct RMS histories, spectra, and onset activity beside
+  the mix. R switches targets/residuals; shared mix scales preserve comparisons.
+  Missing excerpt coverage is explicit. Native offscreen target/residual,
+  seek/offset/coverage, pause/compositor, and original playback checks pass.
 - [ ] **Establish full-song chunking and overlap behavior** (p2) [test]
   Measure boundary artifacts, prompt consistency, latency, and gain across chunks
   before running catalog-wide separation.

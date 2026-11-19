@@ -18,9 +18,9 @@ std::string sha256(const void* data, std::size_t bytes);
 std::string sha256_file(const std::filesystem::path& path);
 std::vector<float> decode_audio(const std::filesystem::path& path);
 
-struct Bundle {
-    Json::Value manifest;
-    std::filesystem::path audio_path;
+struct FeatureStream {
+    std::string name = "mix", target, role = "mix";
+    std::int64_t start_sample = 0;
     std::int64_t sample_count = 0;
     int hop = 0;
     int bands = 0;
@@ -28,11 +28,17 @@ struct Bundle {
     float onset_scale = 1;
     float spectrum_top_db = -10;
     std::vector<float> rms, peak, onset, spectrum;
-    std::vector<float> band_edges;
-
-    double duration() const { return static_cast<double>(sample_count) / sample_rate; }
+    bool covers(double seconds) const;
     float interpolate(const std::vector<float>& values, double seconds) const;
     std::vector<float> spectrum_at(double seconds) const;
+};
+
+struct Bundle : FeatureStream {
+    Json::Value manifest;
+    std::filesystem::path audio_path;
+    std::vector<float> band_edges;
+    std::vector<FeatureStream> sources;
+    double duration() const { return static_cast<double>(sample_count) / sample_rate; }
 };
 
 Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::path& audio_override = {});
@@ -75,6 +81,7 @@ public:
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
     SDL_Window* window() const { return window_; }
+    void set_residuals(bool value) { residuals_ = value; }
     enum class View { graphs, combined, preset };
     void draw(const Bundle& bundle, double seconds, bool paused, double offset, bool relative,
               View view = View::graphs);
@@ -91,6 +98,7 @@ private:
     SDL_GLContext context_ = nullptr;
     unsigned int program_ = 0, vao_ = 0, vbo_ = 0;
     int resolution_ = -1;
+    bool residuals_ = false;
     std::vector<Vertex> vertices_;
 };
 

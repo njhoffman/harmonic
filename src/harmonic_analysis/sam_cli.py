@@ -54,6 +54,12 @@ def main() -> int:
     validator = commands.add_parser("validate", help="Verify returned result identity, float WAVs, and exact sample counts")
     validator.add_argument("job", type=Path)
     validator.add_argument("result", type=Path)
+    adapter = commands.add_parser("features", help="Add validated SAM target/residual features to an original mix bundle")
+    adapter.add_argument("mix", type=Path)
+    adapter.add_argument("job", type=Path)
+    adapter.add_argument("result", type=Path)
+    adapter.add_argument("--output", required=True, type=Path)
+    adapter.add_argument("--audio", type=Path, help="Relocated original recording; checksum must match")
     arguments = parser.parse_args()
     try:
         if arguments.command == "prepare":
@@ -69,6 +75,11 @@ def main() -> int:
         elif arguments.command == "inspect":
             job, _ = load_job(arguments.job)
             print(json.dumps(job, indent=2))
+        elif arguments.command == "features":
+            from .source_features import build_source_bundle
+            path = build_source_bundle(arguments.mix, arguments.job, arguments.result,
+                                       arguments.output, audio=arguments.audio)
+            print(f"🟢 Saved source feature bundle: {path}")
         else:
             report = validate_result(arguments.job, arguments.result)
             print(f"🟢 Validated {len(report['pairs'])} target/residual pairs at sample {report['start_sample']}")

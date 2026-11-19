@@ -5,6 +5,31 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-19
+
+### Added
+
+- `harmonic-sam features` / `just sam-features` to turn validated SAM target and
+  residual WAVs into an immutable feature bundle using the local analyzer, with
+  original mono levels, sample offsets, and complete separation provenance.
+- Schema-2 bundles with partial-coverage source Arrow streams and a retained SAM
+  report. Existing schema-1 mix bundles remain supported; older players reject
+  schema 2 and must be upgraded to read source bundles.
+- Separate source RMS histories, spectra, level readouts, and onset activity
+  beside the original mix. Press R or use `--sources residuals` to switch views;
+  shared mix scales support level comparison, and missing coverage is explicit.
+
+### Validation
+
+- Verify all six real excerpt streams against original WAV windows and preserve
+  source/job/model/code/lock identities without embedding separated audio.
+- Cover impulse timing, non-hop-aligned offsets, mono peaks above full scale,
+  moved artifacts, corruption, coverage boundaries, and original playback.
+- Verify target/residual previews and source-bundle projectM pause, seek,
+  offset, EOF, resize, and GL-state behavior. Keep full-song processing and
+  instrument-level model latency open; the mix catalog rejects source bundles
+  until SAM-specific caching is implemented.
+
 ## [0.10.4] - 2026-11-19
 
 ### Documentation
@@ -239,7 +264,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.10.4...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.11.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -254,3 +279,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.10.2]: https://github.com/njhoffman/harmonic/tree/v0.10.2
 [0.10.3]: https://github.com/njhoffman/harmonic/tree/v0.10.3
 [0.10.4]: https://github.com/njhoffman/harmonic/tree/v0.10.4
+[0.11.0]: https://github.com/njhoffman/harmonic/tree/v0.11.0

@@ -11,7 +11,7 @@ struct Options {
     std::filesystem::path manifest, audio, render_check, preset, compositor_check;
     std::vector<std::string> textures;
     bool help = false, version = false, inspect = false, audio_check = false;
-    bool explicit_view = false;
+    bool explicit_view = false, residuals = false;
     harmonic::Renderer::View view = harmonic::Renderer::View::graphs;
     int render_frames = 1;
     double start = 0, offset_ms = 0, exit_after = 0;
@@ -24,6 +24,7 @@ void usage() {
         "  --preset FILE         Play a local projectM preset behind the graph UI\n"
         "  --textures PATH       Preset texture directory (repeatable)\n"
         "  --view MODE           combined, preset, or graphs (default: combined with preset)\n"
+        "  --sources MODE        Show SAM targets (default) or residuals in source graphs\n"
         "  --start SECONDS       Start at a position in the recording\n"
         "  --offset-ms NUMBER    Feature timing offset; positive reads ahead\n"
         "  --inspect             Validate bundle, checksums, and native decoding; no devices\n"
@@ -33,7 +34,7 @@ void usage() {
         "  --compositor-check DIR  Check preset pause/seek/resize offscreen; save views/report\n"
         "  --exit-after SECONDS  Exit an interactive session after this duration\n"
         "\nControls: Space play/pause; arrows seek 5s (Shift: 30s); Home restart;\n"
-        "N absolute/normalized scale; V preset/graphs view; comma/period offset -/+10ms;\n"
+        "N absolute/normalized scale; R targets/residuals; V preset/graphs view; comma/period offset -/+10ms;\n"
         "Backspace reset offset; click the track envelope to seek; Escape quit.\n"
         "\nprojectM playback: " << (harmonic::projectm_playback_available() ? "enabled" : "disabled") << '\n';
 }
@@ -63,6 +64,11 @@ Options parse(int argc, char** argv) {
             else if (mode == "graphs") options.view = harmonic::Renderer::View::graphs;
             else throw std::runtime_error("View must be combined, preset, or graphs");
             options.explicit_view = true;
+        }
+        else if (argument == "--sources") {
+            const auto mode = value();
+            if (mode != "targets" && mode != "residuals") throw std::runtime_error("Sources must be targets or residuals");
+            options.residuals = mode == "residuals";
         }
         else if (argument == "--start") options.start = numeric(value());
         else if (argument == "--offset-ms") options.offset_ms = numeric(value());
@@ -168,13 +174,35 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Decoded PCM differs from the analyzer; regenerate with this FFmpeg version");
         std::cout << "🟢 Validated " << bundle.duration() << "s, " << bundle.rms.size() << " feature frames, "
                   << bundle.bands << " bands; source, artifact, and decoded PCM checksums match.\n";
-        if (options.inspect) return 0;
+        if (options.inspect) {
+            if (!bundle.sources.empty()) {
+                Json::Value diagnostics;
+                for (const auto& source : bundle.sources) {
+                    Json::Value item;
+                    item["name"] = source.name;
+                    item["start_sample"] = Json::Int64(source.start_sample);
+                    item["sample_count"] = Json::Int64(source.sample_count);
+                    item["covered"] = source.covers(options.start);
+                    if (source.covers(options.start)) {
+                        item["rms"] = source.interpolate(source.rms, options.start);
+                        item["peak"] = source.interpolate(source.peak, options.start);
+                        item["onset"] = source.interpolate(source.onset, options.start);
+                    }
+                    diagnostics["source_features"].append(item);
+                }
+                Json::StreamWriterBuilder writer;
+                writer["indentation"] = "";
+                std::cout << Json::writeString(writer, diagnostics) << '\n';
+            }
+            return 0;
+        }
         const bool video_check = !options.render_check.empty() || !options.compositor_check.empty();
         if (video_check) SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "offscreen");
         check(SDL_Init(video_check ? SDL_INIT_VIDEO : (options.audio_check ? SDL_INIT_AUDIO : SDL_INIT_AUDIO | SDL_INIT_VIDEO)), "Initialize SDL");
         struct QuitSDL { ~QuitSDL() { SDL_Quit(); } } quit;
         if (video_check) {
             harmonic::Renderer renderer(1280, 720, true);
+            renderer.set_residuals(options.residuals);
             std::unique_ptr<harmonic::PresetRenderer> preset;
             if (!options.preset.empty()) preset = std::make_unique<harmonic::PresetRenderer>(audio, options.preset, options.textures);
             if (!options.compositor_check.empty()) {
@@ -200,6 +228,8 @@ int main(int argc, char** argv) {
         harmonic::Transport transport(audio);
         if (options.audio_check) { audio_check(transport); return 0; }
         harmonic::Renderer renderer(1280, 720, false);
+        bool residuals = options.residuals;
+        renderer.set_residuals(residuals);
         std::unique_ptr<harmonic::PresetRenderer> preset;
         if (!options.preset.empty()) {
             preset = std::make_unique<harmonic::PresetRenderer>(audio, options.preset, options.textures);
@@ -256,6 +286,10 @@ int main(int argc, char** argv) {
                     case SDLK_LEFT: seek(transport.position() - step); break;
                     case SDLK_RIGHT: seek(transport.position() + step); break;
                     case SDLK_HOME: seek(0); break;
+                    case SDLK_R:
+                        residuals = !residuals;
+                        renderer.set_residuals(residuals);
+                        break;
                     case SDLK_N: relative = !relative; break;
                     case SDLK_V:
                         if (preset) {

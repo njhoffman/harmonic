@@ -2,7 +2,7 @@
 
 Prepared October 22, 2026, from `OUTLINE.md`. Technology and provider observations below were checked against primary documentation where available. Recommendations, proposed specifications, and effort ranges are engineering judgments, not benchmark results or vendor quotes.
 
-Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Fifty checks cover signal analysis, CLI behavior, native playback, projectM rendering/compositing, local catalog/reuse, SAM job/worker contracts, command-status handling, and optional global task-viewer integrations. Optional projectM presets now play with graph overlays, a preset view, cached pause behavior, and sample-based seek resets. A local SQLite catalog tracks exact-file identities, locations, and verified reusable mix bundles. The isolated SAM Audio worker completed its first real GPU benchmark on 2026-11-19: locked runtime, CUDA, authentication, and three prompt runs passed on an AWS NVIDIA Blackwell host. Output hashes and exact sample counts passed. The owner confirmed clear extraction and clean residuals for all three prompts; instrument-level timing and reconstruction/gain review remain open. The owner has confirmed Billie Jean listening on the actual audio output and visible desktop controls/end-of-track behavior. Quantitative physical-output latency, target-GPU frame times, and contrasting recordings remain validation work.
+Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Automated checks cover signal analysis, CLI behavior, native playback, projectM rendering/compositing, local catalog/reuse, SAM job/worker contracts, command-status handling, and optional global task-viewer integrations. Optional projectM presets now play with graph overlays, a preset view, cached pause behavior, and sample-based seek resets. A local SQLite catalog tracks exact-file identities, locations, and verified reusable mix bundles. The isolated SAM Audio worker completed its first real GPU benchmark on 2026-11-19: locked runtime, CUDA, authentication, and three prompt runs passed on an AWS NVIDIA Blackwell host. Output hashes and exact sample counts passed. The v0.11.0 local adapter now imports all six target/residual streams into schema-2 feature bundles and renders separate source graphs beside the mix. The owner confirmed clear extraction and clean residuals for all three prompts; instrument-level timing and reconstruction/gain review remain open. The owner has confirmed Billie Jean listening on the actual audio output and visible desktop controls/end-of-track behavior. Quantitative physical-output latency, target-GPU frame times, and contrasting recordings remain validation work.
 
 ## 1. Assessment of your objectives
 
@@ -60,7 +60,7 @@ Demucs remains an optional comparison or fallback, not the default implementatio
 
 Use specialized separation models or a music-analysis API for the signal processing. OpenAI or Claude could help map existing descriptors into a controlled vocabulary, interpret verified lyric themes, or propose scene settings. Their generated descriptions should not become measured frequency curves, stem envelopes, or beat timestamps. OpenAI’s documented file-transcription workflow targets speech-to-text; it does not establish suitability for instrument separation or precise singing alignment. [Official OpenAI transcription documentation](https://developers.openai.com/api/docs/guides/speech-to-text)
 
-### SAM Audio integration direction (first GPU benchmark complete)
+### SAM Audio integration direction (excerpt features integrated)
 
 The documented API isolates a prompted target and returns a residual, each as a one-dimensional waveform. It does not expose the same fixed four-stem interface as Demucs. This implies that separate instrument prompts need evaluation for overlap and omissions; their outputs must not automatically be treated as an exclusive partition of the mix. [Model card and output format](https://huggingface.co/facebook/sam-audio-base)
 
@@ -82,6 +82,27 @@ The worker can produce independent mono target/residual WAV pairs with hashes,
 timing/memory reports, and return-file validation. The first real AWS GPU run
 passed with three independent prompts on 2026-11-19; see the worker guide for
 measurements and remaining quality gates.
+
+The v0.11.0 adapter (`just sam-features`) reuses an unchanged schema-1 mix
+artifact and adds six partial-coverage mono Arrow streams plus a retained SAM
+report. Source sample indices preserve the exact excerpt offset; no automatic
+gain or latency correction is applied. Existing schema-1 bundles remain
+supported. Schema-2 bundles use pipeline `harmonic.sam.features.v1`; older
+players reject the new schema. Source cards show two-second RMS histories,
+spectra, and onset activity, with R switching targets/residuals. Display scales
+share the mix reference, and missing coverage is explicit. Playback/projectM
+continue consuming original stereo PCM. The existing mix-only catalog rejects
+schema-2 imports until separation-specific caching is implemented.
+
+The real six-stream excerpt passed all 3,000 feature-row RMS/peak window checks
+(maximum RMS difference below 1.5e-8; peaks exact). Synthetic impulse/native tests
+verify non-hop-aligned offsets, mono peaks above full scale, missing coverage,
+corruption rejection, and source-independent playback. Offscreen source views
+and the real-bundle projectM pause/seek/offset/EOF/resize compositor passed.
+These checks establish adapter timing/gain preservation; instrument-level model
+latency and full-song chunk boundaries remain unmeasured. Local evidence is in
+`data/source-check-v0.11.0/` and the ready bundle is
+`data/analysis/billie-jean-sam-v0.11.0/`.
 
 The selected checkpoint revision is `b9fc94687ec044c570cbe30b8c28100cd056f1cb`,
 with a 14,861,356,211-byte checkpoint file before auxiliary models or runtime
@@ -403,7 +424,7 @@ Dependency licenses need a similarly concrete review before distribution. libpro
 
 ## 12. Most valuable next step
 
-Build a single-track vertical slice: **original playback → mix and four-stem features → synchronized graphs → saved, reloadable analysis bundle**. Use a track with clearly alternating vocals, percussion, and bass, then check a few contrasting recordings before expanding the schema.
+Build a single-track vertical slice: **original playback → mix and prompted target/residual features → synchronized graphs → saved, reloadable analysis bundle**. Use a track with clearly alternating vocals, percussion, and bass, then check a few contrasting recordings before expanding the schema.
 
 That slice will reveal the real synchronization work, separation quality, data-size requirements, and whether independent musical sources create the experience you want. Once it works, lyrics, emotional styling, projectM compositing, and the shared catalog become incremental additions to a tested foundation.
 

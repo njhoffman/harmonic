@@ -73,7 +73,7 @@ Renderer::Renderer(int width, int height, bool hidden) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    window_ = SDL_CreateWindow("Harmonic / Mix inspector", width, height,
+    window_ = SDL_CreateWindow("Harmonic / Source inspector", width, height,
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY |
         (hidden ? SDL_WINDOW_HIDDEN : 0));
     if (!window_) throw std::runtime_error(std::string("Create window: ") + SDL_GetError());
@@ -184,7 +184,7 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
     }
     rect(0, 0, width, 4, 0.22f, 0.86f, 0.72f);
     text(left, 26, "HARMONIC", 3, 0.88f, 0.94f, 0.96f);
-    text(left + 186, 34, view == View::graphs ? "/ MIX INSPECTOR" :
+    text(left + 186, 34, view == View::graphs ? (bundle.sources.empty() ? "/ MIX INSPECTOR" : "/ SOURCE INSPECTOR") :
         (view == View::combined ? "/ PROJECTM + GRAPHS" : "/ PROJECTM"), 1.5f, 0.43f, 0.56f, 0.65f);
     std::string title = bundle.audio_path.stem().string();
     const auto max_title = static_cast<std::size_t>((span - 240) / 12);
@@ -210,9 +210,11 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
             const float y = top + line * graph_height / 3;
             rect(left, y, span, 1, 0.1f, 0.15f, 0.2f);
         }
+        const float mix_span = bundle.sources.empty() ? span : span * 0.47f;
+        if (!bundle.sources.empty()) text(left, top + 6, "ORIGINAL MIX", 1.3f, 0.65f, 0.77f, 0.83f);
         const auto spectrum = bundle.spectrum_at(feature_time);
         const float top_db = relative ? bundle.spectrum_top_db : 0;
-        const float band_width = span / bundle.bands;
+        const float band_width = mix_span / bundle.bands;
         for (int i = 0; i < bundle.bands; ++i) {
             const float db = 20 * std::log10(std::max(1e-12f, spectrum[i]));
             const float amount = std::clamp((db - (top_db - 70)) / 70, 0.0f, 1.0f);
@@ -222,9 +224,73 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
             rect(left + i * band_width + 1, top + graph_height * (1 - amount), std::max(1.0f, band_width - 3), graph_height * amount, r, g, b);
         }
         for (float frequency : {20.0f, 100.0f, 1000.0f, 10000.0f, 24000.0f}) {
+            if (!bundle.sources.empty() && frequency == 10000.0f) continue;
             const float fraction = std::log(frequency / 20) / std::log(24000.0f / 20);
             const auto label = frequency >= 1000 ? number(frequency / 1000, 0) + " KHZ" : number(frequency, 0) + " HZ";
-            text(std::clamp(left + fraction * span - 15, left, left + span - 72), 438, label, 1.4f, 0.4f, 0.54f, 0.62f);
+            text(std::clamp(left + fraction * mix_span - 15, left, left + mix_span - 72), 438, label, 1.4f, 0.4f, 0.54f, 0.62f);
+        }
+        if (!bundle.sources.empty()) {
+            std::vector<const FeatureStream*> sources;
+            for (const auto& source : bundle.sources)
+                if (source.role == (residuals_ ? "residual" : "target")) sources.push_back(&source);
+            const int cols = sources.size() > 4 ? 2 : 1;
+            const int rows = (static_cast<int>(sources.size()) + cols - 1) / cols;
+            const float x0 = left + mix_span + 28, available = span - mix_span - 28;
+            const float card_width = available / cols, card_height = graph_height / rows;
+            const std::array<std::array<float, 3>, 4> colors = {{{0.35f, 0.78f, 1.0f},
+                {1.0f, 0.64f, 0.35f}, {0.73f, 0.56f, 1.0f}, {0.30f, 0.88f, 0.65f}}};
+            for (std::size_t index = 0; index < sources.size(); ++index) {
+                const auto& source = *sources[index];
+                const auto& color = colors[index % colors.size()];
+                const float x = x0 + (index % cols) * card_width;
+                const float y = top + (index / cols) * card_height;
+                const float w = card_width - 12, h = card_height - 8;
+                rect(x, y, w, h, 0.035f, 0.055f, 0.08f, view == View::combined ? 0.8f : 1);
+                const auto max_label = static_cast<std::size_t>((w - 16) / 7.2f);
+                std::string label = source.target + (residuals_ ? " / RESIDUAL" : " / TARGET");
+                if (label.size() > max_label) label = label.substr(0, max_label - 3) + "...";
+                text(x + 8, y + 5, label, 1.2f, color[0], color[1], color[2]);
+                if (!source.covers(feature_time)) {
+                    text(x + 8, y + 22, "NO DATA / " + time_text(static_cast<double>(source.start_sample) / sample_rate) +
+                        "-" + time_text(static_cast<double>(source.start_sample + source.sample_count) / sample_rate),
+                        1.1f, 0.51f, 0.65f, 0.73f);
+                    continue;
+                }
+                const float value = source.interpolate(source.rms, feature_time);
+                text(x + 8, y + 20, "RMS " + number(20 * std::log10(std::max(1e-6f, value))) + " DBFS", 1.1f,
+                     0.65f, 0.77f, 0.83f);
+                text(x + w - 105, y + 20, "ONSET", 1.0f, 0.51f, 0.65f, 0.73f);
+                rect(x + w - 65, y + 20, 55, 7, 0.09f, 0.15f, 0.2f);
+                const float activity = std::clamp(source.interpolate(source.onset, feature_time) /
+                    (relative ? bundle.onset_scale : 1), 0.0f, 1.0f);
+                rect(x + w - 65, y + 20, activity * 55, 7, color[0], color[1], color[2]);
+                // Separate the time axis from the frequency axis. Both use the mix's display scale.
+                const float history_width = (w - 24) * 0.36f;
+                const float spectrum_x = x + history_width + 20, spectrum_width = w - history_width - 28;
+                const float bars_height = std::max(8.0f, h - 48), baseline = y + h - 15;
+                const auto bands = source.spectrum_at(feature_time);
+                const float bw = spectrum_width / source.bands;
+                rect(spectrum_x - 5, y + 34, 1, bars_height, 0.12f, 0.18f, 0.24f);
+                for (int band = 0; band < source.bands; ++band) {
+                    const float db = 20 * std::log10(std::max(1e-12f, bands[band]));
+                    const float amount = std::clamp((db - (top_db - 70)) / 70, 0.0f, 1.0f);
+                    rect(spectrum_x + band * bw, baseline - amount * bars_height, std::max(1.0f, bw - 1),
+                         amount * bars_height, color[0], color[1], color[2], 0.75f);
+                }
+                for (int col = 0; col < static_cast<int>(history_width); ++col) {
+                    const double t = feature_time - 2.0 + 2.0 * col / std::max(1.0f, history_width - 1);
+                    if (!source.covers(t)) continue;
+                    const float rms_value = source.interpolate(source.rms, t);
+                    const float amount = std::clamp(rms_value / (relative ? bundle.rms_scale : 1), 0.0f, 1.0f);
+                    rect(x + 8 + col, baseline - amount * bars_height, 1, 2, color[0], color[1], color[2]);
+                }
+                if (h > 64) {
+                    text(x + 8, y + h - 10, "LAST 2S", 0.9f, 0.43f, 0.56f, 0.65f);
+                    text(spectrum_x, y + h - 10, "20 HZ - 24 KHZ", 0.9f, 0.43f, 0.56f, 0.65f);
+                }
+            }
+            text(x0, 438, residuals_ ? "RESIDUALS / R SHOW TARGETS" : "INDEPENDENT TARGETS / R SHOW RESIDUALS", 1.2f,
+                 0.51f, 0.65f, 0.73f);
         }
     }
 
@@ -240,6 +306,12 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
         const float value = *std::max_element(bundle.rms.begin() + a, bundle.rms.begin() + b);
         const float h = envelope_height * std::clamp(value / amplitude_scale, 0.0f, 1.0f);
         rect(left + x, envelope_top + envelope_height - h, 1, h, 0.15f, 0.47f, 0.46f);
+    }
+    if (!bundle.sources.empty()) {
+        const auto& source = bundle.sources.front();
+        const float begin = left + static_cast<float>(source.start_sample) / bundle.sample_count * span;
+        const float end = left + static_cast<float>(source.start_sample + source.sample_count) / bundle.sample_count * span;
+        rect(begin, envelope_top + envelope_height - 3, end - begin, 3, 0.73f, 0.56f, 1.0f);
     }
     const float playhead = left + static_cast<float>(seconds / bundle.duration()) * span;
     rect(playhead, envelope_top - 2, 2, envelope_height + 4, 0.87f, 0.96f, 0.94f);
