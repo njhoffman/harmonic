@@ -17,8 +17,10 @@ show incomplete tasks by default; add `--all` to include completed tasks, or
 The unchanged 10-second Billie Jean job ran with `facebook/sam-audio-large-tv`
 on an AWS `g7e.4xlarge` in `us-east-2c`. Runtime installation, CUDA, authentication,
 three prompted separations, returned-file hashes, and exact sample counts passed.
-The output is saved locally under `data/aws-gpu/2026-11-19/`. Listening,
-instrument-level transient alignment, cross-target overlap, and the observed
+The output is saved locally under `data/aws-gpu/2026-11-19/`. The owner
+confirmed all three targets and residuals sound good, with clear instrument
+extraction, no audible unwanted bleed, and no unwanted target instrument left
+in the residuals. Instrument-level transient alignment and the measured
 reconstruction/gain differences still need review before player integration.
 The GPU quota is 16 vCPUs; the owner completed the approved Paid plan upgrade.
 L40S hosts lacked capacity, so no L40S inference compatibility is claimed.
@@ -65,9 +67,11 @@ See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
   token, role/profile, launch template, and security group were removed. Final
   checks found no active test instance, tagged test volume, or token parameter.
   A delayed normal shutdown completed after force termination.
-- [ ] **Listen to returned target/residual pairs** (p1) [test]
-  Inspect separation quality and cross-target overlap using the saved WAVs.
-  Independent prompts must not be presented as mutually exclusive stems.
+- [x] **Listen to returned target/residual pairs** (p1) [test]
+  Owner confirmed on 2026-11-19: all three targets and residuals sound good;
+  targets clearly extract the requested instrument, with no audible unwanted
+  bleed or unwanted target instrument remaining in the residuals. This validates
+  the tested excerpt; independent prompts are not guaranteed exclusive stems.
 - [ ] **Complete perceptual alignment and gain validation** (p1) [test]
   Measured target-plus-residual waveform lag is zero within a ±100 ms search;
   reconstruction RMS error is 0.091–0.093 against source RMS 0.209. Best-fit
@@ -75,8 +79,9 @@ See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
   Pinned processor checks confirm arithmetic-mean mono conversion, unchanged
   double-amplitude inputs, and complete anti-phase cancellation. The model
   generates residuals independently; exact mixture reconstruction is not enforced.
-  Listening and instrument-level transient checks remain open. Float WAV peaks
-  above 1.0 were preserved without normalization or clipping.
+  Owner listening approval covers separation quality. Instrument-level timing
+  and comparative gain checks remain open. Float WAV peaks above 1.0 were
+  preserved without normalization or clipping.
 
 ## Playback: real-device validation (P1)
 

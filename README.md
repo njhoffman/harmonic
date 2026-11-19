@@ -393,8 +393,9 @@ An isolated GPU worker is prepared with pinned dependencies, portable excerpt
 jobs, target/residual WAVs and provenance reports, and returned-output validation.
 Its locked runtime, CUDA operation, authentication, and three prompted
 separations passed on an AWS NVIDIA Blackwell worker on 2026-11-19. Returned
-artifacts passed checksum/sample-count validation; listening, transient alignment,
-and observed reconstruction/gain differences remain quality gates. No checkpoint
+artifacts passed checksum/sample-count validation. The owner confirmed clear
+extraction and clean residuals for all three prompts. Instrument-level transient
+alignment and observed reconstruction/gain differences remain validation work. No checkpoint
 weights were downloaded on this laptop. SAM outputs are not yet part of the native player bundle.
 Demucs remains an optional comparison/fallback.
 

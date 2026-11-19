@@ -5,7 +5,8 @@ This directory prepares a **Linux x86_64 GPU worker** separate from Harmonic's
 analyzer/player environment. The locked runtime, package imports, CUDA operation,
 checkpoint authentication, and three prompted separations passed on an AWS
 NVIDIA Blackwell worker on 2026-11-19. Returned artifacts passed validation;
-listening and detailed alignment/gain review remain open. No model weights were downloaded locally.
+the owner approved the three target/residual pairs by listening. Detailed
+alignment/gain review remains open. No model weights were downloaded locally.
 
 The local machine exposes Intel Iris Xe graphics, 16 GB RAM, and no working CUDA
 device. The selected `checkpoint.pt` alone is 14,861,356,211 bytes (14.86 GB), before
@@ -231,8 +232,12 @@ reconstruction error as a ground-truth separation-quality score.
 Direct checks of the pinned processor matched arithmetic-mean mono conversion
 exactly, retained a doubled input amplitude, and cancelled an anti-phase stereo
 input to zero. Output peaks above 1.0 remain in float WAVs, without clipping or
-normalization. Listening to target/residuals, reviewing cross-target overlap,
-and checking instrument transients remain required before player integration.
+normalization. On 2026-11-19, the owner listened to all three target/residual
+pairs and confirmed clear instrument extraction, no audible unwanted bleed,
+and no unwanted target instrument remaining in residuals. This is listening
+approval for the tested excerpt; it does not establish exclusive targets,
+full-song quality, or instrument-level latency. Instrument-transient and
+comparative gain checks remain open before player integration.
 
 System-package setup initially stalled on the regional Ubuntu HTTP mirror.
 Retrying with the Ubuntu HTTPS mirror and `apt-get install --no-install-recommends`

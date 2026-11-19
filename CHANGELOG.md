@@ -5,6 +5,17 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-11-19
+
+### Documentation
+
+- Record owner listening approval of the three SAM Audio target/residual pairs:
+  clear instrument extraction, no audible unwanted bleed, and clean residuals
+  for the tested Billie Jean excerpt.
+- Complete the listening checklist while retaining separate instrument-level
+  timing and comparative gain checks; keep the measured reconstruction
+  differences and independent-target semantics explicit.
+
 ## [0.10.3] - 2026-11-19
 
 ### Documentation
@@ -228,7 +239,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.10.3...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.10.4...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -242,3 +253,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.10.1]: https://github.com/njhoffman/harmonic/tree/v0.10.1
 [0.10.2]: https://github.com/njhoffman/harmonic/tree/v0.10.2
 [0.10.3]: https://github.com/njhoffman/harmonic/tree/v0.10.3
+[0.10.4]: https://github.com/njhoffman/harmonic/tree/v0.10.4
