@@ -22,8 +22,13 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
     if mix.is_dir():
         mix /= "manifest.json"
     job = job.resolve()
+    song = (job.is_dir() and (job / "plan.json").is_file()) or job.name == "plan.json"
+    validator, loader = validate_result, load_job
+    if song:
+        from .sam_chunks import load_plan, validate_song_result
+        validator, loader = validate_song_result, load_plan
     if job.is_dir():
-        job /= "job.json"
+        job /= "plan.json" if song else "job.json"
     result = result.resolve()
     if result.is_dir():
         result /= "report.json"
@@ -40,8 +45,9 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
     manifest = read_bundle(mix, source_hash)
     if manifest["schema_version"] != 1:
         raise ValueError("Use an original schema-1 mix bundle as the adapter input")
-    report = validate_result(job, result)
-    prepared, _ = load_job(job)
+    report = validator(job, result)
+    prepared, input_samples = loader(job)
+    del input_samples
     if (any(report["source"][k] != manifest["source"][k] for k in ("sha256", "pcm_sha256"))
             or report["source"]["sample_count"] != manifest["audio"]["sample_count"]):
         raise ValueError("SAM result and mix bundle have different source identities/timebases")
@@ -86,7 +92,7 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
         write_json(temporary / "manifest.json", manifest)
         # Recheck the actual published artifacts and their provenance, including the mix copy.
         read_bundle(temporary / "manifest.json", source_hash)
-        validate_result(job, result)
+        validator(job, result)
         if any(sha256_file(p) != h for p, h in ((mix, mix_hash), (job, job_hash), (result, report_hash), (source, source_hash))):
             raise ValueError("Inputs changed during source feature extraction")
     return output / "manifest.json"

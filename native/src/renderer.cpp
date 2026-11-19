@@ -191,7 +191,7 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
     if (title.size() > max_title) title = title.substr(0, max_title - 3) + "...";
     text(left, 69, title, 2, 0.85f, 0.9f, 0.94f);
     text(width - 240, 70, time_text(seconds) + " / " + time_text(bundle.duration()), 2, 0.25f, 0.88f, 0.75f);
-    const double feature_time = std::clamp(seconds + offset, 0.0, bundle.duration());
+    const double feature_time = std::clamp(seconds + offset, 0.0, static_cast<double>(bundle.sample_count - 1) / sample_rate);
     const float rms = bundle.interpolate(bundle.rms, feature_time);
     const float peak = bundle.interpolate(bundle.peak, feature_time);
     const float onset = std::clamp(bundle.interpolate(bundle.onset, feature_time) / bundle.onset_scale, 0.0f, 1.0f);

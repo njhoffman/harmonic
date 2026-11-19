@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <regex>
 #include <set>
+#include <sstream>
 
 namespace harmonic {
 namespace {
@@ -136,7 +137,9 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
         Json::Value report;
         std::ifstream report_input(report_path);
         report_input >> report;
-        require(report["schema_version"].asInt() == 1 && report["kind"].asString() == "harmonic.sam-audio-result.v1" &&
+        const bool song = report["kind"].asString() == "harmonic.sam-audio-song-result.v1";
+        require(report["schema_version"].asInt() == 1 &&
+                (song || report["kind"].asString() == "harmonic.sam-audio-result.v1") &&
                 report["sample_rate"].asInt() == sample_rate && report["channels"].asInt() == 1,
                 "unsupported separation provenance");
         require(report["source"]["sha256"] == m["source"]["sha256"] &&
@@ -144,7 +147,7 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                 report["source"]["sample_count"].asInt64() == bundle.sample_count, "separation source identity mismatch");
         require(report["start_sample"].isInt64() && report["sample_count"].isInt64(), "invalid separation coverage");
         const auto start = report["start_sample"].asInt64(), count = report["sample_count"].asInt64();
-        require(start >= 0 && start < bundle.sample_count && count > 0 && count <= 30 * sample_rate &&
+        require(start >= 0 && start < bundle.sample_count && count > 0 && (song || count <= 30 * sample_rate) &&
                 count <= bundle.sample_count - start, "invalid separation coverage");
         require(report["semantics"].asString() == "independent_prompted_target_and_residual_pairs; targets_may_overlap" &&
                 report["channel_reduction"].asString() == "arithmetic_mean_to_mono; no_gain_normalization" &&
@@ -183,6 +186,54 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
         require(report["seed"].isUInt64() && report["seed"].asUInt64() < (1ULL << 32) &&
                 report["codec_hop_samples"].isInt() && report["codec_hop_samples"].asInt() > 0 &&
                 report["codec_hop_samples"].asInt() <= sample_rate, "invalid seed or codec hop");
+        if (song) {
+            require(start == 0 && count == bundle.sample_count, "invalid full-song coverage");
+            const auto& chunking = report["chunking"];
+            require(chunking["chunk_samples"].isInt() && chunking["overlap_samples"].isInt(), "invalid chunk sizes");
+            const int chunk = chunking["chunk_samples"].asInt(), overlap = chunking["overlap_samples"].asInt();
+            require(chunk > 0 && chunk <= 30 * sample_rate && overlap > 0 && overlap < chunk / 2.0 &&
+                    chunking["blend"].asString() == "half_cosine_complementary_v1" &&
+                    chunking["plan_sha256"] == report["job_sha256"] && chunking["chunks"].isArray(),
+                    "unsupported full-song overlap policy");
+            std::int64_t expected_start = 0;
+            Json::ArrayIndex index = 0;
+            while (true) {
+                require(index < chunking["chunks"].size(), "missing chunk provenance");
+                const auto& item = chunking["chunks"][index];
+                const auto raw = item["report_json"].asString();
+                require(item["index"].asUInt() == index && sha256(raw.data(), raw.size()) == item["report_sha256"].asString(),
+                        "retained chunk report checksum mismatch");
+                Json::Value child;
+                std::istringstream child_input(raw);
+                child_input >> child;
+                const auto n = std::min<std::int64_t>(chunk, count - expected_start);
+                require(child["kind"].asString() == "harmonic.sam-audio-result.v1" && child["schema_version"].asInt() == 1 &&
+                        child["start_sample"].asInt64() == expected_start && child["sample_count"].asInt64() == n &&
+                        child["job_sha256"] == item["job_sha256"] &&
+                        std::regex_match(child["job_sha256"].asString(), hash_pattern) &&
+                        child["sample_rate"].asInt() == sample_rate && child["channels"].asInt() == 1 &&
+                        child["pairs"].isObject() && child["pairs"].getMemberNames() == report["pairs"].getMemberNames(),
+                        "invalid retained chunk timebase/targets");
+                for (const auto* key : {"source", "model", "auxiliary_text_model", "normalized_config_sha256", "settings",
+                                       "seed", "semantics", "channel_reduction", "anchors", "codec_hop_samples",
+                                       "worker_code_sha256", "worker_lock_sha256"})
+                    require(child[key] == report[key], "inconsistent retained chunk provenance");
+                for (const auto& target : report["pairs"].getMemberNames()) {
+                    require(child["pairs"][target]["description"] == report["pairs"][target]["description"],
+                            "inconsistent retained chunk prompt");
+                    for (const auto* role : {"target", "residual"}) {
+                        const auto& wave = child["pairs"][target][role];
+                        require(wave["artifact"].asString() == target + "-" + role + ".wav" &&
+                                wave["sample_count"].asInt64() == n &&
+                                std::regex_match(wave["sha256"].asString(), hash_pattern), "invalid retained chunk waveform");
+                    }
+                }
+                ++index;
+                if (expected_start + chunk >= count) break;
+                expected_start += chunk - overlap;
+            }
+            require(index == chunking["chunks"].size(), "unexpected extra chunk provenance");
+        }
         std::set<std::string> seen;
         for (Json::ArrayIndex i = 1; i < m["streams"].size(); ++i) {
             const auto& item = m["streams"][i];

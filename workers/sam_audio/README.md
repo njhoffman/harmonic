@@ -193,6 +193,28 @@ stereo mix remains the playback source. Full-song chunking/overlap, stage-level
 retries, catalog caching of SAM results, and automated cleanup of temporary
 separated audio remain future work. Preserve these experimental outputs for review.
 
+## Full-song chunk workflow
+
+The worker also accepts `run-song PLAN --output DIRECTORY` (or
+`just sam-run-song PLAN DIRECTORY`). Prepare the complete recording locally with
+`just sam-prepare-song AUDIO PLAN 10 2`; each child remains a bounded excerpt
+using the existing pinned model/settings. The song plan pins the auxiliary text
+revision and binds source identity, all input/job hashes, sample coordinates,
+prompts, seed, chunk duration, and overlap.
+
+One model load serves all pending chunks. A matching existing output is resumed
+only after validating completed WAVs and job/model/code/lock provenance. A
+completion marker is published after every chunk validates, with per-invocation
+new/reused counts. Invalid partial artifacts fail explicitly; prompts in an
+unfinished chunk are not individually cached. Keep one worker per output.
+
+After retrieving results, `just sam-stitch PLAN CHUNKS NEW` applies complementary
+half-cosine overlap-add to new full-length float WAVs and retains every original
+chunk report and checksum. The local `sam-validate-song` and `sam-features`
+commands verify/consume these results without model packages. See the
+[full-song guide](../../README.md#full-song-sam-processing) for commands, overlap
+metrics, retention rules, and the remaining listening check.
+
 ## First AWS GPU benchmark (2026-11-19)
 
 The unchanged 10-second Billie Jean excerpt at source samples
@@ -249,6 +271,33 @@ System-package setup initially stalled on the regional Ubuntu HTTP mirror.
 Retrying with the Ubuntu HTTPS mirror and `apt-get install --no-install-recommends`
 completed; both attempts' logs and exit codes were preserved. This preparation
 retry did not change the worker lock, model, job, or inference settings.
+
+## First full-song run (2026-11-19, v0.12.0)
+
+The full 14,202,811-sample recording completed as 37 chunks (10-second maximum,
+2-second overlaps) on the same tested `g7e.4xlarge` hardware type. All 111 prompt
+calls completed; their separation times totaled 165.206 seconds. The initial
+worker invocation measured 386.690 seconds including download/model loading,
+excluding preflight. Peak reserved CUDA memory was 19.074 GiB; peak host RSS was
+29.878 GiB. A second invocation reused all 37 validated chunks and performed no
+new inference; per-invocation completion history was retained.
+
+All 275 remote output files were retrieved and checked locally. All chunk WAVs,
+retained reports, full-length merged WAVs, features, and native compositor checks
+passed. The reviewed excerpt's listening approval does not extend to this run:
+neighboring vocal estimates disagree strongly at some seams, especially 80–82
+and 88–90 seconds. This baseline needs full-song/seam listening and prompt
+consistency review before batch use. Unnormalized left/right/blended/source
+comparison clips are in `data/source-check-v0.12.0/seam-review/`.
+
+The GPU ran a recorded working-tree source snapshot before release, with
+matching worker/lock hashes retained in every chunk report. Raw results, logs,
+archive hashes, timing/memory/overlap summaries, and resource identifiers are
+under `data/aws-gpu/song-v0.12.0/`. Full-length WAVs are in
+`data/sam-results/billie-jean-song-v0.12.0/`; the ready native feature bundle is
+`data/analysis/billie-jean-song-v0.12.0/`. All temporary AWS resources and the
+authentication parameter were removed after verified retrieval. Final checks
+found no active test instance or tagged test volume.
 
 ## License observations
 

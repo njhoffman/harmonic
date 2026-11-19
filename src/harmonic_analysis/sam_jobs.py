@@ -186,6 +186,35 @@ def save_pair(directory: Path, name: str, target: np.ndarray, residual: np.ndarr
     return result
 
 
+def validate_pairs(report: dict, directory: Path, mono: np.ndarray, hop: int) -> None:
+    """Validate exact float WAV hashes, lengths, levels, and reconstruction statistics."""
+    count = len(mono)
+    for name, pair in report["pairs"].items():
+        arrays = []
+        for label in ("target", "residual"):
+            record = pair[label]
+            filename = f"{name}-{label}.wav"
+            if record["artifact"] != filename:
+                raise ValueError("unexpected result artifact path")
+            artifact = directory / filename
+            if digest(artifact) != record["sha256"]:
+                raise ValueError("output checksum mismatch")
+            array = read_wave(artifact)
+            if record["sample_count"] != len(array) or len(array) != count:
+                raise ValueError("output sample count mismatch")
+            trimmed = record["raw_sample_count"] - len(array)
+            if not 0 <= trimmed < hop or record["right_trim_samples"] != trimmed:
+                raise ValueError("invalid padding provenance")
+            rms = float(np.sqrt(np.mean(array.astype(np.float64) ** 2)))
+            peak = float(np.max(np.abs(array)))
+            if not np.isclose(rms, record["rms"], rtol=1e-6, atol=1e-9) or not np.isclose(peak, record["peak"], rtol=1e-6, atol=1e-9):
+                raise ValueError("output statistics mismatch")
+            arrays.append(array.astype(np.float64))
+        error = float(np.sqrt(np.mean((arrays[0] + arrays[1] - mono) ** 2)))
+        if not np.isclose(error, pair["sum_error_rms"], rtol=1e-6, atol=1e-9):
+            raise ValueError("sum-error statistics mismatch")
+
+
 def validate_result(job_path: Path, result_path: Path) -> dict:
     job_path = job_path.resolve()
     if job_path.is_dir():
@@ -214,32 +243,9 @@ def validate_result(job_path: Path, result_path: Path) -> dict:
             raise ValueError("mismatched target names")
         mono = samples.mean(axis=1, dtype=np.float32)
         for name, description in job["targets"].items():
-            pair = report["pairs"][name]
-            if pair["description"] != description:
+            if report["pairs"][name]["description"] != description:
                 raise ValueError("mismatched target prompt")
-            arrays = []
-            for label in ("target", "residual"):
-                record = pair[label]
-                filename = f"{name}-{label}.wav"
-                if record["artifact"] != filename:
-                    raise ValueError("unexpected result artifact path")
-                artifact = result_path.parent / filename
-                if digest(artifact) != record["sha256"]:
-                    raise ValueError("output checksum mismatch")
-                array = read_wave(artifact)
-                if record["sample_count"] != len(array) or len(array) != job["sample_count"]:
-                    raise ValueError("output sample count mismatch")
-                trimmed = record["raw_sample_count"] - len(array)
-                if not 0 <= trimmed < hop or record["right_trim_samples"] != trimmed:
-                    raise ValueError("invalid padding provenance")
-                rms = float(np.sqrt(np.mean(array.astype(np.float64) ** 2)))
-                peak = float(np.max(np.abs(array)))
-                if not np.isclose(rms, record["rms"], rtol=1e-6, atol=1e-9) or not np.isclose(peak, record["peak"], rtol=1e-6, atol=1e-9):
-                    raise ValueError("output statistics mismatch")
-                arrays.append(array.astype(np.float64))
-            error = float(np.sqrt(np.mean((arrays[0] + arrays[1] - mono) ** 2)))
-            if not np.isclose(error, pair["sum_error_rms"], rtol=1e-6, atol=1e-9):
-                raise ValueError("sum-error statistics mismatch")
+        validate_pairs(report, result_path.parent, mono, hop)
         return report
     except (KeyError, TypeError, AttributeError, OSError, ValueError, struct.error) as error:
         raise ValueError(f"Invalid SAM result {result_path}: {error}") from error

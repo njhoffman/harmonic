@@ -34,7 +34,8 @@ See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
   Blackwell Server Edition (97,887 MiB reported memory), driver 595.112.07,
   128 GiB nominal host RAM, and 142 GiB initially free on the encrypted root
   volume. The two-hour shutdown timer was verified active during the run.
-  Full-song resource use remains untested. `g6e.4xlarge` and `g6e.2xlarge` lacked capacity in all three zones.
+  The 10s/2s full-song run used 19.074 GiB peak reserved GPU memory and
+  29.878 GiB peak host RSS; longer chunk settings remain unprofiled. `g6e.4xlarge` and `g6e.2xlarge` lacked capacity in all three zones.
   Applied On-Demand G/VT quota is 16 vCPUs and the Paid account plan is active.
 - [x] **Transfer the release and unchanged excerpt job** (p1) [chore]
   The published `v0.10.1` source archive and unchanged
@@ -116,9 +117,18 @@ See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
   the mix. R switches targets/residuals; shared mix scales preserve comparisons.
   Missing excerpt coverage is explicit. Native offscreen target/residual,
   seek/offset/coverage, pause/compositor, and original playback checks pass.
+- [x] **Implement and exercise full-song chunk processing** (p2) [feature]
+  Prepared 37 canonical 10-second chunks with 2-second overlaps, ran them with
+  one loaded model on the validated Blackwell host, and stitched exact full-length
+  target/residual WAVs. All 37 completed chunks were reused on a second invocation
+  without new inference. Full-song source features and native compositor checks
+  passed; raw outputs and comparison clips remain available for listening.
 - [ ] **Establish full-song chunking and overlap behavior** (p2) [test]
-  Measure boundary artifacts, prompt consistency, latency, and gain across chunks
-  before running catalog-wide separation.
+  The first full-song run is structurally valid, but neighboring vocal estimates
+  disagree strongly at some overlaps. Review unnormalized comparison clips at
+  24, 72, 80, 88, and 264 seconds under `data/source-check-v0.12.0/seam-review/`.
+  Measure/resolve audible boundary artifacts and prompt dropouts before treating
+  the 10s/2s policy as quality-validated or running catalog-wide separation.
 - [ ] **Cache SAM runs with complete provenance keys** (p2) [feature]
   Include recording identity, excerpt/chunk coordinates, checkpoint/code/auxiliary
   revisions, prompts/anchors, seed, settings, and output schema in reuse decisions.

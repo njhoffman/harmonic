@@ -60,18 +60,54 @@ def main() -> int:
     adapter.add_argument("result", type=Path)
     adapter.add_argument("--output", required=True, type=Path)
     adapter.add_argument("--audio", type=Path, help="Relocated original recording; checksum must match")
+    song = commands.add_parser("prepare-song", help="Prepare a portable overlapping full-song chunk plan")
+    song.add_argument("audio", type=Path)
+    song.add_argument("--output", type=Path, required=True)
+    song.add_argument("--chunk-duration", type=float, default=10)
+    song.add_argument("--overlap", type=float, default=2)
+    song.add_argument("--seed", type=int, default=2026)
+    song.add_argument("--target", action="append", metavar="NAME=DESCRIPTION")
+    from .sam_chunks import TEXT_REVISION
+    song.add_argument("--text-revision", default=TEXT_REVISION, help="Pinned auxiliary model commit")
+    plan_check = commands.add_parser("inspect-song", help="Verify every input chunk and full canonical PCM hash")
+    plan_check.add_argument("plan", type=Path)
+    stitch = commands.add_parser("stitch", help="Validate chunks and overlap-add new full-length WAV pairs")
+    stitch.add_argument("plan", type=Path)
+    stitch.add_argument("results", type=Path)
+    stitch.add_argument("--output", type=Path, required=True)
+    song_check = commands.add_parser("validate-song", help="Validate stitched full-song WAVs and chunk provenance")
+    song_check.add_argument("plan", type=Path)
+    song_check.add_argument("result", type=Path)
     arguments = parser.parse_args()
     try:
-        if arguments.command == "prepare":
+        if arguments.command in ("prepare", "prepare-song"):
             targets = dict(DEFAULT_TARGETS)
             if arguments.target:
                 pairs = [item.split("=", 1) for item in arguments.target]
                 if any(len(pair) != 2 for pair in pairs) or len({pair[0] for pair in pairs}) != len(pairs):
                     raise ValueError("Each target must be a distinct NAME=DESCRIPTION pair")
                 targets = dict(pairs)
-            path = prepare(arguments.audio, arguments.output, start=arguments.start,
-                           duration=arguments.duration, targets=targets, seed=arguments.seed)
+            if arguments.command == "prepare-song":
+                from .sam_chunks import prepare_song
+                path = prepare_song(arguments.audio, arguments.output, chunk_seconds=arguments.chunk_duration,
+                                    overlap_seconds=arguments.overlap, targets=targets, seed=arguments.seed,
+                                    text_revision=arguments.text_revision)
+            else:
+                path = prepare(arguments.audio, arguments.output, start=arguments.start,
+                               duration=arguments.duration, targets=targets, seed=arguments.seed)
             print(f"🟢 Saved GPU-worker job: {path}")
+        elif arguments.command == "inspect-song":
+            from .sam_chunks import load_plan
+            plan, _ = load_plan(arguments.plan)
+            print(json.dumps(plan, indent=2))
+        elif arguments.command == "stitch":
+            from .sam_chunks import stitch_song
+            path = stitch_song(arguments.plan, arguments.results, arguments.output)
+            print(f"🟢 Saved full-song separation: {path}")
+        elif arguments.command == "validate-song":
+            from .sam_chunks import validate_song_result
+            report = validate_song_result(arguments.plan, arguments.result)
+            print(f"🟢 Validated {len(report['pairs'])} full-song pairs and chunk provenance")
         elif arguments.command == "inspect":
             job, _ = load_job(arguments.job)
             print(json.dumps(job, indent=2))

@@ -24,7 +24,7 @@ def separation_report(path: Path, manifest: dict) -> dict:
     if sha256_file(artifact) != record["sha256"]:
         raise ValueError("separation report checksum mismatch")
     report = json.loads(artifact.read_text())
-    if (report["schema_version"] != 1 or report["kind"] != "harmonic.sam-audio-result.v1"
+    if (report["schema_version"] != 1 or report["kind"] not in ("harmonic.sam-audio-result.v1", "harmonic.sam-audio-song-result.v1")
             or report["sample_rate"] != SAMPLE_RATE or report["channels"] != 1
             or report["settings"] != SETTINGS or report["anchors"] is not None
             or report["channel_reduction"] != "arithmetic_mean_to_mono; no_gain_normalization"
@@ -35,7 +35,9 @@ def separation_report(path: Path, manifest: dict) -> dict:
     if report["source"]["sample_count"] != manifest["audio"]["sample_count"]:
         raise ValueError("separation source length mismatch")
     start, count = report["start_sample"], report["sample_count"]
-    if (type(start) is not int or type(count) is not int or start < 0 or not 0 < count <= 30 * SAMPLE_RATE
+    song = report["kind"] == "harmonic.sam-audio-song-result.v1"
+    if (type(start) is not int or type(count) is not int or start < 0 or count <= 0
+            or (not song and count > 30 * SAMPLE_RATE)
             or start + count > manifest["audio"]["sample_count"]):
         raise ValueError("invalid separation coverage")
     if any(report["model"][key] != value for key, value in (
@@ -65,6 +67,9 @@ def separation_report(path: Path, manifest: dict) -> dict:
                     or not 0 <= wave["raw_sample_count"] - count < hop
                     or wave["right_trim_samples"] != wave["raw_sample_count"] - count):
                 raise ValueError("invalid separation waveform provenance")
+    if song:
+        from .sam_chunks import validate_song_metadata
+        validate_song_metadata(report)
     return report
 
 

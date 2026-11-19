@@ -385,6 +385,79 @@ Schema-2 bundles are opened directly in the player. The mix catalog explicitly
 rejects them until SAM-specific cache keys/retries are implemented. Full-song
 chunking and instrument-level perceptual latency remain separate work.
 
+## Full-song SAM processing
+
+Prepare the complete recording as overlapping canonical PCM chunks locally:
+
+```sh
+just sam-prepare-song 'data/tracks/Michael Jackson - Billie Jean.mp3' \
+  data/sam-jobs/billie-jean-song-v0.12.0 10 2
+```
+
+The default is 10-second chunks with 2-second overlaps. Durations become integer
+48 kHz sample counts; chunks are capped at 30 seconds and overlap must be
+positive and less than half a chunk. The final chunk ends exactly at the last
+source sample. `harmonic-sam inspect-song PLAN` validates every child job,
+identical overlap inputs, and the reconstructed full canonical-PCM hash.
+The auxiliary text-model revision is pinned in the plan.
+
+Copy the plan directory to a GPU host, then run there:
+
+```sh
+just sam-run-song data/sam-jobs/billie-jean-song-v0.12.0 data/sam-results/song-chunks
+```
+
+One model session serves all chunks. Each completed chunk is published atomically.
+Rerunning the same command validates and reuses matching completed chunks;
+changing the plan, worker/lock, or text revision rejects incompatible reuse.
+A corrupt existing chunk causes an error. Inputs and completed results are never
+silently overwritten. Resume is currently at chunk granularity; a failed prompt
+inside an unfinished chunk reruns that chunk. Use one worker per output directory.
+
+Retrieve results, then validate, blend, and extract features locally:
+
+```sh
+just sam-stitch data/sam-jobs/billie-jean-song-v0.12.0 \
+  data/sam-results/song-chunks data/sam-results/billie-jean-song-v0.12.0
+just sam-validate-song data/sam-jobs/billie-jean-song-v0.12.0 \
+  data/sam-results/billie-jean-song-v0.12.0
+just sam-features data/analysis/billie-jean data/sam-jobs/billie-jean-song-v0.12.0 \
+  data/sam-results/billie-jean-song-v0.12.0 data/analysis/billie-jean-song-v0.12.0
+just play data/analysis/billie-jean-song-v0.12.0
+```
+
+Stitching uses complementary half-cosine fades on overlapping samples. The
+weights sum to one; matching audio keeps its level, and no time shift, gain
+matching, normalization, or clipping is applied. Independent estimates can
+still disagree or cancel within an overlap. The report measures neighboring
+waveforms' RMS ratio, normalized waveform correlation, difference RMS,
+cross-correlation peak lag, and hard-splice versus blended midpoint steps.
+These diagnostics do not establish perceptual continuity; listen across seams.
+
+The first real full-song run processed all 37 chunks of the 295.892-second
+recording with 165.206 seconds of separation across the three prompts. The
+initial worker invocation measured 386.690 seconds including download/model
+loading (excluding preflight); peak reserved GPU memory was 19.074 GiB and peak
+host RSS 29.878 GiB. A second invocation reused all 37 chunks with zero new
+inference. Full-song WAVs, feature validation, and native compositor checks passed.
+
+**Full-song audio quality is still under review.** Some neighboring vocal
+estimates disagree strongly: at 80–82 seconds one estimate has RMS 0.102 while
+the other is 0.000106; at 88–90 seconds the levels differ by about 26.6 times.
+These measurements identify overlaps to audition, not a ground-truth quality
+score. Compare left/right/blended/original-mono clips in
+`data/source-check-v0.12.0/seam-review/`; the retained measurements are in
+`data/aws-gpu/song-v0.12.0/measurements.json`. The 10s/2s policy is an experimental
+baseline, with listening and prompt-consistency review pending before bulk use.
+
+The stitched report retains the original checksum-protected chunk reports,
+coordinates, model/worker/auxiliary revisions, and fade policy. Full-song output
+uses `harmonic.sam-audio-song-result.v1` and requires a v0.12.0+ reader; excerpt
+outputs remain supported. Source features are extracted **after** audio stitching,
+so internal chunk seams do not become new zero-padded analysis-window edges.
+Playback remains the original stereo mix; its final source readouts hold at the
+last source sample. Job inputs and benchmark WAVs are retained for review.
+
 ## Bundle contract: schema versions 1 and 2
 
 A schema-1 mix bundle contains `manifest.json` and `mix.arrow`. The manifest records the

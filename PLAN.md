@@ -104,6 +104,16 @@ latency and full-song chunk boundaries remain unmeasured. Local evidence is in
 `data/source-check-v0.11.0/` and the ready bundle is
 `data/analysis/billie-jean-sam-v0.11.0/`.
 
+The v0.12.0 full-song workflow adds portable overlap plans, one-session GPU
+inference, validated chunk resume, and complementary half-cosine stitching.
+The real 295.892-second Billie Jean run completed 37 chunks at 10s/2s, with
+165.206 seconds of separation and a successful zero-new-inference reuse pass.
+Full-length float WAVs and native source graphs preserve the exact sample count.
+The baseline is structurally validated; vocal overlap inconsistencies around
+80–90 seconds and other seams require listening and policy review before bulk
+processing. Evidence and unnormalized comparison clips are retained under
+`data/aws-gpu/song-v0.12.0/` and `data/source-check-v0.12.0/`.
+
 The selected checkpoint revision is `b9fc94687ec044c570cbe30b8c28100cd056f1cb`,
 with a 14,861,356,211-byte checkpoint file before auxiliary models or runtime
 memory. The main model and source are pinned; auxiliary text-model resolution is

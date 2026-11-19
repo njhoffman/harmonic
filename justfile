@@ -70,7 +70,23 @@ sam-run job="data/sam-jobs/billie-jean" output="data/sam-results/billie-jean":
 sam-validate job="data/sam-jobs/billie-jean" result="data/sam-results/billie-jean": sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli validate {{ quote(job) }} {{ quote(result) }}
 
-# Add validated excerpt targets/residuals to a new bundle; no GPU or model environment needed.
+# Prepare a complete recording as <=30s chunks with sample-based overlap.
+sam-prepare-song audio=default_audio output="data/sam-jobs/billie-jean-song" chunk="10" overlap="2": sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli prepare-song {{ quote(audio) }} --output {{ quote(output) }} --chunk-duration {{ quote(chunk) }} --overlap {{ quote(overlap) }}
+
+# Separate a song with one loaded model, reusing only validated matching completed chunks.
+sam-run-song plan="data/sam-jobs/billie-jean-song" output="data/sam-results/billie-jean-chunks":
+    {{ quote(sam_python) }} workers/sam_audio/worker.py run-song {{ quote(plan) }} --output {{ quote(output) }}
+
+# Validate and blend completed chunk results into new full-length WAV pairs.
+sam-stitch plan chunks output: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli stitch {{ quote(plan) }} {{ quote(chunks) }} --output {{ quote(output) }}
+
+# Verify full-song output identity, samples, statistics, and retained chunk reports.
+sam-validate-song plan result: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli validate-song {{ quote(plan) }} {{ quote(result) }}
+
+# Add validated excerpt or full-song targets/residuals to a new bundle; no GPU or model environment needed.
 sam-features mix job result output: sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli features {{ quote(mix) }} {{ quote(job) }} {{ quote(result) }} --output {{ quote(output) }}
 

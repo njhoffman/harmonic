@@ -5,6 +5,29 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-19
+
+### Added
+
+- Full-song SAM plans with bounded, overlapping chunks, pinned auxiliary model
+  revision, exact source coordinates, and verification of the full canonical PCM.
+- `sam-run-song` to process all pending chunks with one model load and validate
+  matching completed chunks on restart; retain per-invocation reuse history.
+- `sam-stitch` / `sam-validate-song` for complementary half-cosine overlap-add,
+  full-length float WAVs, original chunk provenance, and seam diagnostics.
+- Full-song source-feature adaptation and native reading while preserving
+  support for existing excerpt results. Full-song result files require v0.12.0+.
+
+### Validation
+
+- Complete all 37 real Billie Jean chunks and 111 prompt calls on the tested
+  Blackwell host; reuse all 37 chunks without new inference on a second run.
+- Validate exact full-length WAV samples, source features, and native compositor
+  behavior. Record substantial vocal-estimate differences at some overlaps and
+  retain comparison clips; full-song listening/prompt consistency remains open.
+- Cover overlap unity gain, uneven tails, corrupt provenance, interrupted chunk
+  recovery, one-model reuse, and analysis windows crossing internal chunk seams.
+
 ## [0.11.0] - 2026-11-19
 
 ### Added
@@ -264,7 +287,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -280,3 +303,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.10.3]: https://github.com/njhoffman/harmonic/tree/v0.10.3
 [0.10.4]: https://github.com/njhoffman/harmonic/tree/v0.10.4
 [0.11.0]: https://github.com/njhoffman/harmonic/tree/v0.11.0
+[0.12.0]: https://github.com/njhoffman/harmonic/tree/v0.12.0
