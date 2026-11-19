@@ -5,6 +5,20 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-11-19
+
+### Documentation
+
+- Record the first successful SAM Audio large-TV GPU benchmark on an AWS
+  NVIDIA RTX PRO 6000 Blackwell host, including verified runtime/authentication,
+  model provenance, three prompt timings, and peak GPU/host memory.
+- Confirm returned WAV hashes, exact 48 kHz sample counts, and zero global
+  reconstruction lag in the measured window. Document substantial waveform/gain
+  differences and keep listening and instrument-level alignment checks open.
+- Record the completed Paid plan upgrade, L40S capacity failures, successful
+  same-region fallback, system-package setup recovery, local result paths, and
+  verified removal of all temporary GPU-test infrastructure and authentication.
+
 ## [0.10.2] - 2026-11-19
 
 ### Documentation
@@ -214,7 +228,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.10.3...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -227,3 +241,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.10.0]: https://github.com/njhoffman/harmonic/tree/v0.10.0
 [0.10.1]: https://github.com/njhoffman/harmonic/tree/v0.10.1
 [0.10.2]: https://github.com/njhoffman/harmonic/tree/v0.10.2
+[0.10.3]: https://github.com/njhoffman/harmonic/tree/v0.10.3

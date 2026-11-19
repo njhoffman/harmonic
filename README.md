@@ -391,15 +391,18 @@ will need a portable GL loader and packaging work.
 The owner now has access to [SAM Audio large TV](https://huggingface.co/facebook/sam-audio-large-tv).
 An isolated GPU worker is prepared with pinned dependencies, portable excerpt
 jobs, target/residual WAVs and provenance reports, and returned-output validation.
-Its dependency graph resolves; GPU installation, authentication, inference, and
-timing/quality validation remain pending. No checkpoint weights were downloaded
-on this laptop. SAM outputs are not yet part of the native player bundle.
+Its locked runtime, CUDA operation, authentication, and three prompted
+separations passed on an AWS NVIDIA Blackwell worker on 2026-11-19. Returned
+artifacts passed checksum/sample-count validation; listening, transient alignment,
+and observed reconstruction/gain differences remain quality gates. No checkpoint
+weights were downloaded on this laptop. SAM outputs are not yet part of the native player bundle.
 Demucs remains an optional comparison/fallback.
 
 On 2026-11-19, the applied AWS GPU quota and local authenticated access to the
-pinned model config were verified. GPU launch is blocked by the account's Free
-plan restriction; the approved Paid plan upgrade requires console completion
-after an API error. See the worker guide for the current launch gate.
+pinned model config were verified. The Paid account plan is now active. L40S
+hosts lacked capacity; a 96 GB NVIDIA Blackwell worker completed the 10-second excerpt
+benchmark in 5.319 seconds of separation across three prompts. See the worker
+guide for timing/memory measurements and limits.
 
 ```sh
 just sam-doctor  # Reports missing prerequisites; downloads no weights.

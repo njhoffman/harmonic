@@ -2,7 +2,7 @@
 
 Prepared October 22, 2026, from `OUTLINE.md`. Technology and provider observations below were checked against primary documentation where available. Recommendations, proposed specifications, and effort ranges are engineering judgments, not benchmark results or vendor quotes.
 
-Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Fifty checks cover signal analysis, CLI behavior, native playback, projectM rendering/compositing, local catalog/reuse, SAM job/worker contracts, command-status handling, and optional global task-viewer integrations. Optional projectM presets now play with graph overlays, a preset view, cached pause behavior, and sample-based seek resets. A local SQLite catalog tracks exact-file identities, locations, and verified reusable mix bundles. SAM Audio access is now granted; the isolated worker is prepared, while installation, authentication, and inference on a GPU host remain pending. The owner has confirmed Billie Jean listening on the actual audio output and visible desktop controls/end-of-track behavior. Quantitative physical-output latency, target-GPU frame times, and contrasting recordings remain validation work.
+Implementation update: the original-mix prototype is available; build and usage instructions are in [README.md](README.md). It analyzes local audio into JSON/Arrow bundles and displays spectrum bars, an amplitude envelope, and onset activity in a C++/SDL3/OpenGL player. The supplied “Billie Jean” recording passes native decoding/checksum validation and dummy-audio pause/seek/end-of-track checks; offscreen rendering previews have been inspected. Fifty checks cover signal analysis, CLI behavior, native playback, projectM rendering/compositing, local catalog/reuse, SAM job/worker contracts, command-status handling, and optional global task-viewer integrations. Optional projectM presets now play with graph overlays, a preset view, cached pause behavior, and sample-based seek resets. A local SQLite catalog tracks exact-file identities, locations, and verified reusable mix bundles. The isolated SAM Audio worker completed its first real GPU benchmark on 2026-11-19: locked runtime, CUDA, authentication, and three prompt runs passed on an AWS NVIDIA Blackwell host. Output hashes and exact sample counts passed; listening and reconstruction/gain differences remain quality gates. The owner has confirmed Billie Jean listening on the actual audio output and visible desktop controls/end-of-track behavior. Quantitative physical-output latency, target-GPU frame times, and contrasting recordings remain validation work.
 
 ## 1. Assessment of your objectives
 
@@ -31,7 +31,7 @@ Assumptions for this plan: prerecorded local MP3s first; preprocessing is accept
 | Layer | Recommended starting choice | Reason and tradeoff |
 | --- | --- | --- |
 | Audio analysis | Python, NumPy, SciPy, librosa; FFmpeg for decoding | Gives direct access to audio research tools and measurable DSP. Keep this outside the rendering process. |
-| Source separation | SAM Audio large TV through the isolated GPU worker; Demucs as an optional comparison/fallback | Access granted; dependency graph locked. Validate GPU runtime, prompt behavior, timing, gain, and resource use before depending on it. |
+| Source separation | SAM Audio large TV through the isolated GPU worker; Demucs as an optional comparison/fallback | First Blackwell GPU excerpt run passed; runtime, timings, memory, and output contracts measured. Listening, prompt overlap, and reconstruction/gain review remain open. |
 | Native client | C++20, CMake, SDL3 | Direct integration with native audio, OpenGL, and libprojectM. Costs more packaging and memory-management work than a Python prototype. |
 | Graphics | OpenGL 3.3 core as an initial target, GLSL, GLAD, GLM | Fits the requested direction. Confirm the selected projectM release and target GPUs during the initial integration spike. |
 | Playback | FFmpeg libraries for decode/resampling, SDL3 audio for output | Using the same decoding rules in analysis and playback reduces timing ambiguity. Account for device buffering separately. |
@@ -60,7 +60,7 @@ Demucs remains an optional comparison or fallback, not the default implementatio
 
 Use specialized separation models or a music-analysis API for the signal processing. OpenAI or Claude could help map existing descriptors into a controlled vocabulary, interpret verified lyric themes, or propose scene settings. Their generated descriptions should not become measured frequency curves, stem envelopes, or beat timestamps. OpenAI’s documented file-transcription workflow targets speech-to-text; it does not establish suitability for instrument separation or precise singing alignment. [Official OpenAI transcription documentation](https://developers.openai.com/api/docs/guides/speech-to-text)
 
-### SAM Audio integration direction (GPU validation pending)
+### SAM Audio integration direction (first GPU benchmark complete)
 
 The documented API isolates a prompted target and returns a residual, each as a one-dimensional waveform. It does not expose the same fixed four-stem interface as Demucs. This implies that separate instrument prompts need evaluation for overlap and omissions; their outputs must not automatically be treated as an exclusive partition of the mix. [Model card and output format](https://huggingface.co/facebook/sam-audio-base)
 
@@ -79,7 +79,9 @@ separate. Jobs carry an at-most-30-second canonical stereo excerpt, exact source
 and PCM identity, sample offset, prompts, seed, and settings. A real 10-second
 Billie Jean job at 30 seconds is prepared at `data/sam-jobs/billie-jean-v0.7.0/`.
 The worker can produce independent mono target/residual WAV pairs with hashes,
-timing/memory reports, and return-file validation; actual inference is unverified.
+timing/memory reports, and return-file validation. The first real AWS GPU run
+passed with three independent prompts on 2026-11-19; see the worker guide for
+measurements and remaining quality gates.
 
 The selected checkpoint revision is `b9fc94687ec044c570cbe30b8c28100cd056f1cb`,
 with a 14,861,356,211-byte checkpoint file before auxiliary models or runtime
@@ -94,12 +96,14 @@ perceptual alignment or source quality.
 The local machine exposes Intel Iris Xe graphics and 16 GB RAM; no CUDA device
 works even outside the sandbox. On 2026-11-19, local Hugging Face login and
 authenticated access to the pinned checkpoint config passed. The owner chose
-to run inference on a GPU host. The AWS GPU quota is now 16 vCPUs, but a Free
-plan restriction rejected launch; the approved Paid plan upgrade needs console
-completion after the API returned `ResourceNotFoundException`. No inference stack or
-checkpoint weights were installed locally; no real inference benchmark has run.
-Dependency resolution and CPU contract tests do not establish runtime/GPU
-compatibility. The SAM License was inspected; Perception Models and ImageBind
+to run inference on a GPU host. The AWS GPU quota is now 16 vCPUs and the Paid
+plan is active after a console upgrade. L40S host capacity was unavailable; a
+`g7e.4xlarge` worker with a 96 GB NVIDIA Blackwell GPU completed the benchmark.
+Three prompt separations totaled 5.319 s; peak reserved CUDA memory was 19.074 GiB
+and peak host RSS 29.855 GiB. Initial downloads and loading brought total run
+time to 221.583 s. No inference stack or checkpoint weights were installed
+locally. This establishes this host/runtime combination for the 10-second job;
+other GPUs and full-song resource use remain unverified. The SAM License was inspected; Perception Models and ImageBind
 declare noncommercial licenses, so distribution/service review remains open.
 The current mix player remains usable. Track the work in [TODO.md](TODO.md).
 
@@ -229,7 +233,7 @@ The local-file design also avoids making Spotify playback a dependency. Any late
 | **ACRCloud** | Alternate identity/metadata supplier if commercial catalog coverage becomes important. Its metadata API accepts identifiers such as ISRC and returns cross-platform metadata; this does not substitute for checking exact recording alignment. [Metadata API](https://docs.acrcloud.com/reference/metadata-api) |
 | **Essentia** | Valuable music-analysis research toolkit and pretrained classifiers. Its library and model licensing differ: AGPLv3 for the library, and the official pretrained models are listed under CC BY-NC-ND 4.0 with proprietary licensing available. Evaluate the exact intended usage before making it part of a commercial service. [Licensing](https://essentia.upf.edu/licensing_information.html) |
 
-For the separation experiment, prioritize **SAM Audio on the prepared GPU worker**, with Demucs or either Music.ai/AudioShake as an optional comparison. Evaluate **Cyanite as the single semantic tagger** afterward. No separation or provider-quality benchmark has been run; the supplied recording has so far been processed only for original-mix features and a portable excerpt job.
+For the separation experiment, prioritize **SAM Audio on the prepared GPU worker**, with Demucs or either Music.ai/AudioShake as an optional comparison. Evaluate **Cyanite as the single semantic tagger** afterward. The 10-second Billie Jean excerpt has completed a real SAM Audio GPU benchmark with validated output contracts. Listening, instrument-level alignment, and the measured reconstruction/gain differences remain open; no comparative provider-quality benchmark is claimed.
 
 ## 7. Lyrics need their own pipeline
 
@@ -407,7 +411,7 @@ That slice will reveal the real synchronization work, separation quality, data-s
 
 Start with **Michael Jackson’s “Billie Jean.”** Its opening makes it easy to follow the percussion, bass, and vocal entrances. Look for changes you can recognize by ear and then confirm in the graphs.
 
-These are suggested listening tests; their stem separation has not been benchmarked for this project.
+These are suggested listening tests. Only the prepared 10-second Billie Jean excerpt has a real SAM Audio GPU benchmark; full-song separation and the other recordings remain untested.
 
 | Song | Why it’s useful | What to test |
 | --- | --- | --- |

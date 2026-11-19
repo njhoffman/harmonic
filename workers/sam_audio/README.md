@@ -2,9 +2,10 @@
 
 The owner has access to [`facebook/sam-audio-large-tv`](https://huggingface.co/facebook/sam-audio-large-tv).
 This directory prepares a **Linux x86_64 GPU worker** separate from Harmonic's
-analyzer/player environment. Its dependency graph resolves and is locked; actual
-package imports, GPU memory use, checkpoint authentication, and inference have
-**not** been validated on a GPU host yet. No model weights were downloaded locally.
+analyzer/player environment. The locked runtime, package imports, CUDA operation,
+checkpoint authentication, and three prompted separations passed on an AWS
+NVIDIA Blackwell worker on 2026-11-19. Returned artifacts passed validation;
+listening and detailed alignment/gain review remain open. No model weights were downloaded locally.
 
 The local machine exposes Intel Iris Xe graphics, 16 GB RAM, and no working CUDA
 device. The selected `checkpoint.pt` alone is 14,861,356,211 bytes (14.86 GB), before
@@ -60,39 +61,49 @@ GPU memory), 128 GiB host RAM, and 16 vCPUs. The Price List API quoted
 $3.00424 per Linux On-Demand instance hour in Ohio on 2026-11-19, before storage
 and networking. Regional support does not reserve capacity or prove model fit.
 
-The launch was rejected with `InvalidParameterCombination` because the account
-is on the **Free plan**, which excludes this GPU instance. A quota increase does
-not remove account-plan restrictions. The owner approved upgrading to the Paid
-plan, but `aws freetier upgrade-account-plan --account-plan-type PAID` returned
-`ResourceNotFoundException` through both `us-east-1` and `us-east-2`. Complete the
-approved upgrade in the [Billing console](https://console.aws.amazon.com/billing/home)
-using **Upgrade plan**, then verify the plan state before retrying. Remaining
-credits carry over; usage beyond applicable credits becomes billable. See
-[AWS account-plan documentation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier-plans.html).
-No GPU instance or EBS volume was created by the rejected launch.
+The first launch was rejected with `InvalidParameterCombination` because the
+account was on the **Free plan**, which excludes this GPU instance. A quota
+increase does not remove account-plan restrictions. The owner approved and
+completed a console upgrade to the Paid plan after the upgrade API returned
+`ResourceNotFoundException`. The account plan is now `PAID` / `ACTIVE`.
+Remaining credits carry over; usage beyond applicable credits becomes billable.
+See [AWS account-plan documentation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier-plans.html).
+
+Both `g6e.4xlarge` and `g6e.2xlarge` returned `InsufficientInstanceCapacity` in
+all three Ohio availability zones. Omitting the zone for `g6e.4xlarge` also
+failed. A `g7e.4xlarge` launched in `us-east-2c`: NVIDIA RTX PRO 6000 Blackwell
+Server Edition (97,887 MiB reported GPU memory), driver 595.112.07, 128 GiB
+nominal host RAM, and 142 GiB initially available root disk space. The Price
+List API quoted $3.99816 per Linux On-Demand hour before storage/networking.
+The locked runtime and CUDA tensor operation passed, and the model completed
+the prepared excerpt. This does not establish full-song resource use or L40S
+compatibility.
+
+The worker uses Amazon-owned Deep Learning Base OSS NVIDIA Driver Ubuntu 24.04
+x86_64 AMI `ami-0d869b870d11ff1da` (2026-11-17), an encrypted 200 GiB gp3 root
+volume with deletion on termination, IMDSv2, and Session Manager access with no
+inbound ports. A two-hour shutdown timer was verified active. Resolve the
+current AMI and pricing again on future launches. Retrieve logs and results
+before terminating the worker; stopping alone leaves billable storage.
 
 A private temporary transfer bucket, scoped EC2/SSM role and instance profile,
-security group with no inbound rules, and launch template were prepared. Their
-identifiers and transfer archives are in the ignored local directory
-`data/aws-gpu/2026-11-19/`. Clean up these temporary resources after the experiment.
+security group, and launch template supported the run. The instance, root
+volume, transfer bucket, SecureString, role, instance profile, launch template,
+and security group were removed after retrieval. Final queries found no active
+test instances, tagged test volumes, or authentication parameter. The normal
+shutdown was delayed; force termination with OS shutdown bypass completed.
+Identifiers, command scripts, archives, and hardware records remain in the
+ignored local directory `data/aws-gpu/2026-11-19/`.
 The unchanged 10-second job passed local contract/checksum inspection. The source
 archive is published release `v0.10.1`; the job retains its `v0.7.0` identity.
 
-The launch template uses Amazon-owned Deep Learning Base OSS NVIDIA Driver
-Ubuntu 24.04 x86_64 AMI `ami-0d869b870d11ff1da` (2026-11-17), an encrypted
-200 GiB gp3 root volume with deletion on termination, IMDSv2, and Session Manager
-access with no inbound ports. Bootstrap schedules shutdown after two hours.
-Resolve the current AMI and pricing again on future launches. Retrieve logs and
-results before terminating the worker; stopping alone leaves billable storage.
-No driver, CUDA runtime, available disk space, or package imports have yet been
-measured on an actual host.
-
 Local Hugging Face login and authenticated access to the pinned checkpoint's
 `config.json` passed on 2026-11-19; no model weights were downloaded locally.
-GPU-host authentication remains unverified. Transfer the token only through a
-restricted encrypted secret channel; never put it in EC2 user data, command
-arguments, logs, jobs, or Git. The temporary role limits secret reads to this
-experiment's SecureString parameter. Delete that parameter after testing.
+The token was transferred through a restricted SecureString parameter using an
+in-memory file; it was omitted from process arguments, user data, and logs.
+The temporary role limited secret reads to this experiment's parameter. The
+parameter was deleted after successful authentication/inference and retrieval
+of the results.
 
 ### Worker commands
 
@@ -114,7 +125,9 @@ xFormers 0.0.32.post2, CUDA 12.8 wheels, and NumPy 1.26.4. The pairings follow t
 [PyTorch release installation instructions](https://pytorch.org/get-started/previous-versions/#v2-8-0)
 and [TorchCodec compatibility matrix](https://github.com/meta-pytorch/torchcodec#installing-torchcodec).
 The full transitive lock and exact Git commits live alongside this guide.
-Successful dependency resolution does not establish runtime compatibility.
+This combination passed imports, a CUDA tensor operation, and real inference on
+the tested Blackwell host. Dependency resolution alone is not equivalent to
+these runtime checks; other host/driver combinations remain unverified.
 
 Authenticate interactively with the account granted checkpoint access. Do not
 put tokens in jobs, tracked files, command arguments, or chat. The worker honors
@@ -174,6 +187,57 @@ Listen to the target/residual files and inspect their activity before extending
 the player. Full-song chunking/overlap, multi-stream bundles/native graphs,
 stage-level retries, catalog caching of SAM results, and cleanup of temporary
 separated audio remain future work. Preserve these experimental outputs for review.
+
+## First AWS GPU benchmark (2026-11-19)
+
+The unchanged 10-second Billie Jean excerpt at source samples
+1,440,000–1,919,999 completed on the `g7e.4xlarge` described above. Source release
+`v0.10.1`, Python 3.11.18, torch 2.8.0+cu128, and the frozen worker lock were used.
+The worker's source and lock hashes match the local files. Pinned checkpoint
+SHA-256: `90e047269238c498c5abe0da6e6ba40859d152111d4a09f582a209027a33b72f`.
+The auxiliary text model resolved to `google-t5/t5-base` at
+`a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1`; use `--text-revision` with this commit
+for repeat runs. The initial checkpoint/auxiliary download took 182.1 seconds.
+
+| Target | Prompt | Separation time | Real-time factor | Peak allocated GPU | Peak reserved GPU |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Vocals | `man singing` | 2.197 s | 0.220 | 17.255 GiB | 17.871 GiB |
+| Drums | `drums playing` | 1.560 s | 0.156 | 17.256 GiB | 19.074 GiB |
+| Bass | `bass guitar playing` | 1.562 s | 0.156 | 17.256 GiB | 19.074 GiB |
+
+The three separation calls totaled 5.319 seconds; total worker elapsed time,
+including initial downloads and loading, was 221.583 seconds. Peak host RSS was
+29.855 GiB. These are single-run measurements for this excerpt and settings,
+not full-song throughput or hardware minimums.
+
+`just sam-validate` passed all three target/residual pairs: each WAV has 480,000
+mono float32 samples at 48 kHz, no padding trim, and matching hashes, statistics,
+source offset, and provenance. The source input/config and worker code/lock
+hashes were checked independently after retrieval. All 20 output objects were
+retrieved and their local sizes verified before AWS cleanup. Logs, original
+float WAVs, `report.json`, `measurements.json`, and processor diagnostics are in
+`data/aws-gpu/2026-11-19/` (ignored by Git).
+
+A waveform correlation search of each target-plus-residual sum against the mono
+input found zero global lag within ±4,800 samples (±100 ms). This does not
+establish instrument-level or perceptual latency. Reconstruction RMS error was
+0.091–0.093 against input RMS 0.209; best-fit reconstruction gain was
+0.807–0.863. These are substantial waveform differences, not an exact mixture
+partition. Inspection of the pinned model confirms that target and residual
+are generated/decoded independently; residual is not computed as input minus
+target. Do not apply the best-fit gain as a blanket correction or interpret
+reconstruction error as a ground-truth separation-quality score.
+
+Direct checks of the pinned processor matched arithmetic-mean mono conversion
+exactly, retained a doubled input amplitude, and cancelled an anti-phase stereo
+input to zero. Output peaks above 1.0 remain in float WAVs, without clipping or
+normalization. Listening to target/residuals, reviewing cross-target overlap,
+and checking instrument transients remain required before player integration.
+
+System-package setup initially stalled on the regional Ubuntu HTTP mirror.
+Retrying with the Ubuntu HTTPS mirror and `apt-get install --no-install-recommends`
+completed; both attempts' logs and exit codes were preserved. This preparation
+retry did not change the worker lock, model, job, or inference settings.
 
 ## License observations
 

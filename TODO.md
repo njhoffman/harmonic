@@ -13,55 +13,70 @@ Categories are `[feature]`, `[test]`, `[perf]`, `[bug]`, `[docs]`, and `[chore]`
 show incomplete tasks by default; add `--all` to include completed tasks, or
 `--help` for options and examples. `just todo` retains the full Markdown checklist.
 
-**Current gate:** access to
-[`facebook/sam-audio-large-tv`](https://huggingface.co/facebook/sam-audio-large-tv)
-is granted. The worker and 10-second Billie Jean job are prepared, but there has
-been no real SAM inference. This laptop exposes Intel Iris Xe graphics, 16 GB
-RAM and no working CUDA device. The owner chose to run inference on a GPU host.
-On 2026-11-19, local Hugging Face authentication and access to the pinned SAM
-checkpoint config were verified without downloading weights. AWS reports 16
-On-Demand G/VT vCPUs available in `us-east-2`; the quota request is closed.
-The GPU launch was rejected because the account is on the Free plan. The owner
-approved a Paid plan upgrade, but the upgrade API returned
-`ResourceNotFoundException`; console upgrade is pending. No instance has been
-launched and NVIDIA tests remain unrun. See the
-[worker guide](workers/sam_audio/README.md).
+**Current gate:** the first real SAM Audio GPU benchmark passed on 2026-11-19.
+The unchanged 10-second Billie Jean job ran with `facebook/sam-audio-large-tv`
+on an AWS `g7e.4xlarge` in `us-east-2c`. Runtime installation, CUDA, authentication,
+three prompted separations, returned-file hashes, and exact sample counts passed.
+The output is saved locally under `data/aws-gpu/2026-11-19/`. Listening,
+instrument-level transient alignment, cross-target overlap, and the observed
+reconstruction/gain differences still need review before player integration.
+The GPU quota is 16 vCPUs; the owner completed the approved Paid plan upgrade.
+L40S hosts lacked capacity, so no L40S inference compatibility is claimed.
+See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
 
 ## SAM Audio: GPU validation (P1)
 
-- [ ] **Select the GPU worker host** (p1) [chore]
-  Record GPU/VRAM, host RAM, driver/CUDA support, and available disk space before
-  installing the large inference environment. Keep the laptop environment separate.
-  AWS candidate: `g6e.4xlarge` in `us-east-2` (one NVIDIA L40S, 45,776 MiB
-  reported GPU memory, 128 GiB host RAM, 16 vCPUs). Availability was verified;
-  capacity, installed driver, and runtime fit remain unverified. Quota request
-  `ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2` is closed and the applied
-  On-Demand G/VT quota (`L-DB2E81BA`) is 16 vCPUs. Resolve the Free plan launch
-  restriction through the approved Paid plan upgrade before retrying.
-- [ ] **Transfer the release and unchanged excerpt job** (p1) [chore]
-  Use the matching Harmonic release and copy `data/sam-jobs/billie-jean-v0.7.0/`;
-  verify its hashes on the host. The complete recording need not be transferred.
-- [ ] **Install and verify the locked GPU runtime** (p1) [test]
-  Run `just sam-sync`; verify torch/torchaudio/TorchCodec/SAM imports, CUDA
-  operation, the pinned source revision, and FFmpeg shared-library compatibility.
-- [ ] **Authenticate and verify gated checkpoint access** (p1) [chore]
-  Run `just sam-auth` and `just sam-doctor` on the GPU host. Verify the granted
-  account can read the selected checkpoint; never store tokens in jobs or Git.
-  Local cached-login access to the pinned config passed on 2026-11-19; GPU-host
-  authentication remains unverified.
-- [ ] **Fetch the pinned model and record auxiliary provenance** (p1) [test]
-  Verify the main snapshot/hash and capture the resolved auxiliary text-model
-  revision. Use that revision for subsequent repeat runs.
-- [ ] **Benchmark vocal, drum, and bass prompts** (p1) [perf]
-  Run the prepared 30–40 second Billie Jean excerpt. Record elapsed/real-time
-  factor, peak GPU/host memory, settings, and whether the selected model fits.
-- [ ] **Validate and listen to returned target/residual pairs** (p1) [test]
-  Run `just sam-validate`; inspect separation quality and cross-target overlap.
+- [x] **Select the GPU worker host** (p1) [chore]
+  Verified on 2026-11-19: `g7e.4xlarge` in `us-east-2c`, NVIDIA RTX PRO 6000
+  Blackwell Server Edition (97,887 MiB reported memory), driver 595.112.07,
+  128 GiB nominal host RAM, and 142 GiB initially free on the encrypted root
+  volume. The two-hour shutdown timer was verified active during the run.
+  Full-song resource use remains untested. `g6e.4xlarge` and `g6e.2xlarge` lacked capacity in all three zones.
+  Applied On-Demand G/VT quota is 16 vCPUs and the Paid account plan is active.
+- [x] **Transfer the release and unchanged excerpt job** (p1) [chore]
+  The published `v0.10.1` source archive and unchanged
+  `data/sam-jobs/billie-jean-v0.7.0/` reached the host through private encrypted
+  transfers. The input hash passed on the host; no full recording was uploaded.
+- [x] **Install and verify the locked GPU runtime** (p1) [test]
+  `just sam-sync` installed the frozen Python 3.11/CUDA 12.8 environment.
+  Torch, torchaudio, torchvision, TorchCodec, and SAM imports and a real CUDA
+  tensor operation passed. Worker execution accepted the pinned source revision.
+- [x] **Authenticate and verify gated checkpoint access** (p1) [chore]
+  Local cached-login access to the pinned config passed on 2026-11-19.
+  A restricted SecureString parameter supplied authentication to the worker;
+  `sam-doctor` reports CUDA/authentication/ready true. The authenticated
+  checkpoint download and inference passed. No token entered command arguments,
+  logs, or Git.
+- [x] **Fetch the pinned model and record auxiliary provenance** (p1) [test]
+  The pinned main checkpoint/config/license hashes are recorded in `report.json`.
+  Auxiliary text model: `google-t5/t5-base` at
+  `a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1`; pin this revision on repeat runs.
+- [x] **Benchmark vocal, drum, and bass prompts** (p1) [perf]
+  The prepared 30–40 second excerpt ran in 2.197 s (vocals), 1.560 s (drums),
+  and 1.562 s (bass), totaling 5.319 s of separation. Peak reserved CUDA memory
+  was 19.074 GiB, peak host RSS 29.855 GiB; total run including initial downloads
+  and model loading was 221.583 s. The selected Blackwell host fits this job.
+- [x] **Validate returned target/residual artifacts** (p1) [test]
+  `just sam-validate` passed all three pairs. Each WAV has 480,000 mono samples
+  at 48 kHz, no padding trim, and verified hashes/statistics/source offset.
+  Original config, worker code, and worker lock hashes match the report.
+- [x] **Retrieve GPU results and remove temporary AWS resources** (p1) [chore]
+  All 20 output objects are verified locally. Instance, disk, bucket, temporary
+  token, role/profile, launch template, and security group were removed. Final
+  checks found no active test instance, tagged test volume, or token parameter.
+  A delayed normal shutdown completed after force termination.
+- [ ] **Listen to returned target/residual pairs** (p1) [test]
+  Inspect separation quality and cross-target overlap using the saved WAVs.
   Independent prompts must not be presented as mutually exclusive stems.
-- [ ] **Measure actual alignment and gain behavior** (p1) [test]
-  Compare original and separated transients, sample counts, relative levels,
-  right-padding trims, and mono conversion. Structural checks alone do not prove
-  perceptual timing; include stereo/anti-phase cases when evaluating the policy.
+- [ ] **Complete perceptual alignment and gain validation** (p1) [test]
+  Measured target-plus-residual waveform lag is zero within a ±100 ms search;
+  reconstruction RMS error is 0.091–0.093 against source RMS 0.209. Best-fit
+  reconstruction gain is 0.807–0.863; this is not a correction to apply blindly.
+  Pinned processor checks confirm arithmetic-mean mono conversion, unchanged
+  double-amplitude inputs, and complete anti-phase cancellation. The model
+  generates residuals independently; exact mixture reconstruction is not enforced.
+  Listening and instrument-level transient checks remain open. Float WAV peaks
+  above 1.0 were preserved without normalization or clipping.
 
 ## Playback: real-device validation (P1)
 
