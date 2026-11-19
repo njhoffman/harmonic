@@ -92,8 +92,11 @@ with only bounded trailing codec padding trimmed. This does not establish
 perceptual alignment or source quality.
 
 The local machine exposes Intel Iris Xe graphics and 16 GB RAM; no CUDA device
-works even outside the sandbox, and no Hugging Face token is configured. The
-owner chose to prepare here and run later on a GPU host. No inference stack or
+works even outside the sandbox. On 2026-11-19, local Hugging Face login and
+authenticated access to the pinned checkpoint config passed. The owner chose
+to run inference on a GPU host. The AWS GPU quota is now 16 vCPUs, but a Free
+plan restriction rejected launch; the approved Paid plan upgrade needs console
+completion after the API returned `ResourceNotFoundException`. No inference stack or
 checkpoint weights were installed locally; no real inference benchmark has run.
 Dependency resolution and CPU contract tests do not establish runtime/GPU
 compatibility. The SAM License was inspected; Perception Models and ImageBind

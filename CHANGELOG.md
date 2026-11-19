@@ -5,6 +5,17 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-19
+
+### Documentation
+
+- Confirm the applied 16-vCPU AWS GPU quota and authenticated access to the
+  pinned SAM Audio checkpoint configuration without downloading model weights.
+- Record the Free plan GPU launch restriction, the approved Paid plan upgrade's
+  API failure, and the console recovery steps. GPU inference remains unverified.
+- Document the prepared private transfer resources, encrypted worker launch
+  configuration, two-hour shutdown timer, and cleanup requirements.
+
 ## [0.10.1] - 2026-11-04
 
 ### Documentation
@@ -203,7 +214,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.10.2...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -215,3 +226,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.9.0]: https://github.com/njhoffman/harmonic/tree/v0.9.0
 [0.10.0]: https://github.com/njhoffman/harmonic/tree/v0.10.0
 [0.10.1]: https://github.com/njhoffman/harmonic/tree/v0.10.1
+[0.10.2]: https://github.com/njhoffman/harmonic/tree/v0.10.2

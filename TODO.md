@@ -17,10 +17,13 @@ show incomplete tasks by default; add `--all` to include completed tasks, or
 [`facebook/sam-audio-large-tv`](https://huggingface.co/facebook/sam-audio-large-tv)
 is granted. The worker and 10-second Billie Jean job are prepared, but there has
 been no real SAM inference. This laptop exposes Intel Iris Xe graphics, 16 GB
-RAM, no working CUDA device, and no configured Hugging Face token. The owner
-chose to run inference later on a GPU host. AWS environment credentials were
-verified on 2026-11-04. Both On-Demand and Spot G/VT quotas in `us-east-2` are
-currently zero; a request for 16 On-Demand vCPUs is pending. No instance has been
+RAM and no working CUDA device. The owner chose to run inference on a GPU host.
+On 2026-11-19, local Hugging Face authentication and access to the pinned SAM
+checkpoint config were verified without downloading weights. AWS reports 16
+On-Demand G/VT vCPUs available in `us-east-2`; the quota request is closed.
+The GPU launch was rejected because the account is on the Free plan. The owner
+approved a Paid plan upgrade, but the upgrade API returned
+`ResourceNotFoundException`; console upgrade is pending. No instance has been
 launched and NVIDIA tests remain unrun. See the
 [worker guide](workers/sam_audio/README.md).
 
@@ -32,8 +35,9 @@ launched and NVIDIA tests remain unrun. See the
   AWS candidate: `g6e.4xlarge` in `us-east-2` (one NVIDIA L40S, 45,776 MiB
   reported GPU memory, 128 GiB host RAM, 16 vCPUs). Availability was verified;
   capacity, installed driver, and runtime fit remain unverified. Quota request
-  `ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2` requests 16 On-Demand G/VT vCPUs
-  (`L-DB2E81BA`); status at submission: `PENDING`. Await approval before launch.
+  `ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2` is closed and the applied
+  On-Demand G/VT quota (`L-DB2E81BA`) is 16 vCPUs. Resolve the Free plan launch
+  restriction through the approved Paid plan upgrade before retrying.
 - [ ] **Transfer the release and unchanged excerpt job** (p1) [chore]
   Use the matching Harmonic release and copy `data/sam-jobs/billie-jean-v0.7.0/`;
   verify its hashes on the host. The complete recording need not be transferred.
@@ -43,6 +47,8 @@ launched and NVIDIA tests remain unrun. See the
 - [ ] **Authenticate and verify gated checkpoint access** (p1) [chore]
   Run `just sam-auth` and `just sam-doctor` on the GPU host. Verify the granted
   account can read the selected checkpoint; never store tokens in jobs or Git.
+  Local cached-login access to the pinned config passed on 2026-11-19; GPU-host
+  authentication remains unverified.
 - [ ] **Fetch the pinned model and record auxiliary provenance** (p1) [test]
   Verify the main snapshot/hash and capture the resolved auxiliary text-model
   revision. Use that revision for subsequent repeat runs.

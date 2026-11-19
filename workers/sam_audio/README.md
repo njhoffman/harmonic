@@ -40,45 +40,64 @@ paid infrastructure. Keep both files unchanged when copying a job.
 
 ## Set up and run on the GPU host
 
-### AWS preparation status (2026-11-04)
+### AWS preparation status (2026-11-19)
 
-AWS environment credentials are verified. In the configured `us-east-2` region,
-the On-Demand and Spot G/VT vCPU quotas are both zero. An increase to **16
-On-Demand G/VT vCPUs** has been requested, with request ID
-`ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2`; its initial status is `PENDING`.
-Check approval and the applied quota before provisioning:
+AWS credentials and the applied On-Demand G/VT quota in `us-east-2` are verified.
+The quota is now **16 vCPUs**. Request
+`ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2` is `CASE_CLOSED`; the applied quota,
+rather than the request status alone, confirms the increase:
 
 ```sh
 aws service-quotas get-requested-service-quota-change --region us-east-2 \
   --request-id ed60a5c9da934e36bad6a3d48ebdd8953QpyhnV2
 aws service-quotas get-service-quota --region us-east-2 \
   --service-code ec2 --quota-code L-DB2E81BA
+aws freetier get-account-plan-state --region us-east-1
 ```
 
-The candidate is one `g6e.4xlarge`: NVIDIA L40S (45,776 MiB reported GPU memory),
-128 GiB host RAM, and 16 vCPUs. EC2 reports this type is supported in the region;
-that does not reserve capacity or prove the large-TV checkpoint fits. The
-default VPC and three default subnets exist, and no instances were present at
-inspection. No test instance or other billable infrastructure was created.
+The selected candidate is one `g6e.4xlarge`: NVIDIA L40S (45,776 MiB reported
+GPU memory), 128 GiB host RAM, and 16 vCPUs. The Price List API quoted
+$3.00424 per Linux On-Demand instance hour in Ohio on 2026-11-19, before storage
+and networking. Regional support does not reserve capacity or prove model fit.
 
-After quota approval, use an Amazon-owned Deep Learning Base OSS NVIDIA Driver
-Ubuntu x86_64 AMI supporting G6e; resolve it again at launch. The Ubuntu 24.04
-candidate observed was `ami-0551751cdee802c2c` (2026-10-30). Plan an encrypted
-200 GiB gp3 root volume, IMDSv2, Session Manager access with no inbound ports,
-and a timed shutdown before installing dependencies. Retrieve logs/results
-before deleting temporary resources; stopped EBS volumes still incur charges.
-Check current pricing before launch. No driver, CUDA runtime, or available disk
-space has been measured on an actual host yet.
+The launch was rejected with `InvalidParameterCombination` because the account
+is on the **Free plan**, which excludes this GPU instance. A quota increase does
+not remove account-plan restrictions. The owner approved upgrading to the Paid
+plan, but `aws freetier upgrade-account-plan --account-plan-type PAID` returned
+`ResourceNotFoundException` through both `us-east-1` and `us-east-2`. Complete the
+approved upgrade in the [Billing console](https://console.aws.amazon.com/billing/home)
+using **Upgrade plan**, then verify the plan state before retrying. Remaining
+credits carry over; usage beyond applicable credits becomes billable. See
+[AWS account-plan documentation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier-plans.html).
+No GPU instance or EBS volume was created by the rejected launch.
 
-Hugging Face authentication is a separate prerequisite: neither `HF_TOKEN` nor
-a cached login is available locally. Authenticate on the worker with `sam-auth`;
-never copy AWS credentials or put a Hugging Face token in EC2 user data, command
-arguments, logs, or Git. Quota approval and worker authentication remain open
-gates; the preparation above does not count as a successful NVIDIA test.
+A private temporary transfer bucket, scoped EC2/SSM role and instance profile,
+security group with no inbound rules, and launch template were prepared. Their
+identifiers and transfer archives are in the ignored local directory
+`data/aws-gpu/2026-11-19/`. Clean up these temporary resources after the experiment.
+The unchanged 10-second job passed local contract/checksum inspection. The source
+archive is published release `v0.10.1`; the job retains its `v0.7.0` identity.
+
+The launch template uses Amazon-owned Deep Learning Base OSS NVIDIA Driver
+Ubuntu 24.04 x86_64 AMI `ami-0d869b870d11ff1da` (2026-11-17), an encrypted
+200 GiB gp3 root volume with deletion on termination, IMDSv2, and Session Manager
+access with no inbound ports. Bootstrap schedules shutdown after two hours.
+Resolve the current AMI and pricing again on future launches. Retrieve logs and
+results before terminating the worker; stopping alone leaves billable storage.
+No driver, CUDA runtime, available disk space, or package imports have yet been
+measured on an actual host.
+
+Local Hugging Face login and authenticated access to the pinned checkpoint's
+`config.json` passed on 2026-11-19; no model weights were downloaded locally.
+GPU-host authentication remains unverified. Transfer the token only through a
+restricted encrypted secret channel; never put it in EC2 user data, command
+arguments, logs, jobs, or Git. The temporary role limits secret reads to this
+experiment's SecureString parameter. Delete that parameter after testing.
 
 ### Worker commands
 
-Use the same Harmonic release (`v0.7.0`) on the GPU host. Copy the prepared job
+Use the recorded Harmonic source release on the GPU host (`v0.10.1` for the
+2026-11-19 launch preparation). Copy the prepared job
 there, then run from the repository root:
 
 ```sh

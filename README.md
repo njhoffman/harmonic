@@ -396,6 +396,11 @@ timing/quality validation remain pending. No checkpoint weights were downloaded
 on this laptop. SAM outputs are not yet part of the native player bundle.
 Demucs remains an optional comparison/fallback.
 
+On 2026-11-19, the applied AWS GPU quota and local authenticated access to the
+pinned model config were verified. GPU launch is blocked by the account's Free
+plan restriction; the approved Paid plan upgrade requires console completion
+after an API error. See the worker guide for the current launch gate.
+
 ```sh
 just sam-doctor  # Reports missing prerequisites; downloads no weights.
 just sam-prepare '/path/track.flac' data/sam-jobs/my-track 30 10
