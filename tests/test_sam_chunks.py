@@ -16,6 +16,7 @@ import wave
 import numpy as np
 
 from harmonic_analysis.analysis import analyze, decode_audio
+from harmonic_analysis import sam_jobs
 from harmonic_analysis.bundle import read_bundle
 from harmonic_analysis.sam_chunks import (TEXT_REVISION, coordinates, load_plan, make_plan, overlap_metrics,
                                            stitch_song, validate_song_metadata, validate_song_result, weights)
@@ -70,11 +71,12 @@ class SongChunkTests(unittest.TestCase):
                           normalized_config_sha256='c'*64,worker_code_sha256=digest(WORKER),
                           worker_lock_sha256=digest(WORKER.with_name('uv.lock')),pairs=pairs,
                           elapsed_seconds=0.01,peak_host_rss_bytes=0,runtime={'simulated':True})
+            report['run_binding_sha256'] = session['run_binding_sha256']
             write_json(temporary/'report.json',report)
         return destination/'report.json'
 
-    def run_fake(self, separate=None):
-        with patch.object(worker,'ready_state',return_value={'simulated':True}), \
+    def run_fake(self, separate=None, *, runtime=None):
+        with patch.object(worker,'ready_state',return_value=runtime or {'simulated':True}), \
              patch.object(worker,'model_session',side_effect=self.fake_session), \
              patch.object(worker,'separate_job',side_effect=separate or self.fake_separate):
             return worker.run_song(self.plan_path,self.results)
@@ -138,6 +140,24 @@ class SongChunkTests(unittest.TestCase):
         wave_path.write_bytes(wave_path.read_bytes()+b'corrupt')
         with self.assertRaisesRegex(ValueError,'checksum'): self.run_fake()
         self.assertEqual(self.session_loads,2)
+
+    def test_resume_rejects_changed_runtime_imported_code_and_chunk_binding(self):
+        complete = json.loads(self.run_fake().read_text())
+        with self.assertRaisesRegex(ValueError,'different plan/worker/runtime'):
+            self.run_fake(runtime={'python':'3.11.99'})
+        edited = self.root/'sam_jobs.py'
+        edited.write_bytes(Path(sam_jobs.__file__).read_bytes()+b'\n# Change the imported source fingerprint.\n')
+        with patch.object(sam_jobs,'__file__',str(edited)):
+            with self.assertRaisesRegex(ValueError,'different plan/worker/runtime'):
+                self.run_fake()
+        chunk = self.results/'chunks/000000/report.json'
+        report = json.loads(chunk.read_text())
+        self.assertEqual(report['run_binding_sha256'],complete['run_binding_sha256'])
+        report['run_binding_sha256'] = 'a'*64
+        write_json(chunk,report)
+        with self.assertRaisesRegex(ValueError,'incompatible provenance'):
+            self.run_fake()
+        self.assertEqual(self.session_loads,1)
 
     def test_song_output_lock_blocks_other_process_and_releases_after_kill(self):
         script = """
@@ -285,7 +305,7 @@ with lock(Path(sys.argv[2])):
         retained=bundle.parent/'sam-report.json'
         original_report=json.loads(retained.read_text())
         original_bundle=json.loads(bundle.read_text())
-        for fault in ('missing index', 'invalid job hash'):
+        for fault in ('missing index', 'invalid job hash', 'different run binding'):
             with self.subTest(fault=fault):
                 report=copy.deepcopy(original_report)
                 item=report['chunking']['chunks'][0]
@@ -293,7 +313,10 @@ with lock(Path(sys.argv[2])):
                     del item['index']
                 else:
                     child=json.loads(item['report_json'])
-                    child['job_sha256']=item['job_sha256']='invalid'
+                    if fault == 'invalid job hash':
+                        child['job_sha256']=item['job_sha256']='invalid'
+                    else:
+                        child['run_binding_sha256']='a'*64
                     item['report_json']=json.dumps(child)
                     item['report_sha256']=hashlib.sha256(item['report_json'].encode()).hexdigest()
                 write_json(retained,report)

@@ -169,6 +169,15 @@ def overlap_metrics(left: np.ndarray, right: np.ndarray) -> dict:
             "midpoint_hard_splice_step": float(abs(b[middle] - a[max(0, middle - 1)]))}
 
 
+def run_binding_hash(report: dict) -> str | None:
+    if "run_binding_sha256" not in report:
+        return None  # Legacy reports predate the binding fingerprint.
+    value = report["run_binding_sha256"]
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ValueError("invalid song run binding hash")
+    return value
+
+
 def validate_song_metadata(report: dict) -> list[dict]:
     """Validate retained original chunk reports without requiring chunk WAVs or model packages."""
     try:
@@ -181,6 +190,7 @@ def validate_song_metadata(report: dict) -> list[dict]:
         points = coordinates(report["sample_count"], chunking["chunk_samples"], chunking["overlap_samples"])
         if len(points) != len(chunking["chunks"]):
             raise ValueError("chunk report count mismatch")
+        binding_hash = run_binding_hash(report)
         reports = []
         for index, ((start, count), item) in enumerate(zip(points, chunking["chunks"], strict=True)):
             if type(item.get("index")) is not int or item["index"] != index:
@@ -194,6 +204,7 @@ def validate_song_metadata(report: dict) -> list[dict]:
                     or child["sample_rate"] != SAMPLE_RATE or child["channels"] != 1
                     or not re.fullmatch(r"[0-9a-f]{64}", child["job_sha256"])
                     or child["job_sha256"] != item["job_sha256"]
+                    or run_binding_hash(child) != binding_hash
                     or any(child[k] != report[k] for k in COMMON)
                     or set(child["pairs"]) != set(report["pairs"])):
                 raise ValueError("inconsistent chunk report provenance/coordinates")
@@ -226,8 +237,10 @@ def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
             raw = path.read_text()
             if digest(path) != report_hash:
                 raise ValueError("Chunk result changed while loading")
+            binding_hash = run_binding_hash(child)
             if (child["auxiliary_text_model"]["revision"] != plan["text_model_revision"]
-                    or (reports and any(child[k] != reports[0][k] for k in COMMON))):
+                    or (reports and (binding_hash != run_binding_hash(reports[0])
+                                     or any(child[k] != reports[0][k] for k in COMMON)))):
                 raise ValueError("Chunks use different models/settings/worker revisions")
             reports.append(child)
             entries.append({"index": index, "job_sha256": entry["sha256"],

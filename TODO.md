@@ -66,13 +66,11 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
 
 ## Processing reliability and scale (P2)
 
-- [ ] **Complete SAM provenance keys before shared or cross-version reuse** (p2) [feature]
-  Job-local resume binds plan SHA, worker.py SHA, uv.lock SHA, and text revision,
-  and validates chunk artifacts. Imported analyzer modules and runtime equality
-  are not bound. Include effective code/runtime, recording/sample coordinates,
-  models/auxiliaries, prompts/anchors, settings/seed, and schema. Hashing the whole
-  worker file also invalidates resume after documentation-only edits; make the
-  compatibility policy explicit. The mix-only catalog still rejects schema 2.
+- [ ] **Define shared SAM cache and cross-version compatibility** (p2) [feature]
+  Job-local resume validates code and recorded runtime identity. Evaluate
+  content-level dependency fingerprints and compatibility across versions before
+  registering SAM artifacts in the mix-only catalog. Full source hashes also
+  invalidate reuse after docstring edits.
 - [ ] **Evaluate finer checkpoints and OOM recovery** (p2) [feature]
   Completed-chunk resume is verified; an unfinished chunk reruns every prompt.
   Evaluate per-prompt checkpoints, startup/model scratch outside the bound
@@ -129,6 +127,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Bind SAM resume to imported code and runtime identity** (p2) [bug]
+  Reject changed local worker modules, runtime fingerprints, and mismatched chunk
+  binding hashes before reuse. Both readers retain support for legacy reports.
 
 - [x] **Report full-song run stages and end-to-end timing** (p2) [perf]
   The CLI reports elapsed time through publication and lock release, and the

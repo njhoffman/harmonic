@@ -412,10 +412,12 @@ just sam-run-song data/sam-jobs/billie-jean-song-v0.12.0 data/sam-results/song-c
 
 One model session serves all chunks. Each completed chunk is published atomically.
 Rerunning the same command validates and reuses matching completed chunks;
-changing the plan, worker file/lock, or text revision rejects incompatible reuse.
-The current binding does not hash imported analyzer modules or enforce identical
-runtime fingerprints; retain the exact source release/environment for restarts.
-This is job-local resume, not a cross-version or shared catalog cache.
+changing the plan, worker, dependency lock, imported worker modules, auxiliary
+text revision, or recorded runtime identity blocks reuse. The runtime identity
+covers Python, platform, installed package versions, CUDA, GPU properties, and
+the NVIDIA driver when available. Each new chunk records the run binding hash.
+Retain the exact source release and environment for restarts. Older completed
+reports and feature bundles remain readable.
 A corrupt existing chunk causes an error. Inputs and completed results are never
 silently overwritten. Resume is currently at chunk granularity; a failed prompt
 inside an unfinished chunk reruns that chunk. The worker locks the resolved

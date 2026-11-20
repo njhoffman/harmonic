@@ -111,9 +111,9 @@ of the results.
 
 Use the matching published Harmonic source release on the GPU host. The initial
 excerpt benchmark used `v0.10.1`; full-song commands require `v0.12.0` or later.
-For resumes, preserve the original source/environment: binding checks cover the
-worker file/lock but not imported analyzer modules or runtime equality. Copy the
-prepared job there, then run from the repository root:
+For resumes, preserve the original source and environment. The worker binds the
+plan, auxiliary text revision, worker/lock, imported local modules, and recorded
+runtime identity. Copy the prepared job there, then run from the repository root:
 
 ```sh
 just sam-sync
@@ -221,6 +221,11 @@ output. Resume older partial runs with the original worker release. Once a
 restart verifies the binding and published chunks, it removes recognized chunk
 scratch directories and `.completed.json.tmp` under the lock. Cleanup stays
 inside the bound output and leaves symlinks and unrecognized chunk files in place.
+The run binding includes Python and installed package versions, platform, CUDA,
+GPU properties, and the NVIDIA driver version when exposed. New chunk reports
+carry the binding hash. Stitching and both bundle readers verify that retained
+chunks agree on that hash when present. Completed legacy reports can still be
+read. The binding supports job-local resume and records version identity.
 
 The CLI prints elapsed time from command dispatch through completion publication
 and lock release. `completed.json` records each invocation's `timing_seconds`

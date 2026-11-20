@@ -187,6 +187,11 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                 report["codec_hop_samples"].isInt() && report["codec_hop_samples"].asInt() > 0 &&
                 report["codec_hop_samples"].asInt() <= sample_rate, "invalid seed or codec hop");
         if (song) {
+            const Json::Value& song_report = report;
+            const auto& run_binding = song_report["run_binding_sha256"];
+            require(!report.isMember("run_binding_sha256") ||
+                    (run_binding.isString() && std::regex_match(run_binding.asString(), hash_pattern)),
+                    "invalid song run binding hash");
             require(start == 0 && count == bundle.sample_count, "invalid full-song coverage");
             const auto& chunking = report["chunking"];
             require(chunking["chunk_samples"].isInt() && chunking["overlap_samples"].isInt(), "invalid chunk sizes");
@@ -220,6 +225,8 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                                        "seed", "semantics", "channel_reduction", "anchors", "codec_hop_samples",
                                        "worker_code_sha256", "worker_lock_sha256"})
                     require(child[key] == report[key], "inconsistent retained chunk provenance");
+                require(child.isMember("run_binding_sha256") == report.isMember("run_binding_sha256") &&
+                        child["run_binding_sha256"] == run_binding, "inconsistent retained chunk run binding");
                 for (const auto& target : report["pairs"].getMemberNames()) {
                     require(child["pairs"][target]["description"] == report["pairs"][target]["description"],
                             "inconsistent retained chunk prompt");

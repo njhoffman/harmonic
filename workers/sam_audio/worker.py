@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import fcntl
+import hashlib
 from importlib import metadata
 import json
 import os
@@ -52,7 +53,8 @@ def doctor() -> dict:
         report["cuda_runtime"] = torch.version.cuda
         if report["cuda_available"]:
             properties = torch.cuda.get_device_properties(0)
-            report["gpu"] = {"name": properties.name, "total_memory_bytes": properties.total_memory}
+            report["gpu"] = {"name": properties.name, "total_memory_bytes": properties.total_memory,
+                             "compute_capability": [properties.major, properties.minor]}
     report["ready"] = bool(all(installed.values()) and report["cuda_available"] and report["authenticated"]
                            and sys.version_info[:2] == (3, 11))
     report["note"] = "Readiness is preflight only; checkpoint access, package imports, memory, and inference must still succeed."
@@ -172,6 +174,8 @@ def separate_job(job_path: Path, output: Path, session: dict, *, began: float) -
             "elapsed_seconds": time.monotonic() - began,
             "peak_host_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
             "pairs": pairs}
+        if "run_binding_sha256" in session:
+            report["run_binding_sha256"] = session["run_binding_sha256"]
         write_json(temporary / "report.json", report)
     return output.resolve() / "report.json"
 
@@ -234,6 +238,26 @@ def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[st
     return removed
 
 
+def song_run_binding(plan_hash: str, text_revision: str, state: dict) -> dict:
+    import harmonic_analysis
+    from harmonic_analysis import sam_chunks, sam_jobs, terminal
+
+    modules = (harmonic_analysis, sam_chunks, sam_jobs, terminal)
+    driver_version = Path("/proc/driver/nvidia/version")
+    return {
+        "plan_sha256": plan_hash,
+        "worker_code_sha256": sam_jobs.digest(Path(__file__)),
+        "worker_lock_sha256": sam_jobs.digest(Path(__file__).with_name("uv.lock")),
+        "text_model_revision": text_revision,
+        "imported_code_sha256": {module.__name__: sam_jobs.digest(Path(module.__file__)) for module in modules},
+        "runtime_identity": {
+            **{key: state.get(key) for key in ("python", "platform", "cuda_runtime", "gpu")},
+            "nvidia_driver": driver_version.read_text().strip() if driver_version.is_file() else None,
+            "packages": {item.metadata["Name"]: item.version for item in metadata.distributions()},
+        },
+    }
+
+
 def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -> Path:
     state = ready_state()
     preflight_done = time.monotonic()
@@ -244,12 +268,11 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
     plan, samples = load_plan(plan_file)
     del samples
     plan_validated = time.monotonic()
-    binding = {"plan_sha256": plan_hash, "worker_code_sha256": digest(Path(__file__)),
-               "worker_lock_sha256": digest(Path(__file__).with_name("uv.lock")),
-               "text_model_revision": plan["text_model_revision"]}
+    binding = song_run_binding(plan_hash, plan["text_model_revision"], state)
+    binding_hash = hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
     if output.exists():
         if not (output / "run.json").is_file() or json.loads((output / "run.json").read_text()) != binding:
-            raise ValueError("Existing song output belongs to a different plan/worker; choose a new directory")
+            raise ValueError("Existing song output belongs to a different plan/worker/runtime; choose a new directory")
     else:
         with new_directory(output) as temporary:
             write_json(temporary / "run.json", binding)
@@ -264,6 +287,7 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
             report = validate_result(plan_file.parent / entry["job"], destination)
             if (report["worker_code_sha256"] != binding["worker_code_sha256"]
                     or report["worker_lock_sha256"] != binding["worker_lock_sha256"]
+                    or report.get("run_binding_sha256") != binding_hash
                     or report["auxiliary_text_model"]["revision"] != plan["text_model_revision"]):
                 raise ValueError("Completed chunk has incompatible provenance")
             reused += 1
@@ -279,6 +303,7 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
     if pending:
         first, _ = load_job(plan_file.parent / pending[0][0]["job"])
         with model_session(first, state, plan["text_model_revision"]) as session:
+            session["run_binding_sha256"] = binding_hash
             model_ready = time.monotonic()
             with Progress("Separating full-song chunks", len(plan["chunks"])) as progress:
                 progress.update(reused)
@@ -292,8 +317,8 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
     load_plan(plan_file)
     for entry in plan["chunks"]:
         report = validate_result(plan_file.parent / entry["job"], output / "chunks" / f"{entry['index']:06d}")
-        if report["job_sha256"] != entry["sha256"]:
-            raise ValueError("Completed chunk job identity changed")
+        if report["job_sha256"] != entry["sha256"] or report.get("run_binding_sha256") != binding_hash:
+            raise ValueError("Completed chunk job or run identity changed")
     validated = time.monotonic()
     timing = {
         "lock_and_preflight": preflight_done - invocation_start,
@@ -305,7 +330,7 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
     }
     invocation = {"new_chunks": len(pending), "reused_chunks": reused, "elapsed_seconds": validated - began,
                   "elapsed_seconds_through_validation": validated - invocation_start, "timing_seconds": timing}
-    summary = {**binding, "chunks": len(plan["chunks"]), "reused_chunks": reused,
+    summary = {**binding, "run_binding_sha256": binding_hash, "chunks": len(plan["chunks"]), "reused_chunks": reused,
                "new_chunks": len(pending), "elapsed_seconds_this_invocation": invocation["elapsed_seconds"],
                "elapsed_seconds_through_validation": invocation["elapsed_seconds_through_validation"],
                "timing_seconds": timing,

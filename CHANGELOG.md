@@ -5,6 +5,14 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.8] - 2026-11-19
+
+### Fixed
+
+- Reject SAM song resumes when imported worker code or the recorded runtime
+  identity changed. Stamp new chunks with the run binding hash and reject
+  mixed bindings while stitching or reading retained provenance.
+
 ## [0.12.7] - 2026-11-19
 
 ### Fixed
@@ -341,7 +349,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.7...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.8...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -365,3 +373,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.5]: https://github.com/njhoffman/harmonic/tree/v0.12.5
 [0.12.6]: https://github.com/njhoffman/harmonic/tree/v0.12.6
 [0.12.7]: https://github.com/njhoffman/harmonic/tree/v0.12.7
+[0.12.8]: https://github.com/njhoffman/harmonic/tree/v0.12.8
