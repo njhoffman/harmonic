@@ -334,8 +334,10 @@ chunk ratio is 32.9%. Recomputing both fades reproduced the stitched samples
 exactly. The 82–88 second interval falls outside the fades and matches the raw
 estimate sample for sample. The weak estimate originates during separation.
 Aligned clips at their original levels and the measurements for all chunks are
-in `data/source-check-v0.12.0/vocal-review/`. Listening can establish whether
-vocals are missing from the target or remain in the residual at that point.
+in `data/source-check-v0.12.0/vocal-review/`. On 2026-11-20, the owner confirmed
+that vocals drop out of the reviewed target and remain in the residual.
+The baseline therefore fails this audible vocal-consistency check. No specific
+seam observations or full-track listening approval were supplied; those remain open.
 
 The GPU ran a recorded working-tree source snapshot before release, with
 matching worker/lock hashes retained in every chunk report. Raw results, logs,

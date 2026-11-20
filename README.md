@@ -498,8 +498,11 @@ baseline, with listening and prompt-consistency review pending before bulk use.
 The raw 80–90 second estimate has the lowest vocal-to-mix RMS ratio of all 37
 chunks. The stitched target at 82–88 seconds matches that raw estimate sample
 for sample, outside both fades. Compare the aligned 72–98 second mix, vocal
-target, and residual clips in `data/source-check-v0.12.0/vocal-review/` to check
-whether a vocal phrase is lost from the target or stays in the residual.
+target, and residual clips in `data/source-check-v0.12.0/vocal-review/`.
+On 2026-11-20, the owner confirmed that vocals drop out of the reviewed target
+and remain in the residual. Together with the sample-exact raw/stitch checks,
+this establishes an audible separation failure in the baseline. The context
+comparison is still needed to identify a remedy; full-song quality is not approved.
 
 The benchmark artifacts were recovered from Charon to Minerva on 2026-11-20:
 all 422 selected files matched their source SHA-256 hashes, and the raw chunks,
@@ -518,7 +521,8 @@ It plays the original-level mono mix, vocal target, and vocal residual over
 48 kHz float32 with a checksum/sample-coordinate manifest. No normalization,
 gain correction, or new model inference was applied. Listen for a vocal phrase
 disappearing from the target and remaining in the residual, and for audible
-changes through the 80–82 and 88–90 second fades. Listening approval is pending.
+changes through the 80–82 and 88–90 second fades. The dropout is owner-confirmed;
+other seam observations and full-song listening approval remain pending.
 
 The stitched report retains the original checksum-protected chunk reports,
 coordinates, model/worker/auxiliary revisions, and fade policy. Full-song output

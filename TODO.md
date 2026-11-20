@@ -23,6 +23,9 @@ estimates disagree sharply around 80–90 seconds. The owner approved clear targ
 and clean residuals for the earlier 30–40 second excerpt only. All temporary AWS
 resources were removed after verified retrieval. Local evidence is ignored by
 Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
+On 2026-11-20, the owner confirmed that singing drops out of the reviewed vocal
+target and remains in the residual. The baseline fails this vocal-consistency
+check; full-song approval remains open.
 
 ## Separation quality and playback gates (P1)
 
@@ -32,7 +35,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   fades out of the target or stays in the residual at 80–90 seconds. Then
   review the full tracks and the unnormalized seam clips at 24, 72, 80, 88,
   and 264 seconds in `data/source-check-v0.12.0/seam-review/`. Listening
-  findings and approval are pending. On 2026-11-20, the original artifacts were
+  review and approval remain incomplete. **Owner finding (2026-11-20):** vocals
+  drop out of the reviewed target and remain in the residual. This confirms the
+  audible dropout; other seams and the full track still need review.
+  On 2026-11-20, the original artifacts were
   recovered from Charon and revalidated on Minerva. A six-clip playlist with
   72–98 and 82–88 second mix/target/residual comparisons is available on both
   computers at `data/recovery-minerva-20261120/listening/review-order.m3u`.
