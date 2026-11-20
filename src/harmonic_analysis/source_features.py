@@ -1,4 +1,4 @@
-"""Adapt validated SAM WAV pairs to immutable partial-coverage feature streams."""
+"""Adapt validated SAM WAV pairs to immutable excerpt or full-song feature streams."""
 
 from __future__ import annotations
 

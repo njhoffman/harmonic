@@ -1,9 +1,9 @@
 # Harmonic
 
-A local music visualizer with offline, sample-aligned analysis. The first prototype
-plays an original recording while displaying its frequency spectrum, RMS envelope,
-peak level, and spectral-onset activity. With optional projectM support, it can
-also play MilkDrop presets with graph overlays and playback controls.
+A local music visualizer with offline, sample-aligned analysis. Play an original
+recording with spectrum, RMS, peak, and onset graphs alongside optional SAM Audio
+target and residual graphs. Optional projectM support adds MilkDrop presets with
+graph overlays and playback controls.
 See [PLAN.md](PLAN.md) for the longer roadmap.
 The running task checklist is [TODO.md](TODO.md).
 
@@ -382,8 +382,8 @@ separated WAVs/job are moved or removed. The experiment's WAVs remain available
 for listening; the adapter never deletes inputs.
 
 Schema-2 bundles are opened directly in the player. The mix catalog explicitly
-rejects them until SAM-specific cache keys/retries are implemented. Full-song
-chunking and instrument-level perceptual latency remain separate work.
+rejects them until SAM-specific cache registration is implemented. Full-song
+processing is available below; instrument-level perceptual latency remains open.
 
 ## Full-song SAM processing
 
@@ -401,7 +401,9 @@ source sample. `harmonic-sam inspect-song PLAN` validates every child job,
 identical overlap inputs, and the reconstructed full canonical-PCM hash.
 The auxiliary text-model revision is pinned in the plan.
 
-Copy the plan directory to a GPU host, then run there:
+Copy the plan directory and matching published Harmonic source to a GPU host.
+Install/authenticate the isolated worker with `just sam-sync`, `just sam-auth`,
+and `just sam-doctor` before running there:
 
 ```sh
 just sam-run-song data/sam-jobs/billie-jean-song-v0.12.0 data/sam-results/song-chunks
@@ -409,7 +411,10 @@ just sam-run-song data/sam-jobs/billie-jean-song-v0.12.0 data/sam-results/song-c
 
 One model session serves all chunks. Each completed chunk is published atomically.
 Rerunning the same command validates and reuses matching completed chunks;
-changing the plan, worker/lock, or text revision rejects incompatible reuse.
+changing the plan, worker file/lock, or text revision rejects incompatible reuse.
+The current binding does not hash imported analyzer modules or enforce identical
+runtime fingerprints; retain the exact source release/environment for restarts.
+This is job-local resume, not a cross-version or shared catalog cache.
 A corrupt existing chunk causes an error. Inputs and completed results are never
 silently overwritten. Resume is currently at chunk granularity; a failed prompt
 inside an unfinished chunk reruns that chunk. Use one worker per output directory.
@@ -430,8 +435,10 @@ Stitching uses complementary half-cosine fades on overlapping samples. The
 weights sum to one; matching audio keeps its level, and no time shift, gain
 matching, normalization, or clipping is applied. Independent estimates can
 still disagree or cancel within an overlap. The report measures neighboring
-waveforms' RMS ratio, normalized waveform correlation, difference RMS,
-cross-correlation peak lag, and hard-splice versus blended midpoint steps.
+waveforms' RMS ratio, uncentered normalized dot product (`zero_lag_correlation`),
+difference RMS, cross-correlation peak lag, and hard-splice versus blended
+midpoint steps. The lag search is limited to ±40 ms (less for short overlaps);
+a peak at that limit does not establish an instrument's actual delay.
 These diagnostics do not establish perceptual continuity; listen across seams.
 
 The first real full-song run processed all 37 chunks of the 295.892-second
@@ -439,7 +446,9 @@ recording with 165.206 seconds of separation across the three prompts. The
 initial worker invocation measured 386.690 seconds including download/model
 loading (excluding preflight); peak reserved GPU memory was 19.074 GiB and peak
 host RSS 29.878 GiB. A second invocation reused all 37 chunks with zero new
-inference. Full-song WAVs, feature validation, and native compositor checks passed.
+inference. Reported invocation timings start after readiness, initial plan
+validation, and the reuse scan; they are not total command wall times. Full-song
+WAVs, feature validation, and native compositor checks passed.
 
 **Full-song audio quality is still under review.** Some neighboring vocal
 estimates disagree strongly: at 80–82 seconds one estimate has RMS 0.102 while
@@ -496,7 +505,8 @@ use metadata version 2 and names `sam.NAME.target` / `sam.NAME.residual`. Their
 `sample_index` values are `start_sample + row * 960`, even when the excerpt start
 falls between mix frames. Each stream declares its half-open coverage interval,
 mono channel layout, prompt, role, original WAV hash, feature hash, and statistics.
-Windows use zeros beyond the excerpt edges; rows outside coverage do not exist.
+Windows use zeros beyond the stream edges. Full-song streams cover the entire
+recording, with analysis windows spanning internal seams in the stitched audio.
 
 The retained report preserves source/job/model/code/lock hashes, checkpoint and
 auxiliary revisions, seed/settings, mono conversion, padding, and measurements.
@@ -515,10 +525,13 @@ changes and physical-output timestamps remain future work.
 
 This milestone analyzes the original mix, supports optional projectM compositing,
 and catalogs local recordings with verified mix analysis reuse. Validated SAM
-excerpt outputs now drive separate source graphs. Full-song separation, lyric
-display, semantic/mood services, and bulk processing are later steps.
-The analyzer and player decode the complete track into memory;
-long recordings need a future streaming/chunking pass. The small bitmap UI font
+excerpt and full-song outputs drive separate source graphs. Full-song GPU
+processing, chunk resume, and overlap stitching are implemented; vocal consistency
+and seam listening remain the next quality gate. Lyric display, semantic/mood
+services, and bulk processing are later steps.
+The analyzer/player decode complete tracks into memory, and plan validation,
+stitching, and feature extraction also allocate whole-track arrays. Bounded GPU
+chunks do not make the local pipeline stream recordings with bounded memory. The small bitmap UI font
 supports ASCII; richer typography and translated metadata need a proper text
 renderer. The prototype uses native Linux OpenGL entry points; other platforms
 will need a portable GL loader and packaging work.
@@ -529,15 +542,17 @@ jobs, target/residual WAVs and provenance reports, and returned-output validatio
 Its locked runtime, CUDA operation, authentication, and three prompted
 separations passed on an AWS NVIDIA Blackwell worker on 2026-11-19. Returned
 artifacts passed checksum/sample-count validation. The owner confirmed clear
-extraction and clean residuals for all three prompts. Instrument-level transient
+extraction and clean residuals for all three prompts in the 30–40 second excerpt.
+The subsequent full-song run has not received listening approval. Instrument-level transient
 alignment and observed reconstruction/gain differences remain validation work. No checkpoint
 weights were downloaded on this laptop. Validated SAM outputs can be adapted into schema-2 source-feature bundles.
 Demucs remains an optional comparison/fallback.
 
 On 2026-11-19, the applied AWS GPU quota and local authenticated access to the
 pinned model config were verified. The Paid account plan is now active. L40S
-hosts lacked capacity; a 96 GB NVIDIA Blackwell worker completed the 10-second excerpt
-benchmark in 5.319 seconds of separation across three prompts. See the worker
+hosts lacked capacity; a 96 GB NVIDIA Blackwell worker completed both the excerpt
+and 37-chunk full-song runs. All temporary AWS test resources were removed after
+verified retrieval. See the worker
 guide for timing/memory measurements and limits.
 
 ```sh

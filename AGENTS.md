@@ -40,6 +40,8 @@
 - SAM Audio is the preferred separation engine; the owner has access to
   `facebook/sam-audio-large-tv`. GPU authentication/inference and owner listening
   checks passed on AWS NVIDIA Blackwell. The local source-feature adapter is
-  integrated; full-song chunking and instrument-level model latency remain open.
+  integrated, including full-song chunk processing and validated chunk resume.
+  Owner listening approval covers the excerpt only; full-song vocal consistency,
+  seam listening, and instrument-level model latency remain open.
   Keep Demucs optional as a comparison/fallback, and isolate model dependencies
   from the current analyzer/player environment.

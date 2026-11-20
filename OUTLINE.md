@@ -1,3 +1,10 @@
+# Original project brief
+
+This preserves the original scope and candidate-service list. For implemented
+behavior, use [README.md](README.md); for the current design and priorities, use
+[PLAN.md](PLAN.md) and [TODO.md](TODO.md). Listed services are candidates, not
+integrations currently included in Harmonic.
+
 I would like to build an opengl music visualizer, similar to projectM, however I'm going to take a different approach.
 
 - music channel extraction

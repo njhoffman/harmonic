@@ -1,12 +1,13 @@
-# SAM Audio excerpt worker
+# SAM Audio excerpt and full-song worker
 
 The owner has access to [`facebook/sam-audio-large-tv`](https://huggingface.co/facebook/sam-audio-large-tv).
 This directory prepares a **Linux x86_64 GPU worker** separate from Harmonic's
 analyzer/player environment. The locked runtime, package imports, CUDA operation,
 checkpoint authentication, and three prompted separations passed on an AWS
 NVIDIA Blackwell worker on 2026-11-19. Returned artifacts passed validation;
-the owner approved the three target/residual pairs by listening. Detailed
-alignment/gain review remains open. No model weights were downloaded locally.
+the owner approved the three excerpt target/residual pairs by listening. The
+v0.12.0 full-song run also passed artifact/feature checks and chunk resume; vocal
+consistency, seam listening, and detailed alignment/gain review remain open. No model weights were downloaded locally.
 
 The local machine exposes Intel Iris Xe graphics, 16 GB RAM, and no working CUDA
 device. The selected `checkpoint.pt` alone is 14,861,356,211 bytes (14.86 GB), before
@@ -77,8 +78,8 @@ Server Edition (97,887 MiB reported GPU memory), driver 595.112.07, 128 GiB
 nominal host RAM, and 142 GiB initially available root disk space. The Price
 List API quoted $3.99816 per Linux On-Demand hour before storage/networking.
 The locked runtime and CUDA tensor operation passed, and the model completed
-the prepared excerpt. This does not establish full-song resource use or L40S
-compatibility.
+the prepared excerpt. The subsequent full-song profile is recorded below;
+L40S compatibility and longer chunk settings remain unverified.
 
 The worker uses Amazon-owned Deep Learning Base OSS NVIDIA Driver Ubuntu 24.04
 x86_64 AMI `ami-0d869b870d11ff1da` (2026-11-17), an encrypted 200 GiB gp3 root
@@ -108,9 +109,11 @@ of the results.
 
 ### Worker commands
 
-Use the recorded Harmonic source release on the GPU host (`v0.10.1` for the
-2026-11-19 launch preparation). Copy the prepared job
-there, then run from the repository root:
+Use the matching published Harmonic source release on the GPU host. The initial
+excerpt benchmark used `v0.10.1`; full-song commands require `v0.12.0` or later.
+For resumes, preserve the original source/environment: binding checks cover the
+worker file/lock but not imported analyzer modules or runtime equality. Copy the
+prepared job there, then run from the repository root:
 
 ```sh
 just sam-sync
@@ -166,7 +169,8 @@ Outputs keep relative gain without loudness normalization or clipping.
 The first baseline uses float32, one candidate, no automatic span prediction,
 no temporal anchors, and a midpoint ODE step of 0.0625. Unused ranking/span models
 are disabled in a temporary configuration; the Hugging Face cache stays unchanged.
-Inference quality and the effects of these settings remain to be measured.
+The owner approved the initial excerpt by listening. Full-song prompt consistency
+and controlled comparisons of these settings remain to be evaluated.
 
 Successful runs atomically publish a new result directory containing float32 mono
 48 kHz WAVs and `report.json`. The report records source/job/model hashes,
@@ -189,9 +193,10 @@ now be adapted into a schema-2 bundle with `just sam-features MIX JOB RESULT NEW
 see [source features and graphs](../../README.md#sam-source-features-and-graphs).
 The adapter validates WAVs, preserves mono levels and sample positions, and
 retains the report and features without embedding separated audio. The original
-stereo mix remains the playback source. Full-song chunking/overlap, stage-level
-retries, catalog caching of SAM results, and automated cleanup of temporary
-separated audio remain future work. Preserve these experimental outputs for review.
+stereo mix remains the playback source. Full-song chunking/overlap and completed
+chunk resume are implemented below. Per-prompt retries, catalog caching of SAM
+results, and automated cleanup of temporary separated audio remain future work.
+Preserve these experimental outputs for review.
 
 ## Full-song chunk workflow
 
@@ -206,7 +211,8 @@ One model load serves all pending chunks. A matching existing output is resumed
 only after validating completed WAVs and job/model/code/lock provenance. A
 completion marker is published after every chunk validates, with per-invocation
 new/reused counts. Invalid partial artifacts fail explicitly; prompts in an
-unfinished chunk are not individually cached. Keep one worker per output.
+unfinished chunk are not individually cached. Keep one worker per output; there
+is no concurrent-writer lock. Automatic cleanup of crash leftovers is not provided.
 
 After retrieving results, `just sam-stitch PLAN CHUNKS NEW` applies complementary
 half-cosine overlap-add to new full-length float WAVs and retains every original
@@ -280,7 +286,9 @@ calls completed; their separation times totaled 165.206 seconds. The initial
 worker invocation measured 386.690 seconds including download/model loading,
 excluding preflight. Peak reserved CUDA memory was 19.074 GiB; peak host RSS was
 29.878 GiB. A second invocation reused all 37 validated chunks and performed no
-new inference; per-invocation completion history was retained.
+new inference; per-invocation completion history was retained. The elapsed
+fields exclude readiness, initial plan validation, and the reuse scan; the
+all-reused field is not a measurement of total restart wall time.
 
 All 275 remote output files were retrieved and checked locally. All chunk WAVs,
 retained reports, full-length merged WAVs, features, and native compositor checks

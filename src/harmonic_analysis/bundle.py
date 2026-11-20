@@ -1,4 +1,4 @@
-"""Validate mix and partial-coverage SAM feature bundles without model packages."""
+"""Validate mix and excerpt/full-song SAM feature bundles without model packages."""
 
 from __future__ import annotations
 

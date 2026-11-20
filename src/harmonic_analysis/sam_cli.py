@@ -1,4 +1,4 @@
-"""Prepare portable excerpts for the GPU worker without installing model dependencies."""
+"""Prepare and validate SAM excerpt/song jobs, stitch audio, and adapt source features."""
 
 from __future__ import annotations
 

@@ -1,252 +1,184 @@
 # Task checklist
 
-Use this file for current progress and [PLAN.md](PLAN.md) for architecture and
-rationale. Check off work only after verification; update the checklist with
-each approved change. Tasks carry an explicit priority and category:
+Use this file for current progress, [README.md](README.md) for implemented behavior,
+and [PLAN.md](PLAN.md) for architecture. Check off only verified work and update
+this file with each approved change. Reassessed after publishing v0.12.0 on
+2026-11-19; historical release details are in [CHANGELOG.md](CHANGELOG.md).
 
-- **P1 `(p1)`**: next validation gates and work that unblocks the SAM milestone.
-- **P2 `(p2)`**: implementation after those gates, or independent local improvements.
-- **P3 `(p3)`**: deferred scenes, scale, service work, and optional comparisons.
+- **P1 `(p1)`**: next quality gates and validation that unblock the SAM milestone.
+- **P2 `(p2)`**: reliability, local improvements, and later integration work.
+- **P3 `(p3)`**: deferred scenes, library scale, services, and comparisons.
 
 Categories are `[feature]`, `[test]`, `[perf]`, `[bug]`, `[docs]`, and `[chore]`.
 `☐` means incomplete; `☑` means completed. Global `todo-status` and `todo-fzf`
-show incomplete tasks by default; add `--all` to include completed tasks, or
-`--help` for options and examples. `just todo` retains the full Markdown checklist.
+show incomplete tasks by default; use `--all` for completed tasks or `--help` for
+options. `just todo` retains the complete Markdown checklist.
 
-**Current gate:** the first real SAM Audio GPU benchmark passed on 2026-11-19.
-The unchanged 10-second Billie Jean job ran with `facebook/sam-audio-large-tv`
-on an AWS `g7e.4xlarge` in `us-east-2c`. Runtime installation, CUDA, authentication,
-three prompted separations, returned-file hashes, and exact sample counts passed.
-The output is saved locally under `data/aws-gpu/2026-11-19/`. The owner
-confirmed all three targets and residuals sound good, with clear instrument
-extraction, no audible unwanted bleed, and no unwanted target instrument left
-in the residuals. Instrument-level transient alignment and comparative gain review remain open.
-The source-feature adapter now preserves the measured samples/levels without
-corrections and provides partial-coverage graphs alongside original playback.
-The GPU quota is 16 vCPUs; the owner completed the approved Paid plan upgrade.
-L40S hosts lacked capacity, so no L40S inference compatibility is claimed.
-See the [worker guide](workers/sam_audio/README.md) for measurements and limits.
+**Current gate:** full-song processing is structurally validated, with listening
+and vocal consistency still open. The 295.892-second Billie Jean recording ran
+as 37 chunks (10 seconds, 2-second overlap) on AWS Blackwell; all 111 prompt calls,
+exact-length merged WAVs, source features, and native compositor checks passed.
+A second invocation reused all 37 chunks without inference. Neighboring vocal
+estimates disagree sharply around 80–90 seconds. The owner approved clear targets
+and clean residuals for the earlier 30–40 second excerpt only. All temporary AWS
+resources were removed after verified retrieval. Local evidence is ignored by
+Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
 
-## SAM Audio: GPU validation (P1)
+## Separation quality and playback gates (P1)
 
-- [x] **Select the GPU worker host** (p1) [chore]
-  Verified on 2026-11-19: `g7e.4xlarge` in `us-east-2c`, NVIDIA RTX PRO 6000
-  Blackwell Server Edition (97,887 MiB reported memory), driver 595.112.07,
-  128 GiB nominal host RAM, and 142 GiB initially free on the encrypted root
-  volume. The two-hour shutdown timer was verified active during the run.
-  The 10s/2s full-song run used 19.074 GiB peak reserved GPU memory and
-  29.878 GiB peak host RSS; longer chunk settings remain unprofiled. `g6e.4xlarge` and `g6e.2xlarge` lacked capacity in all three zones.
-  Applied On-Demand G/VT quota is 16 vCPUs and the Paid account plan is active.
-- [x] **Transfer the release and unchanged excerpt job** (p1) [chore]
-  The published `v0.10.1` source archive and unchanged
-  `data/sam-jobs/billie-jean-v0.7.0/` reached the host through private encrypted
-  transfers. The input hash passed on the host; no full recording was uploaded.
-- [x] **Install and verify the locked GPU runtime** (p1) [test]
-  `just sam-sync` installed the frozen Python 3.11/CUDA 12.8 environment.
-  Torch, torchaudio, torchvision, TorchCodec, and SAM imports and a real CUDA
-  tensor operation passed. Worker execution accepted the pinned source revision.
-- [x] **Authenticate and verify gated checkpoint access** (p1) [chore]
-  Local cached-login access to the pinned config passed on 2026-11-19.
-  A restricted SecureString parameter supplied authentication to the worker;
-  `sam-doctor` reports CUDA/authentication/ready true. The authenticated
-  checkpoint download and inference passed. No token entered command arguments,
-  logs, or Git.
-- [x] **Fetch the pinned model and record auxiliary provenance** (p1) [test]
-  The pinned main checkpoint/config/license hashes are recorded in `report.json`.
-  Auxiliary text model: `google-t5/t5-base` at
-  `a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1`; pin this revision on repeat runs.
-- [x] **Benchmark vocal, drum, and bass prompts** (p1) [perf]
-  The prepared 30–40 second excerpt ran in 2.197 s (vocals), 1.560 s (drums),
-  and 1.562 s (bass), totaling 5.319 s of separation. Peak reserved CUDA memory
-  was 19.074 GiB, peak host RSS 29.855 GiB; total run including initial downloads
-  and model loading was 221.583 s. The selected Blackwell host fits this job.
-- [x] **Validate returned target/residual artifacts** (p1) [test]
-  `just sam-validate` passed all three pairs. Each WAV has 480,000 mono samples
-  at 48 kHz, no padding trim, and verified hashes/statistics/source offset.
-  Original config, worker code, and worker lock hashes match the report.
-- [x] **Retrieve GPU results and remove temporary AWS resources** (p1) [chore]
-  All 20 output objects are verified locally. Instance, disk, bucket, temporary
-  token, role/profile, launch template, and security group were removed. Final
-  checks found no active test instance, tagged test volume, or token parameter.
-  A delayed normal shutdown completed after force termination.
-- [x] **Listen to returned target/residual pairs** (p1) [test]
-  Owner confirmed on 2026-11-19: all three targets and residuals sound good;
-  targets clearly extract the requested instrument, with no audible unwanted
-  bleed or unwanted target instrument remaining in the residuals. This validates
-  the tested excerpt; independent prompts are not guaranteed exclusive stems.
-- [ ] **Complete perceptual alignment and gain validation** (p1) [test]
-  Measured target-plus-residual waveform lag is zero within a ±100 ms search;
-  reconstruction RMS error is 0.091–0.093 against source RMS 0.209. Best-fit
-  reconstruction gain is 0.807–0.863; this is not a correction to apply blindly.
-  Pinned processor checks confirm arithmetic-mean mono conversion, unchanged
-  double-amplitude inputs, and complete anti-phase cancellation. The model
-  generates residuals independently; exact mixture reconstruction is not enforced.
-  Owner listening approval covers separation quality. Adapter window RMS/peak
-  checks passed for all six WAVs (RMS error below 1.5e-8, exact peaks), with no
-  added gain or latency correction. Instrument-level model timing and comparative
-  gain review remain open. Float peaks above 1.0 were preserved without clipping.
+- [ ] **Review full-song vocal consistency and seams** (p1) [test]
+  Listen to the full targets/residuals and unnormalized left/right/blended/mix
+  clips at 24, 72, 80, 88, and 264 seconds in
+  `data/source-check-v0.12.0/seam-review/`. At 80–82 seconds neighboring vocal
+  RMS values are 0.102 and 0.000106; at 88–90 seconds they differ by 26.6 times.
+  These are diagnostic disagreements, not proof of an audible defect or a
+  ground-truth quality score. Record listening findings before bulk processing.
+- [ ] **Establish a consistent context and prompt policy** (p1) [test]
+  Investigate the near-silent vocal estimate in the 80–90 second chunk. Compare
+  longer contexts/overlaps and, if justified, anchors/span settings against the
+  baseline while retaining raw gain and sample positions. Profile extra model
+  dependencies and memory before enabling them. Do not mask disagreement with
+  automatic level matching or time shifts; validate any changed policy by ear.
+- [ ] **Check contrasting recordings and absent instruments** (p1) [test]
+  Billie Jean is the only supplied real recording. Include a cappella,
+  instrumental, quiet passages, and absent requested instruments to expose
+  false extraction, dropouts, and misleading visual activity. Synthetic tests
+  and one approved excerpt do not complete this gate.
+- [ ] **Validate instrument-level timing and relative gain** (p1) [test]
+  Adapter preservation is verified, but model timing/gain against recognizable
+  transients still needs review. Excerpt target-plus-residual lag measured zero
+  within ±100 ms; reconstruction RMS error was 0.091–0.093 against source RMS
+  0.209 and fitted gain 0.807–0.863. Independently generated residuals need not
+  reconstruct exactly. These mix-level diagnostics do not prove source timing
+  or justify applying gain corrections. Preserve float peaks above 1.0.
+- [ ] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
+  Measure target-GPU frame times, stutters, and physical-output timing after
+  seeks. Investigate the known GLX search-path warning involving `~/.local/lib`.
+  Existing software-renderer and dummy-audio checks are separate evidence.
 
-## Playback: real-device validation (P1)
+## Processing reliability and scale (P2)
 
-- [x] **Listen through Billie Jean on the actual audio output** (p1) [test]
-  Check visual alignment at the start, throughout the song, and after repeated seeks.
-  Completed: owner confirmed physical-output listening validation.
-- [x] **Exercise visible desktop controls and end-of-track behavior** (p1) [test]
-  Verify mouse seeking, keyboard shortcuts, pause/resume, view switching, and restart.
-  Completed: owner confirmed visible desktop controls and end-of-track behavior.
-- [ ] **Measure 1080p frame times on the target GPU** (p1) [perf]
-  Check drift/stutters and the desktop OpenGL loader, including the known GLX
-  runtime-search-path warning involving `~/.local/lib`.
-- [ ] **Check contrasting real recordings** (p1) [test]
-  Include a cappella or instrumental material; Billie Jean is currently the only
-  supplied real recording. Synthetic fixtures do not complete this listening check.
-
-## SAM Audio: feature integration (P2)
-
-- [x] **Validate the adapter with real inference outputs** (p2) [feature]
-  Validated all six real WAV streams against source-window RMS/peak measurements;
-  preserve mono levels, exact source sample offsets, prompts/settings, and model
-  provenance without implicit gain/latency correction. Synthetic impulse and
-  native-reader tests cover non-hop-aligned offsets, full-scale peaks, and coverage.
-- [x] **Version the multi-stream bundle contract** (p2) [feature]
-  Schema 2 adds partial-coverage target/residual Arrow streams and a retained
-  SAM report. Python and native readers validate checksums, identity, metadata,
-  and sample positions; existing schema-1 mix bundles remain supported.
-- [x] **Display separate source graphs alongside the mix** (p2) [feature]
-  Source cards show distinct RMS histories, spectra, and onset activity beside
-  the mix. R switches targets/residuals; shared mix scales preserve comparisons.
-  Missing excerpt coverage is explicit. Native offscreen target/residual,
-  seek/offset/coverage, pause/compositor, and original playback checks pass.
-- [x] **Implement and exercise full-song chunk processing** (p2) [feature]
-  Prepared 37 canonical 10-second chunks with 2-second overlaps, ran them with
-  one loaded model on the validated Blackwell host, and stitched exact full-length
-  target/residual WAVs. All 37 completed chunks were reused on a second invocation
-  without new inference. Full-song source features and native compositor checks
-  passed; raw outputs and comparison clips remain available for listening.
-- [ ] **Establish full-song chunking and overlap behavior** (p2) [test]
-  The first full-song run is structurally valid, but neighboring vocal estimates
-  disagree strongly at some overlaps. Review unnormalized comparison clips at
-  24, 72, 80, 88, and 264 seconds under `data/source-check-v0.12.0/seam-review/`.
-  Measure/resolve audible boundary artifacts and prompt dropouts before treating
-  the 10s/2s policy as quality-validated or running catalog-wide separation.
-- [ ] **Cache SAM runs with complete provenance keys** (p2) [feature]
-  Include recording identity, excerpt/chunk coordinates, checkpoint/code/auxiliary
-  revisions, prompts/anchors, seed, settings, and output schema in reuse decisions.
-- [ ] **Resume failed stages and validate cleanup rules** (p2) [feature]
-  Reuse completed prompts/chunks after interruption or OOM. Delete separated audio
-  only after the completed feature artifact is validated; retain benchmark outputs
-  while quality and alignment are under review.
+- [ ] **Complete SAM provenance keys before shared or cross-version reuse** (p2) [feature]
+  Job-local resume binds plan SHA, worker.py SHA, uv.lock SHA, and text revision,
+  and validates chunk artifacts. Imported analyzer modules and runtime equality
+  are not bound. Include effective code/runtime, recording/sample coordinates,
+  models/auxiliaries, prompts/anchors, settings/seed, and schema. Hashing the whole
+  worker file also invalidates resume after documentation-only edits; make the
+  compatibility policy explicit. The mix-only catalog still rejects schema 2.
+- [ ] **Harden interruption recovery and single-writer behavior** (p2) [feature]
+  Completed-chunk resume is verified; an unfinished chunk reruns every prompt.
+  Add finer checkpoints if worthwhile, explicit concurrent-writer protection,
+  crash-leftover cleanup, and interruption/OOM recovery tests. Currently use one
+  worker per output directory; there is no lock or automatic orphan cleanup.
+- [ ] **Recognize song plans by payload kind in the feature adapter** (p2) [bug]
+  `sam-features` detects a song by directory/filename `plan.json`, whereas
+  `inspect-song` accepts an explicitly named plan file. A renamed valid plan is
+  misclassified as an excerpt. Dispatch by validated kind and cover both forms.
+- [ ] **Keep Python and native provenance validation in agreement** (p2) [test]
+  Extend shared malformed-input fixtures for retained chunk reports, missing or
+  inconsistent metadata, silent targets, uneven final chunks, and corruption.
+  Maintain rejection parity as the duplicated readers and schemas evolve.
+- [ ] **Bound memory for long recordings** (p2) [perf]
+  Plan validation reconstructs full stereo PCM; stitching uses whole-track
+  accumulators, and feature extraction/player decoding also load whole tracks.
+  GPU chunks alone do not bound local RAM. Measure long-recording limits and
+  stream/seek local processing before treating the workflow as library-ready.
+- [ ] **Report end-to-end timing and clarify seam metrics** (p2) [perf]
+  Invocation elapsed fields exclude readiness, initial validation, and reuse
+  scans. Add total command/stage timings before comparing cold and cached runs.
+  `zero_lag_correlation` is an uncentered normalized dot product; the lag search
+  is bounded to at most ±40 ms. Neither proves perceptual continuity or latency.
+- [ ] **Add validated artifact retention and cleanup policies** (p2) [feature]
+  Keep current benchmark WAVs/jobs for quality review. Delete separated audio
+  only after validating durable features/provenance and confirming retention
+  needs; distinguish raw inference cache from reusable feature artifacts.
 - [ ] **Review licenses before distribution or service use** (p2) [docs]
-  The SAM License was inspected for the local prototype. Perception Models and
-  ImageBind have noncommercial terms; resolve dependency use and permitted outputs
-  before packaging binaries, model code/weights, or a commercial service.
+  The SAM License was inspected for the local prototype; Perception Models and
+  ImageBind have noncommercial terms. Resolve dependency use, output reuse,
+  binary/model redistribution, and service permissions before packaging.
 
-## Local experience: next improvements (P2)
+## Local experience and integration (P2)
 
 - [ ] **Import line-timed lyrics with manual timing correction** (p2) [feature]
   Preserve recording identity, lyric provenance, and user adjustments.
 - [ ] **Support Unicode text rendering** (p2) [feature]
-  Replace the ASCII-only bitmap font before relying on translated lyrics and
-  non-ASCII artist/title metadata in the player.
+  Replace the ASCII bitmap font before translated lyrics/non-ASCII metadata.
 - [ ] **Evaluate one mood/genre tagger** (p2) [feature]
-  Preserve provider/model provenance and user overrides; keep inferred labels
-  distinct from measured audio activity.
+  Recheck provider availability/terms, retain scored labels and provenance, and
+  keep inferred context distinct from measured activity and user overrides.
 - [ ] **Add a small scene controller and palette mappings** (p2) [feature]
-  Start with restrained transitions that can use the existing mix features.
+  Start with restrained transitions using existing mix/source features.
 - [ ] **Connect catalog selection to playback** (p2) [feature]
-  Choose a registered bundle and usable recording location, then add basic
-  playlist navigation without bypassing checksum validation.
+  Select a registered bundle/location and add playlist navigation while retaining
+  checksum validation. SAM catalog support depends on complete provenance keys.
 - [ ] **Make todo-fzf clipboard shortcuts portable** (p2) [bug]
-  The helper exists at `~/.shell/scripts/clip/pushclip.sh` on this workstation.
-  Verify Ctrl-Y/Alt-Y here and provide a supported fallback for other hosts
-  without that helper; do not submit copied text to another pane.
+  Verify Ctrl-Y/Alt-Y with `~/.shell/scripts/clip/pushclip.sh` here and provide a
+  supported fallback elsewhere. Interactive prompt pasting awaits owner use;
+  do not submit copied text to another pane.
 
 ## Later milestones (P3)
 
 - [ ] **Build spatial, radial, and vocal/lyric scenes** (p3) [feature]
-  Use validated source features and measure transitions/performance on the target GPU.
-- [ ] **Add resumable library processing and resource reporting** (p3) [perf]
-  Include concurrency/memory limits, runtime/storage accounting, and retries
-  after the single-recording workflow is validated.
+  Use validated source features and measure transitions on the target GPU.
+- [ ] **Add resumable library processing and resource accounting** (p3) [perf]
+  Establish single-recording quality first, then concurrency/memory limits,
+  runtime/storage/cost reporting, cancellation, and queue recovery.
 - [ ] **Build the authenticated metadata/artifact service** (p3) [feature]
-  Proceed after the local experience, recording matching, and redistribution
-  permissions are established; do not distribute original recordings.
-- [ ] **Compare alternate checkpoints or separators only if useful** (p3) [test]
-  Consider a smaller SAM checkpoint if capacity requires it and access permits;
-  keep Demucs or a paid separator as optional references.
+  Resolve recording matching and redistribution permissions first; do not
+  distribute original recordings. Other-platform packaging is still unverified.
+- [ ] **Compare alternate checkpoints or separators when useful** (p3) [test]
+  Smaller SAM checkpoints, Demucs, or paid services can provide controlled
+  references if access, licensing, capacity, and the quality question warrant it.
 
-## Completed foundation
+## Verified foundation
 
-- [x] **Document objectives, stack, services, risks, and roadmap** (p2) [docs]
-  Read the outline and save the architecture and rationale in PLAN.md.
-- [x] **Record suggested test songs and their purpose** (p2) [docs]
-- [x] **Create the Python analyzer and C++/SDL3/OpenGL player** (p2) [feature]
-- [x] **Analyze the supplied Billie Jean recording locally** (p2) [test]
-- [x] **Store original-mix features on a 48 kHz timeline** (p2) [feature]
-  Save RMS, peak, spectral-onset activity, and 64 frequency bands in JSON/Arrow bundles.
-- [x] **Verify source, artifact, and decoded-PCM checksums** (p2) [test]
-  Check consistency between analyzer, catalog, and native player.
-- [x] **Display spectrum bars and a whole-track envelope** (p2) [feature]
-- [x] **Implement transport, normalization, and timing offset** (p2) [feature]
-  Include pause/resume, seeking, and restart.
-- [x] **Pass the v0.7.0 automated verification suite** (p2) [test]
-  Forty-one checks cover analysis, CLI behavior, native playback, projectM,
-  catalog/reuse, SAM job/worker contracts, and command status. This does not
-  establish real GPU inference or physical audio-output validation.
-- [x] **Verify dummy-audio playback, seeking, and EOF** (p2) [test]
-  Exercise the real recording without claiming physical listening validation.
-- [x] **Render and visually inspect an offscreen preview** (p2) [test]
-- [x] **Add task-runner and release commands** (p2) [chore]
-  Cover build, analysis, catalog, playback, SAM preparation, verification, and release.
-- [x] **Support help/version aliases in the project CLIs** (p2) [feature]
-  Include `--help`/`-h` and `--version`/`-v` without input files.
-- [x] **Install the global Codex checklist skill and prompt** (p2) [chore]
-  Provide `todo` and `/prompts:todo` with colors; verify lookup in another project.
-- [x] **Add the local checklist viewer and safe installer** (p2) [chore]
-  `just todo` displays the full checklist; installation preserves customized files.
-- [x] **Add gradient progress and colored command status** (p2) [feature]
-  Preserve logs/exit codes, honor color controls, and animate unknown-duration
-  activity while hashing/decoding blocks without inventing completion percentages.
-- [x] **Verify a base player without optional projectM features** (p2) [test]
-- [x] **Add live projectM playback and graph compositing** (p2) [feature]
-  Include view switching, sample-clock timing, cached pause behavior, and feedback
-  resets after seeks and timing-offset changes.
-- [x] **Verify compositor state and representative presets** (p2) [test]
-  Check classic/shader presets, pause, seeks, EOF, resize, dummy-audio playback,
-  and 1080p software-renderer previews/timings; hardware performance remains open.
-- [x] **Add recording identity and the local SQLite catalog** (p2) [feature]
-  Track exact-file identities, locations, existing bundles, and verified mix reuse.
-- [x] **Verify catalog recovery and relocated-file playback** (p2) [test]
-  Include corrupt-cache rejection, PCM/configuration validation, JSON/CLI output,
-  and recovery after interrupted registration.
-- [x] **Establish SemVer, changelog, tags, and release workflow** (p2) [chore]
-  Synchronize versions, commit, tag, push, and build approved updates.
-- [x] **Publish the v0.2.0 prototype and verify its build** (p2) [chore]
-- [x] **Publish v0.7.0 with the prepared SAM worker** (p2) [chore]
-  Commit, tag, push, and build the release; no real SAM inference was claimed.
-- [x] **Receive access to SAM Audio large TV** (p1) [chore]
-  Owner confirmation; GPU-host authentication/access checks remain open above.
-- [x] **Prepare the isolated Python 3.11/CUDA worker** (p1) [feature]
-  Pin source/checkpoint revisions and resolve the full dependency lock without
-  installing the inference environment on this laptop.
-- [x] **Prepare the portable 10-second Billie Jean job** (p1) [feature]
-  Preserve source/PCM hashes, sample offset, prompts, seed, and settings at 30 seconds.
-- [x] **Verify SAM job and output contracts without inference** (p1) [test]
-  Check portability, hashes, timebase, corrupt-file rejection, mono gain,
-  right-padding handling, and dependency-free diagnostics.
-- [x] **Define independent target/residual semantics** (p1) [docs]
-  Prompted pairs may overlap; they do not form four mutually exclusive stems.
-- [x] **Prioritize the backlog and update local task viewers** (p2) [feature]
-  Add explicit priorities/categories, recent SAM follow-ups, help/version flags,
-  default incomplete-only views, and `--all` with checked/empty boxes. Verify
-  filtering, previews, sorting/reload, metadata audits, and real fzf selection.
-
-- [x] **Use global task viewers and enable the tmux picker** (p2) [chore]
-  Remove repository copies, discover optional integrations on PATH, and fix
-  standalone viewer versions. Activate the existing Alt-I popup binding; six
-  automated viewer checks pass. Interactive prompt pasting awaits owner use.
-
-- [x] **Complete tasks inside the global fzf picker** (p2) [feature]
-  Ctrl-D checks the highlighted task and reloads without exiting. Preserve file
-  bytes/permissions, reject stale snapshots, and keep checked items with --all.
-  Verify completion in a real fzf terminal; use a list-check icon prompt.
+- [x] **Build the analyzer and native original-mix player** (p2) [feature]
+  JSON/Arrow features preserve a 48 kHz sample timeline, source/artifact/PCM
+  checksums, RMS/peak/onsets, 64 frequency bands, and embedded tags.
+- [x] **Verify transport and visible playback controls** (p1) [test]
+  Owner confirmed physical Billie Jean playback and desktop controls/EOF.
+  Automated dummy-audio seeking, pause/resume, offsets, and EOF also pass.
+- [x] **Integrate projectM and graph compositing** (p2) [feature]
+  Verify preset views, cached pause frames, seek/reset behavior, resize, EOF,
+  offscreen previews, and base-player operation without optional projectM.
+- [x] **Implement the local recording catalog and verified mix reuse** (p2) [feature]
+  Exact-file identity, relocated sources, corrupt-cache rejection, configuration
+  checks, and interrupted registration recovery are covered.
+- [x] **Establish task, progress, and release tooling** (p2) [chore]
+  just commands, colored progress/logs/exit codes, synchronized SemVer, dated
+  changelog, annotated tags, atomic pushes, and published-commit builds.
+- [x] **Provide global checklist viewing and fzf completion** (p2) [feature]
+  Safe installation, priorities/categories, incomplete filtering, --all,
+  previews/reload, and stale-safe Ctrl-D completion were verified. Optional
+  external viewer integrations are separate from application tests.
+- [x] **Isolate and pin the SAM GPU runtime** (p1) [feature]
+  Python 3.11/CUDA 12.8 worker with pinned model/source/lock and auxiliary text
+  revision; no model weights or inference environment installed on this laptop.
+- [x] **Verify authentication and real GPU inference** (p1) [test]
+  AWS Blackwell g7e.4xlarge passed CUDA/import/auth checks and actual inference.
+  L40S capacity was unavailable; no L40S or longer-context profile is claimed.
+- [x] **Benchmark and validate the original excerpt** (p1) [test]
+  Three prompts, 5.319 seconds total separation; exact 480,000-sample mono WAVs,
+  hash/provenance/padding checks, and owner-approved clear targets/clean residuals.
+- [x] **Preserve source-feature sample positions and mono levels** (p2) [test]
+  All six real excerpt streams passed 3,000 RMS/peak window checks (maximum RMS
+  error below 1.5e-8, exact peaks). Anti-phase cancellation and float peaks are
+  explicit; no automatic gain or model-latency correction is applied.
+- [x] **Version and display multi-source feature bundles** (p2) [feature]
+  Schema 2 adds retained reports and target/residual Arrow streams. Python/native
+  validation and R-toggle cards support partial/full coverage; schema 1 stays
+  readable. Original stereo mix remains playback/projectM audio.
+- [x] **Implement and exercise full-song chunks, stitching, and resume** (p2) [feature]
+  37 chunks/111 calls, 165.206 seconds separation, 19.074 GiB peak reserved GPU
+  memory, 29.878 GiB peak host RSS. All 37 chunks reused on restart; full-length
+  WAVs/features/native compositor validated. Listening quality is pending above.
+- [x] **Retrieve results and remove temporary AWS resources** (p1) [chore]
+  Both runs retrieved/validated; full-song transfer checked all 275 output files.
+  Instances/disks, buckets, token parameters, roles/profiles, templates, and
+  security groups removed; final queries found no active test hosts/tagged disks.
+- [x] **Verify the v0.12.0 automated release suite** (p2) [test]
+  59 tests ran successfully with 9 optional external-tool integrations skipped.
+  Real GPU evidence and owner listening approval are recorded separately above.
+- [x] **Reassess documentation and the running backlog** (p2) [docs]
+  Review implementation/evidence after v0.12.0, remove stale future-work/access
+  claims, prioritize vocal consistency, and record reliability/scale follow-ups.
