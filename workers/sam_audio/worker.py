@@ -132,30 +132,44 @@ def separate_job(job_path: Path, output: Path, session: dict, *, began: float) -
     mono = samples.mean(axis=1, dtype=np.float32)
     tensor = torch.from_numpy(samples.T.copy())
     pairs = {}
+
+    def separate_prompt(name: str, description: str, destination: Path) -> dict:
+        with Progress(f"Separating {name}"):
+            torch.manual_seed(job["seed"])
+            torch.cuda.manual_seed_all(job["seed"])
+            batch = processor(audios=[tensor], descriptions=[description]).to("cuda")
+            torch.cuda.synchronize()
+            torch.cuda.reset_peak_memory_stats()
+            started = time.monotonic()
+            with torch.inference_mode():
+                result = model.separate(batch, predict_spans=False, reranking_candidates=1,
+                    ode_opt={"method": "midpoint", "options": {"step_size": 0.0625}})
+            target = result.target[0].detach().float().cpu().numpy()
+            residual = result.residual[0].detach().float().cpu().numpy()
+            torch.cuda.synchronize()
+            elapsed = time.monotonic() - started
+            pair = save_pair(destination, name, target, residual, mono,
+                             padding_limit=processor.audio_hop_length - 1)
+            pair.update(description=description, elapsed_seconds=elapsed,
+                        real_time_factor=elapsed / (len(mono) / 48_000),
+                        peak_cuda_allocated_bytes=torch.cuda.max_memory_allocated(),
+                        peak_cuda_reserved_bytes=torch.cuda.max_memory_reserved())
+            del batch, result, target, residual
+            return pair
+
     with new_directory(output) as temporary:
-        for name, description in job["targets"].items():
-            with Progress(f"Separating {name}"):
-                torch.manual_seed(job["seed"])
-                torch.cuda.manual_seed_all(job["seed"])
-                batch = processor(audios=[tensor], descriptions=[description]).to("cuda")
-                torch.cuda.synchronize()
-                torch.cuda.reset_peak_memory_stats()
-                started = time.monotonic()
-                with torch.inference_mode():
-                    result = model.separate(batch, predict_spans=False, reranking_candidates=1,
-                        ode_opt={"method": "midpoint", "options": {"step_size": 0.0625}})
-                target = result.target[0].detach().float().cpu().numpy()
-                residual = result.residual[0].detach().float().cpu().numpy()
-                torch.cuda.synchronize()
-                elapsed = time.monotonic() - started
-                pair = save_pair(temporary, name, target, residual, mono,
-                                 padding_limit=processor.audio_hop_length - 1)
-                pair.update(description=description, elapsed_seconds=elapsed,
-                            real_time_factor=elapsed / (len(mono) / 48_000),
-                            peak_cuda_allocated_bytes=torch.cuda.max_memory_allocated(),
-                            peak_cuda_reserved_bytes=torch.cuda.max_memory_reserved())
-                pairs[name] = pair
-                del batch, result, target, residual
+        checkpoint_dir = session.get("prompt_checkpoint_dir")
+        if checkpoint_dir is None:
+            for name, description in job["targets"].items():
+                pairs[name] = separate_prompt(name, description, temporary)
+        else:
+            pairs = run_prompt_checkpoints(job, job_hash, session["run_binding_sha256"],
+                                           Path(checkpoint_dir), mono, processor.audio_hop_length,
+                                           separate_prompt)
+            for name in pairs:
+                for role in ("target", "residual"):
+                    shutil.copyfile(Path(checkpoint_dir) / name / f"{name}-{role}.wav",
+                                    temporary / f"{name}-{role}.wav")
         if digest(job_path) != job_hash:
             raise ValueError("Job changed during inference")
         report = {"schema_version": 1, "kind": "harmonic.sam-audio-result.v1", "app_version": __version__,
@@ -178,6 +192,45 @@ def separate_job(job_path: Path, output: Path, session: dict, *, began: float) -
             report["run_binding_sha256"] = session["run_binding_sha256"]
         write_json(temporary / "report.json", report)
     return output.resolve() / "report.json"
+
+
+def run_prompt_checkpoints(job: dict, job_hash: str, run_binding_hash: str, checkpoint_dir: Path,
+                           mono, hop: int, separate_prompt) -> dict:
+    """Atomically retain and validate each finished target for interrupted song chunks."""
+    from harmonic_analysis.sam_jobs import new_directory, validate_pairs, write_json
+
+    if checkpoint_dir.is_symlink():
+        raise ValueError(f"Unexpected symlink for prompt checkpoints: {checkpoint_dir}")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    pairs = {}
+    for name, description in job["targets"].items():
+        path = checkpoint_dir / name
+        if path.exists():
+            if path.is_symlink() or not path.is_dir():
+                raise ValueError(f"Invalid prompt checkpoint path: {path}")
+            record_path = path / "checkpoint.json"
+            if record_path.is_symlink() or not record_path.is_file():
+                raise ValueError(f"Missing prompt checkpoint record: {record_path}")
+            if any((path / f"{name}-{role}.wav").is_symlink() for role in ("target", "residual")):
+                raise ValueError(f"Invalid prompt checkpoint waveform: {path}")
+            record = json.loads(record_path.read_text())
+            if (record.get("schema_version") != 1 or record.get("job_sha256") != job_hash
+                    or record.get("run_binding_sha256") != run_binding_hash
+                    or record.get("target") != name or record.get("description") != description
+                    or record.get("pair", {}).get("description") != description):
+                raise ValueError(f"Incompatible prompt checkpoint: {path}")
+            pair = record["pair"]
+            validate_pairs({"pairs": {name: pair}}, path, mono, hop)
+        else:
+            with new_directory(path) as temporary:
+                pair = separate_prompt(name, description, temporary)
+                write_json(temporary / "checkpoint.json", {
+                    "schema_version": 1, "job_sha256": job_hash,
+                    "run_binding_sha256": run_binding_hash, "target": name,
+                    "description": description, "pair": pair,
+                })
+        pairs[name] = pair
+    return pairs
 
 
 def run(job_path: Path, output: Path, *, text_revision: str | None = None) -> Path:
@@ -215,7 +268,8 @@ def run_song(plan_file: Path, output: Path) -> Path:
         return run_locked_song(plan_file, output, invocation_start=invocation_start)
 
 
-def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[str]) -> int:
+def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[str],
+                       pending_chunks: set[str]) -> int:
     """Remove abandoned worker files inside a verified, locked song output."""
     chunks = output / "chunks"
     allowed_files = {"report.json"} | {f"{name}-{role}.wav" for name in target_names
@@ -229,6 +283,29 @@ def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[st
                             for file in path.iterdir())):
                 shutil.rmtree(path)
                 removed += 1
+        for chunk in chunk_names:
+            prompt_root = chunks / f".{chunk}-prompts"
+            if prompt_root.is_symlink():
+                raise ValueError(f"Unexpected symlink for prompt checkpoints: {prompt_root}")
+            if not prompt_root.is_dir():
+                continue
+            for path in prompt_root.iterdir():
+                temporary = re.fullmatch(r"\.([a-z][a-z0-9_-]{0,31})-[a-z0-9]{8}", path.name)
+                if (temporary and temporary[1] in target_names and not path.is_symlink() and path.is_dir()
+                        and all(file.name in {f"{temporary[1]}-target.wav", f"{temporary[1]}-residual.wav",
+                                             "checkpoint.json"}
+                                and not file.is_symlink() and file.is_file() for file in path.iterdir())):
+                    shutil.rmtree(path)
+                    removed += 1
+            if chunk not in pending_chunks:
+                complete = all(path.name in target_names and not path.is_symlink() and path.is_dir()
+                               and all(file.name in {f"{path.name}-target.wav", f"{path.name}-residual.wav",
+                                                     "checkpoint.json"}
+                                       and not file.is_symlink() and file.is_file()
+                                       for file in path.iterdir()) for path in prompt_root.iterdir())
+                if complete:
+                    shutil.rmtree(prompt_root)
+                    removed += 1
     temporary = output / ".completed.json.tmp"
     if temporary.is_symlink() or (temporary.exists() and not temporary.is_file()):
         raise ValueError(f"Unexpected completion scratch path: {temporary}")
@@ -293,7 +370,8 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
         else:
             pending.append((entry, destination))
     removed = clean_song_scratch(output, {f"{entry['index']:06d}" for entry in plan["chunks"]},
-                                 set(plan["targets"]))
+                                 set(plan["targets"]),
+                                 {f"{entry['index']:06d}" for entry, _ in pending})
     if removed:
         print(f"Removed {removed} abandoned SAM scratch paths from {output}", flush=True)
     began = time.monotonic()
@@ -307,7 +385,11 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
             with Progress("Separating full-song chunks", len(plan["chunks"])) as progress:
                 progress.update(reused)
                 for count, (entry, destination) in enumerate(pending, start=reused + 1):
+                    checkpoint_dir = chunk_dir / f".{entry['index']:06d}-prompts"
+                    session["prompt_checkpoint_dir"] = checkpoint_dir
                     separate_job(plan_file.parent / entry["job"], destination, session, began=time.monotonic())
+                    if checkpoint_dir.exists():
+                        shutil.rmtree(checkpoint_dir)
                     progress.update(count)
         chunks_done = time.monotonic()
     if digest(plan_file) != plan_hash:

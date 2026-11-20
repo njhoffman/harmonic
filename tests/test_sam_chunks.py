@@ -233,6 +233,54 @@ class SongChunkTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'checksum'): self.run_fake()
         self.assertEqual(self.session_loads,2)
 
+    def test_prompt_checkpoints_resume_only_unfinished_prompt_and_validate_hashes(self):
+        from harmonic_analysis.sam_jobs import save_pair
+
+        job_path = self.plan_path.parent / self.plan['chunks'][0]['job']
+        job, samples = load_job(job_path)
+        job['targets'] = {'vocals': 'man singing', 'drums': 'drums playing'}
+        mono = samples.mean(axis=1, dtype=np.float32)
+        checkpoint_dir = self.root / 'prompt-checkpoints'
+        calls = []
+        fail_drums = True
+
+        def separate_prompt(name, description, destination):
+            nonlocal fail_drums
+            calls.append(name)
+            if name == 'drums' and fail_drums:
+                fail_drums = False
+                raise RuntimeError('simulated CUDA out of memory')
+            pair = save_pair(destination, name, mono * .75, mono * .25, mono, padding_limit=0)
+            pair.update(description=description, elapsed_seconds=.1, real_time_factor=.1,
+                        peak_cuda_allocated_bytes=10, peak_cuda_reserved_bytes=20)
+            return pair
+
+        with self.assertRaisesRegex(RuntimeError, 'out of memory'):
+            worker.run_prompt_checkpoints(job, 'a' * 64, 'b' * 64, checkpoint_dir,
+                                          mono, 1920, separate_prompt)
+        self.assertTrue((checkpoint_dir / 'vocals' / 'checkpoint.json').is_file())
+        pairs = worker.run_prompt_checkpoints(job, 'a' * 64, 'b' * 64, checkpoint_dir,
+                                              mono, 1920, separate_prompt)
+        self.assertEqual(calls, ['vocals', 'drums', 'drums'])
+        self.assertEqual(set(pairs), {'vocals', 'drums'})
+        with self.assertRaisesRegex(ValueError, 'Incompatible prompt checkpoint'):
+            worker.run_prompt_checkpoints(job, 'a' * 64, 'c' * 64, checkpoint_dir,
+                                          mono, 1920, separate_prompt)
+        record_path = checkpoint_dir / 'vocals' / 'checkpoint.json'
+        record = json.loads(record_path.read_text())
+        record['pair']['description'] = 'different prompt'
+        write_json(record_path, record)
+        with self.assertRaisesRegex(ValueError, 'Incompatible prompt checkpoint'):
+            worker.run_prompt_checkpoints(job, 'a' * 64, 'b' * 64, checkpoint_dir,
+                                          mono, 1920, separate_prompt)
+        record['pair']['description'] = 'man singing'
+        write_json(record_path, record)
+        vocals = checkpoint_dir / 'vocals' / 'vocals-target.wav'
+        vocals.write_bytes(vocals.read_bytes() + b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'checksum'):
+            worker.run_prompt_checkpoints(job, 'a' * 64, 'b' * 64, checkpoint_dir,
+                                          mono, 1920, separate_prompt)
+
     def test_resume_rejects_changed_runtime_imported_code_and_chunk_binding(self):
         complete = json.loads(self.run_fake().read_text())
         with self.assertRaisesRegex(ValueError,'different plan/worker/runtime'):
@@ -300,6 +348,10 @@ with lock(Path(sys.argv[2])):
         unknown = chunk_dir/'.000001-abcd1234'
         unknown.mkdir()
         (unknown/'notes.txt').write_text('keep')
+        prompt_root = chunk_dir/'.000001-prompts'
+        partial_prompt = prompt_root/'.vocals-abcdefgh'
+        partial_prompt.mkdir(parents=True)
+        (partial_prompt/'vocals-target.wav').write_bytes(b'partial prompt')
         outside = self.root/'outside'
         outside.mkdir()
         external_file = outside/'vocals-target.wav'
@@ -320,6 +372,7 @@ with lock(Path(sys.argv[2])):
         self.assertEqual(summary['reused_chunks'],1)
         self.assertEqual(digest(first_wave),first_hash)
         self.assertFalse(abandoned.exists())
+        self.assertFalse(partial_prompt.exists())
         self.assertFalse(completion_scratch.exists())
         self.assertEqual((unknown/'notes.txt').read_text(),'keep')
         self.assertTrue(link.is_symlink())

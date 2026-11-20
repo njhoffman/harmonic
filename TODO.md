@@ -85,9 +85,10 @@ check; full-song approval remains open.
   registering SAM artifacts in the mix-only catalog. Full source hashes also
   invalidate reuse after docstring edits.
 - [ ] **Evaluate finer checkpoints and OOM recovery** (p2) [feature]
-  Completed-chunk resume is verified; an unfinished chunk reruns every prompt.
-  Evaluate per-prompt checkpoints, startup/model scratch outside the bound
-  output, and recovery after GPU OOM.
+  Per-prompt checkpoints now atomically preserve completed target/residual pairs,
+  validate their run binding and audio on resume, and skip completed prompts.
+  Synthetic interruption/OOM recovery is tested. Validate real CUDA OOM recovery
+  and account for startup/model scratch outside the bound output.
 - [x] **Keep Python and native provenance validation in agreement** (p2) [test]
   Shared full-song bundle fixtures verify that both readers reject missing chunk
   indices, invalid job/model/worker hashes, mismatched run bindings, malformed
@@ -142,6 +143,13 @@ check; full-song approval remains open.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Resume SAM song chunks at prompt boundaries** (p2) [feature]
+  Each completed target/residual pair is checkpointed atomically under its
+  unfinished chunk. Restart verifies job/run identity, prompt, WAV checksums,
+  lengths, levels, and reconstruction statistics, then reruns only unfinished
+  prompts. Synthetic interruption/OOM and checkpoint-corruption cases pass.
+  Real GPU OOM recovery remains an open validation item above.
 
 - [x] **Reduce full-song stitching scratch memory without changing audio** (p2) [perf]
   Chunk-sized float64 overlap-add, direct mono plan loading, blockwise statistics,

@@ -440,13 +440,15 @@ the NVIDIA driver when available. Each new chunk records the run binding hash.
 Retain the exact source release and environment for restarts. Older completed
 reports and feature bundles remain readable.
 A corrupt existing chunk causes an error. Inputs and completed results are never
-silently overwritten. Resume is currently at chunk granularity; a failed prompt
-inside an unfinished chunk reruns that chunk. The worker locks the resolved
+silently overwritten. Finished prompts in an unfinished chunk are also kept as
+temporary, run-bound checkpoints; resume validates them and reruns only prompts
+without a valid checkpoint. Synthetic interruption/OOM recovery is tested, but
+real GPU OOM recovery has not been exercised. The worker locks the resolved
 output path before preflight and exits immediately if another worker holds it.
 Leave the hidden `.<output-name>.lock` file beside the output directory. The
 operating system releases the lock when the worker exits or is killed.
-On resume, a matching run clears abandoned chunk scratch directories and an
-unfinished completion file before inference. Published chunks and unrelated
+On resume, a matching run clears abandoned chunk/prompt scratch directories and
+an unfinished completion file before inference. Published chunks and unrelated
 files stay in place.
 
 The worker prints the elapsed time through completion publication and lock

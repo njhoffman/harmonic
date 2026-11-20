@@ -199,9 +199,8 @@ see [source features and graphs](../../README.md#sam-source-features-and-graphs)
 The adapter validates WAVs, preserves mono levels and sample positions, and
 retains the report and features without embedding separated audio. The original
 stereo mix remains the playback source. Full-song chunking/overlap and completed
-chunk resume are implemented below. Per-prompt retries, catalog caching of SAM
-results, and automated cleanup of temporary separated audio remain future work.
-Preserve these experimental outputs for review.
+chunk resume are implemented below. Per-prompt checkpoints are temporary worker
+state, not reusable catalog artifacts. Preserve the separated outputs for review.
 
 ## Full-song chunk workflow
 
@@ -222,9 +221,13 @@ recording length. The original canonical stereo PCM hash remains authoritative.
 One model load serves all pending chunks. A matching existing output is resumed
 only after validating completed WAVs and job/model/code/lock provenance. A
 completion marker is published after every chunk validates, with per-invocation
-new/reused counts. Invalid partial artifacts fail explicitly; prompts in an
-unfinished chunk are not individually cached. Current workers take an exclusive
-Linux file lock before opening or creating an output. A competing invocation
+new/reused counts. Each finished prompt pair is now atomically checkpointed in
+`chunks/.NNNNNN-prompts/` with the job/run binding and waveform checksums. On
+restart, validated prompts are reused and only unfinished prompts run again; the
+checkpoint directory is removed after the complete chunk is published. Synthetic
+interruption tests cover this recovery and reject changed bindings or damaged
+WAVs. A real GPU out-of-memory recovery has not been exercised. Current workers
+take an exclusive Linux file lock before opening or creating an output. A competing invocation
 reports the busy output and exits before model setup. Keep the hidden
 `.<output-name>.lock` file beside the output even after the process exits. The
 operating system releases the lock on process exit, including a forced kill.
