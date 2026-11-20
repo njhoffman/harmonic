@@ -9,8 +9,13 @@ the owner approved the three excerpt target/residual pairs by listening. The
 v0.12.0 full-song run also passed artifact/feature checks and chunk resume; vocal
 consistency, seam listening, and detailed alignment/gain review remain open. No model weights were downloaded locally.
 
-The local machine exposes Intel Iris Xe graphics, 16 GB RAM, and no working CUDA
-device. The selected `checkpoint.pt` alone is 14,861,356,211 bytes (14.86 GB), before
+Minerva has a GeForce GTX 960 with 4 GiB VRAM, NVIDIA driver 580.178.04, and
+16 GB host RAM. Its desktop supports NVIDIA OpenGL 4.6. The isolated Python
+environment can be installed with `just sam-sync`, but installation does not
+establish inference readiness: this Maxwell GPU is outside the pinned PyTorch
+CUDA 12.8 wheel's supported architectures and lacks the memory used in the
+validated benchmark. Keep inference on a suitable GPU host. The selected
+`checkpoint.pt` alone is 14,861,356,211 bytes (14.86 GB), before
 auxiliary models and initialization/activation memory. There is no verified VRAM
 or host-RAM minimum for this checkpoint here. Use a GPU host with suitable capacity
 and a driver supporting the pinned CUDA 12.8 wheels. TorchCodec also requires

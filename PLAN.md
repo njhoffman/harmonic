@@ -125,8 +125,11 @@ mono without gain normalization; outputs retain their initial sample position,
 with only bounded trailing codec padding trimmed. This does not establish
 perceptual alignment or source quality.
 
-The local machine exposes Intel Iris Xe graphics and 16 GB RAM; no CUDA device
-works even outside the sandbox. On 2026-11-19, local Hugging Face login and
+The original workstation exposed Intel Iris Xe graphics and 16 GB RAM, with no
+working CUDA device. The project moved to Minerva on 2026-11-20: its GTX 960
+has 4 GiB VRAM and working NVIDIA OpenGL 4.6, but cannot run the pinned SAM
+runtime. See the worker guide for local installation and hardware limits.
+On 2026-11-19, local Hugging Face login and
 authenticated access to the pinned checkpoint config passed. The owner chose
 to run inference on a GPU host. The AWS GPU quota is now 16 vCPUs and the Paid
 plan is active after a console upgrade. L40S host capacity was unavailable; a

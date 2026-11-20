@@ -261,6 +261,26 @@ integration checks run too; otherwise they are reported as skipped.
 
 ## Optional projectM playback and checks
 
+To install the projectM revision used on Minerva without changing system files:
+
+```sh
+git clone --no-checkout https://github.com/projectM-visualizer/projectm.git .cache/projectm-src
+git -C .cache/projectm-src checkout 9e26f5b5bf89b015f197a16a61bcb21f4946d985
+git -C .cache/projectm-src submodule update --init --recursive
+cmake -S .cache/projectm-src -B .cache/projectm-build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PWD/.cache/projectm-install" \
+  -DBUILD_TESTING=OFF -DENABLE_PLAYLIST=OFF
+cmake --build .cache/projectm-build --parallel 4
+cmake --install .cache/projectm-build
+cmake -S . -B build -DprojectM4_DIR="$PWD/.cache/projectm-install/lib/cmake/projectM4"
+just build
+```
+
+Run the clone once; reuse the existing checkout for later builds. The source,
+library, and build outputs remain ignored by Git. CMake remembers `projectM4_DIR`
+for subsequent `just build`, `just test`, and playback commands; configure it
+again if the build directory is recreated or the project moves.
+
 When an installed libprojectM 4 CMake package is available, the build also creates
 `harmonic-projectm-check`. Playback integration additionally requires the library's
 explicit frame-time and user-framebuffer APIs; CMake probes the actual linked

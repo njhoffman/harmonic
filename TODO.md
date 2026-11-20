@@ -127,6 +127,20 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
 
 ## Verified foundation
 
+- [x] **Install and verify Minerva's projectM playback setup** (p2) [chore]
+  Local projectM 4.2.0 revision `9e26f5b5bf89b015f197a16a61bcb21f4946d985`
+  enables the preset player/checker. All 63 tests pass (9 optional global-tool
+  skips); a 180-frame 1080p diagnostic preset passed on the GTX 960, with
+  1.64 ms mean and 2.33 ms p95 completed-render time after 30 warmup frames.
+  This single-preset offscreen check does not establish general preset performance
+  or physical-output latency. Evidence: `data/minerva-projectm-check-20261120/`.
+- [x] **Install Minerva's isolated SAM dependencies** (p2) [chore]
+  `just sam-sync` installs the locked Python 3.11/CUDA 12.8 environment.
+  SAM Audio/processor, TorchCodec, and xformers imports pass.
+  GPU inference remains blocked: the GTX 960's `sm_52` is excluded from the
+  wheel's compiled architectures; a tiny CUDA operation fails with no kernel
+  image. Hugging Face authentication is absent. No model weights were downloaded.
+
 - [x] **Validate song plans without allocating a full PCM track in the worker** (p2) [perf]
   Keep an overlap tail and hash each new sample exactly once. Tests cover the
   bounded validator, conflicting overlap bytes, and the full PCM hash.
@@ -175,7 +189,8 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   external viewer integrations are separate from application tests.
 - [x] **Isolate and pin the SAM GPU runtime** (p1) [feature]
   Python 3.11/CUDA 12.8 worker with pinned model/source/lock and auxiliary text
-  revision; no model weights or inference environment installed on this laptop.
+  revision; no model weights installed locally. Minerva's isolated environment
+  is installed, with its GPU limitations recorded above.
 - [x] **Verify authentication and real GPU inference** (p1) [test]
   AWS Blackwell g7e.4xlarge passed CUDA/import/auth checks and actual inference.
   L40S capacity was unavailable; no L40S or longer-context profile is claimed.
