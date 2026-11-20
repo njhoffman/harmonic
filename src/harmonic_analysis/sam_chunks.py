@@ -183,6 +183,8 @@ def validate_song_metadata(report: dict) -> list[dict]:
             raise ValueError("chunk report count mismatch")
         reports = []
         for index, ((start, count), item) in enumerate(zip(points, chunking["chunks"], strict=True)):
+            if type(item.get("index")) is not int or item["index"] != index:
+                raise ValueError("invalid retained chunk index")
             raw = item["report_json"]
             if not isinstance(raw, str) or hashlib.sha256(raw.encode()).hexdigest() != item["report_sha256"]:
                 raise ValueError("retained chunk report checksum mismatch")
@@ -190,7 +192,8 @@ def validate_song_metadata(report: dict) -> list[dict]:
             if (child["kind"] != "harmonic.sam-audio-result.v1" or child["schema_version"] != 1
                     or child["start_sample"] != start or child["sample_count"] != count
                     or child["sample_rate"] != SAMPLE_RATE or child["channels"] != 1
-                    or item["index"] != index or child["job_sha256"] != item["job_sha256"]
+                    or not re.fullmatch(r"[0-9a-f]{64}", child["job_sha256"])
+                    or child["job_sha256"] != item["job_sha256"]
                     or any(child[k] != report[k] for k in COMMON)
                     or set(child["pairs"]) != set(report["pairs"])):
                 raise ValueError("inconsistent chunk report provenance/coordinates")

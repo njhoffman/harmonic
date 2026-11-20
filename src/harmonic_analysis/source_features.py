@@ -13,7 +13,8 @@ import pyarrow.ipc as ipc
 from . import __version__
 from .analysis import BAND_COUNT, HOP_SIZE, extract_features, feature_table, sha256_file, stats
 from .bundle import SAM_PIPELINE, read_bundle
-from .sam_jobs import load_job, new_directory, read_wave, validate_result, write_json
+from .sam_chunks import PLAN_KIND, load_plan, validate_song_result
+from .sam_jobs import JOB_KIND, load_job, new_directory, read_wave, validate_result, write_json
 from .terminal import Progress
 
 
@@ -22,13 +23,8 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
     if mix.is_dir():
         mix /= "manifest.json"
     job = job.resolve()
-    song = (job.is_dir() and (job / "plan.json").is_file()) or job.name == "plan.json"
-    validator, loader = validate_result, load_job
-    if song:
-        from .sam_chunks import load_plan, validate_song_result
-        validator, loader = validate_song_result, load_plan
     if job.is_dir():
-        job /= "plan.json" if song else "job.json"
+        job /= "plan.json" if (job / "plan.json").is_file() else "job.json"
     result = result.resolve()
     if result.is_dir():
         result /= "report.json"
@@ -42,6 +38,14 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
         raise ValueError("Invalid mix bundle source metadata") from error
     source_hash = sha256_file(source)
     mix_hash, job_hash, report_hash = (sha256_file(p) for p in (mix, job, result))
+    payload = json.loads(job.read_text())
+    kind = payload.get("kind") if isinstance(payload, dict) else None
+    if kind == PLAN_KIND:
+        validator, loader = validate_song_result, load_plan
+    elif kind == JOB_KIND:
+        validator, loader = validate_result, load_job
+    else:
+        raise ValueError(f"Unsupported SAM job or song plan kind in {job}")
     manifest = read_bundle(mix, source_hash)
     if manifest["schema_version"] != 1:
         raise ValueError("Use an original schema-1 mix bundle as the adapter input")

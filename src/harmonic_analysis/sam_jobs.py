@@ -17,6 +17,7 @@ import numpy as np
 from . import __version__
 
 SAMPLE_RATE = 48_000
+JOB_KIND = "harmonic.sam-audio-excerpt.v1"
 MODEL = "facebook/sam-audio-large-tv"
 MODEL_REVISION = "b9fc94687ec044c570cbe30b8c28100cd056f1cb"
 SOURCE_REVISION = "bb4c6999d2677c7402360e426afc01ddfad6dce0"
@@ -73,7 +74,7 @@ def save_job(samples: np.ndarray, output: Path, *, source: dict, start_sample: i
     with new_directory(output) as temporary:
         np.save(temporary / "input.npy", samples, allow_pickle=False)
         write_json(temporary / "job.json", {
-            "schema_version": 1, "kind": "harmonic.sam-audio-excerpt.v1", "app_version": __version__,
+            "schema_version": 1, "kind": JOB_KIND, "app_version": __version__,
             "source": source, "sample_rate": SAMPLE_RATE, "channels": 2,
             "start_sample": start_sample, "sample_count": len(samples),
             "input": {"artifact": "input.npy", "sha256": digest(temporary / "input.npy")},
@@ -93,7 +94,7 @@ def load_job(path: Path) -> tuple[dict, np.ndarray]:
     try:
         job = json.loads(path.read_text())
         if (type(job["schema_version"]) is not int or job["schema_version"] != 1
-                or job["kind"] != "harmonic.sam-audio-excerpt.v1"):
+                or job["kind"] != JOB_KIND):
             raise ValueError("unsupported job schema")
         if job["sample_rate"] != SAMPLE_RATE or job["channels"] != 2 or job["settings"] != SETTINGS:
             raise ValueError("unsupported sample rate, channels, or inference settings")

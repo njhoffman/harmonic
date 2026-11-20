@@ -201,7 +201,9 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                 require(index < chunking["chunks"].size(), "missing chunk provenance");
                 const auto& item = chunking["chunks"][index];
                 const auto raw = item["report_json"].asString();
-                require(item["index"].asUInt() == index && sha256(raw.data(), raw.size()) == item["report_sha256"].asString(),
+                require((item["index"].type() == Json::intValue || item["index"].type() == Json::uintValue) &&
+                        item["index"].isUInt() && item["index"].asUInt() == index, "invalid retained chunk index");
+                require(sha256(raw.data(), raw.size()) == item["report_sha256"].asString(),
                         "retained chunk report checksum mismatch");
                 Json::Value child;
                 std::istringstream child_input(raw);

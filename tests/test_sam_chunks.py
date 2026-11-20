@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -179,8 +180,39 @@ class SongChunkTests(unittest.TestCase):
         merged=stitch_song(self.plan_path,self.results,self.root/'merged')
         bundle=build_source_bundle(mix,self.plan_path,merged,self.root/'features')
         read_bundle(bundle,digest(audio))
+        renamed=self.plan_path.with_name('my-session.json')
+        self.plan_path.rename(renamed)
+        other=self.root/'renamed-features'
+        result=subprocess.run([sys.executable,'-m','harmonic_analysis.sam_cli','features',
+                               str(mix),str(renamed),str(merged),'--output',str(other)],
+                              capture_output=True,text=True,timeout=20)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(digest(other/'sam-vocals-target.arrow'),digest(bundle.parent/'sam-vocals-target.arrow'))
         inspect=subprocess.run([str(PLAYER),str(bundle),'--inspect','--start','0.5'],capture_output=True,text=True,timeout=20)
         self.assertEqual(inspect.returncode,0,inspect.stderr)
         data=json.loads(next(line for line in inspect.stdout.splitlines() if line.startswith('{')))
         expected=np.sqrt(np.mean((full[24000-2048:24000+2048].mean(axis=1).astype(np.float64)*.75)**2))
         self.assertAlmostEqual(data['source_features'][0]['rms'],expected,places=7)
+
+        retained=bundle.parent/'sam-report.json'
+        original_report=json.loads(retained.read_text())
+        original_bundle=json.loads(bundle.read_text())
+        for fault in ('missing index', 'invalid job hash'):
+            with self.subTest(fault=fault):
+                report=copy.deepcopy(original_report)
+                item=report['chunking']['chunks'][0]
+                if fault == 'missing index':
+                    del item['index']
+                else:
+                    child=json.loads(item['report_json'])
+                    child['job_sha256']=item['job_sha256']='invalid'
+                    item['report_json']=json.dumps(child)
+                    item['report_sha256']=hashlib.sha256(item['report_json'].encode()).hexdigest()
+                write_json(retained,report)
+                original_bundle['separation']['sha256']=digest(retained)
+                write_json(bundle,original_bundle)
+                with self.assertRaisesRegex(ValueError,'retained chunk|chunk report'):
+                    read_bundle(bundle,digest(audio))
+                rejected=subprocess.run([str(PLAYER),str(bundle),'--inspect'],capture_output=True,text=True,timeout=20)
+                self.assertNotEqual(rejected.returncode,0)
+                self.assertIn('retained chunk',rejected.stderr)

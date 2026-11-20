@@ -78,14 +78,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   Add finer checkpoints if worthwhile, explicit concurrent-writer protection,
   crash-leftover cleanup, and interruption/OOM recovery tests. Currently use one
   worker per output directory; there is no lock or automatic orphan cleanup.
-- [ ] **Recognize song plans by payload kind in the feature adapter** (p2) [bug]
-  `sam-features` detects a song by directory/filename `plan.json`, whereas
-  `inspect-song` accepts an explicitly named plan file. A renamed valid plan is
-  misclassified as an excerpt. Dispatch by validated kind and cover both forms.
 - [ ] **Keep Python and native provenance validation in agreement** (p2) [test]
-  Extend shared malformed-input fixtures for retained chunk reports, missing or
-  inconsistent metadata, silent targets, uneven final chunks, and corruption.
-  Maintain rejection parity as the duplicated readers and schemas evolve.
+  Shared fixtures cover missing retained chunk indices and invalid retained job
+  hashes. Extend them for other missing or inconsistent metadata, silent
+  targets, uneven final chunks, and corruption as both readers evolve.
 - [ ] **Bound memory for long recordings** (p2) [perf]
   Plan validation reconstructs full stereo PCM; stitching uses whole-track
   accumulators, and feature extraction/player decoding also load whole tracks.
@@ -139,6 +135,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Recognize song plans by payload kind in the feature adapter** (p2) [bug]
+  `sam-features` accepts a valid renamed plan and produces the same feature
+  data as the conventional filename.
 
 - [x] **Build the analyzer and native original-mix player** (p2) [feature]
   JSON/Arrow features preserve a 48 kHz sample timeline, source/artifact/PCM

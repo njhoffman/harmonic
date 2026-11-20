@@ -372,8 +372,9 @@ inside that interval:
 ./build/harmonic-player data/analysis/billie-jean-sam-v0.11.0 --inspect --start 35
 ```
 
-The equivalent CLI is `harmonic-sam features MIX_BUNDLE JOB RESULT --output NEW`;
-`--audio PATH` handles an unchanged recording at a new location. The adapter
+The equivalent CLI is `harmonic-sam features MIX_BUNDLE JOB RESULT --output NEW`.
+Pass a job or plan directory, or its JSON file under any filename. Keep the JSON
+beside its relative inputs. Use `--audio PATH` for a recording at a new location. The adapter
 validates the original job/result, source identity, and every WAV, preserves the
 mix artifact, and writes a new immutable bundle. It preserves mono gain and
 sample positions without applying an estimated latency or reconstruction-gain
