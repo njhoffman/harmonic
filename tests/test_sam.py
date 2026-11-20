@@ -11,9 +11,10 @@ import wave
 import numpy as np
 
 from harmonic_analysis import __version__
+from harmonic_analysis import sam_jobs
 from harmonic_analysis.sam_cli import prepare
 from harmonic_analysis.sam_jobs import (DEFAULT_TARGETS, digest, load_job, new_directory, read_wave,
-                                        save_job, save_pair, validate_result, write_json)
+                                        save_job, save_pair, save_wave, validate_pairs, validate_result, write_json)
 
 WORKER = Path(__file__).resolve().parent.parent / "workers" / "sam_audio" / "worker.py"
 
@@ -112,6 +113,52 @@ class SAMWorkerTests(unittest.TestCase):
                 with new_directory(output) as temporary:
                     save_pair(temporary, "vocals", target, mono, mono, padding_limit=3)
             self.assertFalse(output.exists())
+
+    def test_wave_bytes_preserve_signed_zero_peaks_and_strided_big_endian_input(self):
+        samples = np.zeros((5, 2), dtype='>f8')
+        samples[:, 0] = [-0.0, 1.5, -2.5, 0.25, 3.25]
+        path = self.root / 'exact.wav'
+        save_wave(path, samples[:, 0])
+        expected = bytes.fromhex(
+            '524946464400000057415645666d7420100000000300010080bb000000ee020004002000'
+            '6661637404000000050000006461746114000000'
+            '000000800000c03f000020c00000803e00005040')
+        self.assertEqual(path.read_bytes(), expected)
+        np.testing.assert_array_equal(read_wave(path).view('<u4'), samples[:, 0].astype('<f4').view('<u4'))
+
+    def test_block_statistics_bound_scratch_and_validate_legacy_levels_with_padding(self):
+        sizes = []
+
+        class ObservedArray(np.ndarray):
+            def astype(self, dtype, *args, **kwargs):
+                if np.dtype(dtype) == np.dtype(np.float64):
+                    sizes.append(len(self))
+                return self.view(np.ndarray).astype(dtype, *args, **kwargs)
+
+        count = 2 * sam_jobs._STAT_BLOCK_SAMPLES + 17
+        rng = np.random.default_rng(2026)
+        target = rng.normal(size=count).astype('<f4') * np.resize([1e-6, 1, 100], count).astype('<f4')
+        residual = rng.normal(size=count).astype('<f4')
+        mono = (target + residual + np.float32(0.125)).astype('<f4')
+        reference_rms = float(np.sqrt(np.mean(target.astype(np.float64)**2)))
+        reference_error = float(np.sqrt(np.mean((target.astype(np.float64) + residual - mono)**2)))
+        rms, peak = sam_jobs._wave_stats(target.view(ObservedArray))
+        error = sam_jobs._sum_error_rms(target.view(ObservedArray), residual, mono)
+        self.assertAlmostEqual(rms, reference_rms, places=12)
+        self.assertEqual(peak, float(np.max(np.abs(target))))
+        self.assertAlmostEqual(error, reference_error, places=12)
+        self.assertEqual(max(sizes), sam_jobs._STAT_BLOCK_SAMPLES)
+        self.assertIn(17, sizes)
+        pair = save_pair(self.root, 'vocals', np.pad(target, (0, 3)), np.pad(residual, (0, 3)),
+                         mono, padding_limit=3)
+        # Existing reports used whole-array reductions. They remain readable.
+        pair['target']['rms'] = reference_rms
+        pair['residual']['rms'] = float(np.sqrt(np.mean(residual.astype(np.float64)**2)))
+        pair['sum_error_rms'] = reference_error
+        validate_pairs({'pairs': {'vocals': pair}}, self.root, mono, 4)
+        pair['sum_error_rms'] += 0.01
+        with self.assertRaisesRegex(ValueError, 'sum-error statistics mismatch'):
+            validate_pairs({'pairs': {'vocals': pair}}, self.root, mono, 4)
 
     def test_returned_artifacts_match_job_and_reject_corruption_and_timing_changes(self):
         path = self.job()

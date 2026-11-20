@@ -214,7 +214,10 @@ prompts, seed, chunk duration, and overlap.
 
 The worker validates plan PCM one chunk at a time. It compares the saved overlap
 tail with the next chunk and incrementally hashes the unique samples. Stitching
-still assembles whole-track arrays locally.
+uses chunk-sized float64 accumulators and a pending overlap tail, with blockwise
+waveform statistics and direct WAV payload writes. It materializes mono source
+PCM and whole-track float32 outputs locally; those allocations still scale with
+recording length. The original canonical stereo PCM hash remains authoritative.
 
 One model load serves all pending chunks. A matching existing output is resumed
 only after validating completed WAVs and job/model/code/lock provenance. A

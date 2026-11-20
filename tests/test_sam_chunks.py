@@ -130,6 +130,72 @@ class SongChunkTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,problem):
                     validate_plan(self.plan_path)
 
+    def test_stitch_bounds_float64_accumulators_and_matches_whole_track_reference_bytes(self):
+        rng = np.random.default_rng(2026)
+
+        def variable(job, destination, session, **kwargs):
+            data = rng.normal(0, 2, load_job(job)[0]['sample_count']).astype('<f4')
+            data[::7] = -0.0
+            return self.fake_separate(job, destination, session, level=data, **kwargs)
+
+        self.run_fake(variable)
+        reference = np.zeros(len(self.samples), dtype=np.float64)
+        for index, entry in enumerate(self.plan['chunks']):
+            start, count = entry['start_sample'], entry['sample_count']
+            raw = read_wave(self.results / f'chunks/{index:06d}/vocals-target.wav')
+            reference[start:start+count] += raw.astype(np.float64) * weights(
+                count, 400, index == 0, index == len(self.plan['chunks']) - 1)
+        expected = self.root / 'reference.wav'
+        sam_jobs.save_wave(expected, reference.astype('<f4'))
+        zeros, empty = np.zeros, np.empty
+
+        def bounded_zeros(shape, *args, **kwargs):
+            self.assertNotEqual(shape, len(self.samples), 'allocated a full-track accumulator')
+            return zeros(shape, *args, **kwargs)
+
+        def bounded_empty(shape, *args, **kwargs):
+            self.assertNotEqual(shape, self.samples.shape, 'allocated full-track stereo PCM')
+            return empty(shape, *args, **kwargs)
+
+        with patch.object(sam_chunks.np, 'zeros', side_effect=bounded_zeros), \
+             patch.object(sam_chunks.np, 'empty', side_effect=bounded_empty):
+            result = stitch_song(self.plan_path, self.results, self.root / 'bounded')
+            validate_song_result(self.plan_path, result)
+        self.assertEqual((result.parent / 'vocals-target.wav').read_bytes(), expected.read_bytes())
+
+    def test_stitch_preserves_single_chunk_and_one_sample_final_tail(self):
+        for count in (100, 2000, 2001):
+            with self.subTest(count=count):
+                samples = self.samples[:count]
+                source = {**self.source, 'sample_count':count,
+                          'pcm_sha256':hashlib.sha256(samples.tobytes()).hexdigest()}
+                self.plan_path = make_plan(samples, source, self.root / f'plan-{count}',
+                                          chunk=2000, overlap=400, targets={'vocals':'man singing'})
+                self.plan, _ = load_plan(self.plan_path)
+                self.results = self.root / f'results-{count}'
+                self.run_fake()
+                result = stitch_song(self.plan_path, self.results, self.root / f'merged-{count}')
+                np.testing.assert_array_equal(read_wave(result.parent / 'vocals-target.wav'),
+                                              samples.mean(axis=1) * np.float32(.75))
+
+    def test_stitch_rejects_non_unity_body_and_overlap_weights_before_publication(self):
+        self.run_fake()
+        for section in ('body', 'overlap'):
+            with self.subTest(section=section):
+                def changed_weights(count, overlap, first, last):
+                    fade = weights(count, overlap, first, last)
+                    if section == 'body':
+                        fade[overlap:count-overlap] *= .9
+                    elif not first:
+                        fade[:overlap] *= .9
+                    return fade
+
+                output = self.root / section
+                with patch.object(sam_chunks, 'weights', side_effect=changed_weights):
+                    with self.assertRaisesRegex(ValueError, 'unity gain'):
+                        stitch_song(self.plan_path, self.results, output)
+                self.assertFalse(output.exists())
+
     def test_single_model_session_and_validated_resume_after_interruption(self):
         calls=0
         def interrupted(*args,**kwargs):

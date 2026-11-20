@@ -108,7 +108,7 @@ def validate_plan(path: Path) -> dict:
     return plan
 
 
-def _read_plan(path: Path, *, materialize: bool) -> tuple[dict, np.ndarray | None]:
+def _read_plan(path: Path, *, materialize: bool, mono: bool = False) -> tuple[dict, np.ndarray | None]:
     path = plan_path(path)
     try:
         plan = json.loads(path.read_text())
@@ -124,7 +124,8 @@ def _read_plan(path: Path, *, materialize: bool) -> tuple[dict, np.ndarray | Non
             raise ValueError("chunk coverage/count mismatch")
         # Hash the reconstructed non-overlapping PCM exactly once. Overlapping inputs must agree bit-for-bit.
         pcm_hash = hashlib.sha256()
-        full = np.empty((plan["sample_count"], 2), dtype="<f4") if materialize else None
+        shape = plan["sample_count"] if mono else (plan["sample_count"], 2)
+        full = np.empty(shape, dtype="<f4") if materialize else None
         tail = None
         filled = 0
         for index, ((start, count), entry) in enumerate(zip(points, plan["chunks"], strict=True)):
@@ -143,7 +144,8 @@ def _read_plan(path: Path, *, materialize: bool) -> tuple[dict, np.ndarray | Non
             if previous and not np.array_equal(tail, samples[:previous].view(np.uint8)):
                 raise ValueError("overlapping source PCM differs between chunks")
             if full is not None:
-                full[filled:start + count] = samples[previous:]
+                full[filled:start + count] = (samples[previous:].mean(axis=1, dtype=np.float32)
+                                             if mono else samples[previous:])
             pcm_hash.update(memoryview(samples[previous:]).cast("B"))
             filled = start + count
             if filled < plan["sample_count"]:
@@ -257,8 +259,8 @@ def validate_song_metadata(report: dict) -> list[dict]:
 def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
     plan_file = plan_path(plan_file)
     plan_hash = digest(plan_file)
-    plan, samples = load_plan(plan_file)
-    mono = samples.mean(axis=1, dtype=np.float32)
+    plan, mono = _read_plan(plan_file, materialize=True, mono=True)
+    assert mono is not None
     results = results.resolve()
     entries, reports = [], []
     with Progress("Validating chunk results", len(plan["chunks"])) as progress:
@@ -288,20 +290,27 @@ def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
                             "overlap_samples": plan["overlap_samples"], "plan_sha256": plan_hash,
                             "chunks": entries}, boundaries=[])
     count = len(mono)
-    denominator = np.zeros(count, dtype=np.float64)
+    previous_tail = None
     for i, entry in enumerate(plan["chunks"]):
-        start, n = entry["start_sample"], entry["sample_count"]
-        denominator[start:start + n] += weights(n, plan["overlap_samples"], i == 0, i == len(entries) - 1)
-    if not np.allclose(denominator, 1, rtol=0, atol=1e-12):
-        raise ValueError("Overlap weights leave gaps or change unity gain")
+        n, overlap = entry["sample_count"], plan["overlap_samples"]
+        last = i == len(entries) - 1
+        fade = weights(n, overlap, i == 0, last)
+        # Validated coordinates permit at most two contributors at any sample.
+        # Check their actual weights without a whole-track denominator array.
+        body_start, body_end = (0 if i == 0 else overlap), (n if last else n - overlap)
+        invalid_overlap = (previous_tail is not None
+                           and not np.allclose(previous_tail + fade[:overlap], 1, rtol=0, atol=1e-12))
+        if invalid_overlap or not np.allclose(fade[body_start:body_end], 1, rtol=0, atol=1e-12):
+            raise ValueError("Overlap weights leave gaps or change unity gain")
+        previous_tail = None if last else fade[-overlap:].copy()
     with new_directory(output) as temporary:
         with Progress("Stitching target/residual streams", len(plan["targets"]) * 2) as progress:
             done = 0
             for name, description in plan["targets"].items():
                 pair_arrays = []
                 for role in ("target", "residual"):
-                    joined = np.zeros(count, dtype=np.float64)
-                    previous = None
+                    joined = np.empty(count, dtype="<f4")
+                    previous = tail = None
                     for index, entry in enumerate(plan["chunks"]):
                         start, n = entry["start_sample"], entry["sample_count"]
                         record = reports[index]["pairs"][name][role]
@@ -310,17 +319,26 @@ def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
                         if digest(path) != record["sha256"] or len(raw) != n:
                             raise ValueError("Chunk waveform changed during stitch")
                         fade = weights(n, plan["overlap_samples"], index == 0, index == len(entries) - 1)
-                        joined[start:start + n] += raw.astype(np.float64) * fade
+                        # Finish each sample in float64 before its only float32
+                        # cast. Keep the overlap tail until the next chunk arrives.
+                        blended = np.zeros(n, dtype=np.float64)
+                        blended += raw.astype(np.float64) * fade
+                        if tail is not None:
+                            blended[:len(tail)] = tail + blended[:len(tail)]
                         if previous is not None:
                             o = plan["overlap_samples"]
                             metrics = overlap_metrics(previous[-o:], raw[:o])
-                            midpoint = start + o // 2
+                            midpoint = o // 2
                             metrics.update(target=name, role=role, overlap_start_sample=start,
                                            overlap_end_sample=start + o,
-                                           blended_midpoint_step=float(abs(joined[midpoint] - joined[midpoint - 1])))
+                                           blended_midpoint_step=float(abs(blended[midpoint] - blended[midpoint - 1])))
                             merged["boundaries"].append(metrics)
                         previous = raw
-                    pair_arrays.append(joined.astype("<f4"))
+                        last = index == len(entries) - 1
+                        ready = n if last else n - plan["overlap_samples"]
+                        joined[start:start + ready] = blended[:ready]
+                        tail = None if last else blended[ready:].copy()
+                    pair_arrays.append(joined)
                     done += 1
                     progress.update(done)
                 pair = save_pair(temporary, name, *pair_arrays, mono, padding_limit=0)
@@ -330,6 +348,8 @@ def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
                             peak_cuda_reserved_bytes=max(r["pairs"][name].get("peak_cuda_reserved_bytes", 0) for r in reports))
                 pair["real_time_factor"] = pair["elapsed_seconds"] / (count / SAMPLE_RATE)
                 merged["pairs"][name] = pair
+                del pair_arrays, joined
+        del mono
         merged["elapsed_seconds"] = sum(r.get("elapsed_seconds", 0) for r in reports)
         merged["peak_host_rss_bytes"] = max(r.get("peak_host_rss_bytes", 0) for r in reports)
         completed = results / "completed.json"
@@ -350,7 +370,8 @@ def validate_song_result(plan_file: Path, result: Path) -> dict:
     if result.is_dir():
         result /= "report.json"
     try:
-        plan, samples = load_plan(plan_file)
+        plan, mono = _read_plan(plan_file, materialize=True, mono=True)
+        assert mono is not None
         report = json.loads(result.read_text())
         children = validate_song_metadata(report)
         if (report["schema_version"] != 1 or report["job_sha256"] != digest(plan_file)
@@ -368,7 +389,7 @@ def validate_song_result(plan_file: Path, result: Path) -> dict:
         for name, description in plan["targets"].items():
             if report["pairs"][name]["description"] != description:
                 raise ValueError("merged target prompt mismatch")
-        validate_pairs(report, result.parent, samples.mean(axis=1, dtype=np.float32), report["codec_hop_samples"])
+        validate_pairs(report, result.parent, mono, report["codec_hop_samples"])
         return report
     except (OSError, KeyError, TypeError, ValueError) as error:
         raise ValueError(f"Invalid stitched SAM result: {error}") from error

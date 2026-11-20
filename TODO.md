@@ -94,8 +94,10 @@ check; full-song approval remains open.
   for other report fields as both readers evolve.
 - [ ] **Bound memory for long recordings** (p2) [perf]
   Worker plan validation and inspection now stream PCM checks by chunk.
-  Stitching, feature extraction, and playback still load whole tracks or
-  whole-track accumulators. Measure and reduce memory for those stages.
+  Stitching now bounds float64 scratch to a chunk/overlap and measures levels
+  blockwise; its mono source and float32 outputs still grow with track length.
+  Feature extraction and playback still load whole tracks. Continue reducing
+  those allocations; the broader bounded-memory task remains incomplete.
 - [ ] **Add validated artifact retention and cleanup policies** (p2) [feature]
   Keep current benchmark WAVs/jobs for quality review. Delete separated audio
   only after validating durable features/provenance and confirming retention
@@ -139,6 +141,15 @@ check; full-song approval remains open.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Reduce full-song stitching scratch memory without changing audio** (p2) [perf]
+  Chunk-sized float64 overlap-add, direct mono plan loading, blockwise statistics,
+  and direct WAV writes lower peak RSS from 1,087.5 to 280.4 MiB in one local
+  full-song restitch including validation. All six WAV hashes match the original
+  benchmark and all 216 overlap diagnostics match. Checks cover short/single
+  chunks, one-sample final tails, bad fade weights, padding, and exact WAV bytes.
+  Measured evidence is in `data/stitch-memory-20261120/`; full-song float32 arrays
+  remain and the broader memory task stays open above.
 
 - [x] **Recover and validate Minerva's SAM benchmark artifacts** (p2) [chore]
   Copied 422 files (1,001,872,094 bytes) from Charon without overwriting files;

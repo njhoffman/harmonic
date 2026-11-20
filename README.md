@@ -477,6 +477,20 @@ midpoint steps. The lag search is limited to ±40 ms (less for short overlaps);
 a peak at that limit does not establish an instrument's actual delay.
 These diagnostics do not establish perceptual continuity; listen across seams.
 
+Stitching now finishes float64 overlap-add one chunk at a time, retaining only
+the pending overlap tail before casting finalized samples to float32. Weight
+validation no longer allocates a full-song denominator. The stitcher reads mono
+source PCM directly from the validated stereo jobs, writes WAV payloads without
+whole-file byte copies, and measures levels/reconstruction error in 65,536-sample
+blocks. Source hashing still uses the original canonical stereo PCM.
+
+On Minerva, one fresh-process restitch of the 295.892-second benchmark, including
+final result validation, reduced peak RSS from 1,087.5 to 280.4 MiB (74%). All six
+WAV SHA-256 hashes match the recovered originals, and all 216 overlap diagnostics
+are identical. Reports and outputs are retained in `data/stitch-memory-20261120/`.
+This reduces scratch memory; the mono source and float32 output arrays still grow
+with recording length. Feature extraction and playback also retain whole tracks.
+
 The first real full-song run processed all 37 chunks of the 295.892-second
 recording with 165.206 seconds of separation across the three prompts. The
 initial worker invocation measured 386.690 seconds including download/model

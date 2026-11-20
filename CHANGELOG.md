@@ -5,6 +5,18 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.13] - 2026-11-20
+
+### Improved
+
+- Reduce full-song stitching peak memory with chunk-sized float64 overlap-add,
+  mono source loading, direct WAV writes, and blockwise waveform statistics.
+  A local 295.892-second benchmark used 280.4 MiB peak RSS instead of 1,087.5 MiB;
+  all six output WAV hashes and all 216 overlap diagnostics remain identical.
+- Keep earlier result reports readable and preserve source checksums, sample
+  positions, float peaks, and immutable output publication. Whole-song float32
+  buffers remain; this is not yet fully bounded-memory processing.
+
 ## [0.12.12] - 2026-11-20
 
 ### Documentation
@@ -386,7 +398,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.12...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.13...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -415,3 +427,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.10]: https://github.com/njhoffman/harmonic/tree/v0.12.10
 [0.12.11]: https://github.com/njhoffman/harmonic/tree/v0.12.11
 [0.12.12]: https://github.com/njhoffman/harmonic/tree/v0.12.12
+[0.12.13]: https://github.com/njhoffman/harmonic/tree/v0.12.13

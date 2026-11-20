@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -130,12 +131,15 @@ def load_job(path: Path) -> tuple[dict, np.ndarray]:
 
 def save_wave(path: Path, samples: np.ndarray) -> None:
     """IEEE float32 mono WAV; preserve relative levels, including peaks above 1."""
-    payload = np.asarray(samples, dtype="<f4").tobytes()
+    payload = np.ascontiguousarray(samples, dtype="<f4")
     fmt = struct.pack("<HHIIHH", 3, 1, SAMPLE_RATE, SAMPLE_RATE * 4, 4, 32)
     chunks = b"fmt " + struct.pack("<I", len(fmt)) + fmt
     chunks += b"fact" + struct.pack("<II", 4, len(samples))
-    chunks += b"data" + struct.pack("<I", len(payload)) + payload
-    path.write_bytes(b"RIFF" + struct.pack("<I", 4 + len(chunks)) + b"WAVE" + chunks)
+    chunks += b"data" + struct.pack("<I", payload.nbytes)
+    header = b"RIFF" + struct.pack("<I", 4 + len(chunks) + payload.nbytes) + b"WAVE" + chunks
+    with path.open("wb") as handle:
+        handle.write(header)
+        handle.write(memoryview(payload).cast("B"))
 
 
 def read_wave(path: Path) -> np.ndarray:
@@ -161,6 +165,28 @@ def read_wave(path: Path) -> np.ndarray:
     return result
 
 
+_STAT_BLOCK_SAMPLES = 65_536
+
+
+def _wave_stats(samples: np.ndarray) -> tuple[float, float]:
+    """Accumulate levels with bounded float64 scratch, including a final partial block."""
+    power, peak = 0.0, 0.0
+    for start in range(0, len(samples), _STAT_BLOCK_SAMPLES):
+        block = samples[start:start + _STAT_BLOCK_SAMPLES].astype(np.float64)
+        power += float(np.sum(block * block))
+        peak = max(peak, float(np.max(np.abs(block))))
+    return math.sqrt(power / len(samples)), peak
+
+
+def _sum_error_rms(target: np.ndarray, residual: np.ndarray, mono: np.ndarray) -> float:
+    power = 0.0
+    for start in range(0, len(mono), _STAT_BLOCK_SAMPLES):
+        section = slice(start, min(len(mono), start + _STAT_BLOCK_SAMPLES))
+        error = target[section].astype(np.float64) + residual[section] - mono[section]
+        power += float(np.sum(error * error))
+    return math.sqrt(power / len(mono))
+
+
 def save_pair(directory: Path, name: str, target: np.ndarray, residual: np.ndarray,
               mono: np.ndarray, *, padding_limit: int) -> dict:
     check_targets({name: "target"})
@@ -172,18 +198,17 @@ def save_pair(directory: Path, name: str, target: np.ndarray, residual: np.ndarr
             raise ValueError(f"Invalid {name} {label} waveform: length, shape, or nonfinite values")
         # The upstream codec pads the right edge to its hop. Never pad a short
         # result or shift its beginning to conceal an alignment problem.
-        trimmed = samples[:len(mono)].astype("<f4")
+        trimmed = samples[:len(mono)].astype("<f4", copy=False)
         if not np.isfinite(trimmed).all():
             raise ValueError("Output exceeds float32 range")
         artifact = directory / f"{name}-{label}.wav"
         save_wave(artifact, trimmed)
+        rms, peak = _wave_stats(trimmed)
         result[label] = {"artifact": artifact.name, "sha256": digest(artifact),
                          "sample_count": len(trimmed), "raw_sample_count": len(samples),
                          "right_trim_samples": len(samples) - len(trimmed),
-                         "rms": float(np.sqrt(np.mean(trimmed.astype(np.float64) ** 2))),
-                         "peak": float(np.max(np.abs(trimmed)))}
-    summed = np.asarray(target[:len(mono)], dtype=np.float64) + residual[:len(mono)]
-    result["sum_error_rms"] = float(np.sqrt(np.mean((summed - mono) ** 2)))
+                         "rms": rms, "peak": peak}
+    result["sum_error_rms"] = _sum_error_rms(target, residual, mono)
     return result
 
 
@@ -206,12 +231,11 @@ def validate_pairs(report: dict, directory: Path, mono: np.ndarray, hop: int) ->
             trimmed = record["raw_sample_count"] - len(array)
             if not 0 <= trimmed < hop or record["right_trim_samples"] != trimmed:
                 raise ValueError("invalid padding provenance")
-            rms = float(np.sqrt(np.mean(array.astype(np.float64) ** 2)))
-            peak = float(np.max(np.abs(array)))
+            rms, peak = _wave_stats(array)
             if not np.isclose(rms, record["rms"], rtol=1e-6, atol=1e-9) or not np.isclose(peak, record["peak"], rtol=1e-6, atol=1e-9):
                 raise ValueError("output statistics mismatch")
-            arrays.append(array.astype(np.float64))
-        error = float(np.sqrt(np.mean((arrays[0] + arrays[1] - mono) ** 2)))
+            arrays.append(array)
+        error = _sum_error_rms(*arrays, mono)
         if not np.isclose(error, pair["sum_error_rms"], rtol=1e-6, atol=1e-9):
             raise ValueError("sum-error statistics mismatch")
 
