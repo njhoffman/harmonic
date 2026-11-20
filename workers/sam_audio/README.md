@@ -298,6 +298,15 @@ and 88–90 seconds. This baseline needs full-song/seam listening and prompt
 consistency review before batch use. Unnormalized left/right/blended/source
 comparison clips are in `data/source-check-v0.12.0/seam-review/`.
 
+The follow-up measured all 37 raw chunks. The 80–90 second vocal target has
+RMS 0.0050 against mono mix RMS 0.243 (2.1% of mix RMS). The next lowest
+chunk ratio is 32.9%. Recomputing both fades reproduced the stitched samples
+exactly. The 82–88 second interval falls outside the fades and matches the raw
+estimate sample for sample. The weak estimate originates during separation.
+Aligned clips at their original levels and the measurements for all chunks are
+in `data/source-check-v0.12.0/vocal-review/`. Listening can establish whether
+vocals are missing from the target or remain in the residual at that point.
+
 The GPU ran a recorded working-tree source snapshot before release, with
 matching worker/lock hashes retained in every chunk report. Raw results, logs,
 archive hashes, timing/memory/overlap summaries, and resource identifiers are

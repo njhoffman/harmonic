@@ -459,6 +459,12 @@ score. Compare left/right/blended/original-mono clips in
 `data/aws-gpu/song-v0.12.0/measurements.json`. The 10s/2s policy is an experimental
 baseline, with listening and prompt-consistency review pending before bulk use.
 
+The raw 80–90 second estimate has the lowest vocal-to-mix RMS ratio of all 37
+chunks. The stitched target at 82–88 seconds matches that raw estimate sample
+for sample, outside both fades. Compare the aligned 72–98 second mix, vocal
+target, and residual clips in `data/source-check-v0.12.0/vocal-review/` to check
+whether a vocal phrase is lost from the target or stays in the residual.
+
 The stitched report retains the original checksum-protected chunk reports,
 coordinates, model/worker/auxiliary revisions, and fade policy. Full-song output
 uses `harmonic.sam-audio-song-result.v1` and requires a v0.12.0+ reader; excerpt

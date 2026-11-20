@@ -27,18 +27,21 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
 ## Separation quality and playback gates (P1)
 
 - [ ] **Review full-song vocal consistency and seams** (p1) [test]
-  Listen to the full targets/residuals and unnormalized left/right/blended/mix
-  clips at 24, 72, 80, 88, and 264 seconds in
-  `data/source-check-v0.12.0/seam-review/`. At 80–82 seconds neighboring vocal
-  RMS values are 0.102 and 0.000106; at 88–90 seconds they differ by 26.6 times.
-  These are diagnostic disagreements, not proof of an audible defect or a
-  ground-truth quality score. Record listening findings before bulk processing.
+  Compare the aligned 72–98 second source, vocal target, and residual clips
+  in `data/source-check-v0.12.0/vocal-review/`. Check whether a vocal phrase
+  fades out of the target or stays in the residual at 80–90 seconds. Then
+  review the full tracks and the unnormalized seam clips at 24, 72, 80, 88,
+  and 264 seconds in `data/source-check-v0.12.0/seam-review/`. Listening
+  findings and approval are pending.
 - [ ] **Establish a consistent context and prompt policy** (p1) [test]
-  Investigate the near-silent vocal estimate in the 80–90 second chunk. Compare
-  longer contexts/overlaps and, if justified, anchors/span settings against the
-  baseline while retaining raw gain and sample positions. Profile extra model
-  dependencies and memory before enabling them. Do not mask disagreement with
-  automatic level matching or time shifts; validate any changed policy by ear.
+  First repeat the raw 80–90 second job at the same settings, then compare
+  shifted 10-second windows and a 20-second window over their shared 82–88
+  second interval. Hold the checkpoint, prompt, and seed constant to isolate
+  input context. Compare targets and residuals at their original levels and
+  sample positions. Profile memory and evaluate anchors/span settings separately
+  if context changes leave the dropout unresolved.
+  Verified comparison inputs are ready in `data/sam-jobs/billie-jean-vocal-context/`.
+  Use the original pinned auxiliary text revision on the GPU host.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
   Billie Jean is the only supplied real recording. Include a cappella,
   instrumental, quiet passages, and absent requested instruments to expose
@@ -172,6 +175,11 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   37 chunks/111 calls, 165.206 seconds separation, 19.074 GiB peak reserved GPU
   memory, 29.878 GiB peak host RSS. All 37 chunks reused on restart; full-length
   WAVs/features/native compositor validated. Listening quality is pending above.
+- [x] **Trace the weak vocal interval to the raw chunk estimate** (p1) [test]
+  Compared all 37 raw chunks. The 80–90 second target RMS is 2.1% of mix RMS,
+  versus 32.9% for the next lowest chunk. Recomputed both fades exactly and
+  confirmed that the stitched 82–88 second center copies the raw estimate.
+  Saved aligned 72–98 second clips at original levels for listening review.
 - [x] **Retrieve results and remove temporary AWS resources** (p1) [chore]
   Both runs retrieved/validated; full-song transfer checked all 275 output files.
   Instances/disks, buckets, token parameters, roles/profiles, templates, and
