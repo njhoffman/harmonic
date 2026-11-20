@@ -398,8 +398,9 @@ just sam-prepare-song 'data/tracks/Michael Jackson - Billie Jean.mp3' \
 The default is 10-second chunks with 2-second overlaps. Durations become integer
 48 kHz sample counts; chunks are capped at 30 seconds and overlap must be
 positive and less than half a chunk. The final chunk ends exactly at the last
-source sample. `harmonic-sam inspect-song PLAN` validates every child job,
-identical overlap inputs, and the reconstructed full canonical-PCM hash.
+source sample. `harmonic-sam inspect-song PLAN` and worker preflight validate
+each child, compare overlap bytes, and hash the full canonical PCM incrementally.
+They hold a chunk and its overlap tail in memory for PCM validation.
 The auxiliary text-model revision is pinned in the plan.
 
 Copy the plan directory and matching published Harmonic source to a GPU host.
@@ -550,9 +551,9 @@ excerpt and full-song outputs drive separate source graphs. Full-song GPU
 processing, chunk resume, and overlap stitching are implemented; vocal consistency
 and seam listening remain the next quality gate. Lyric display, semantic/mood
 services, and bulk processing are later steps.
-The analyzer/player decode complete tracks into memory, and plan validation,
-stitching, and feature extraction also allocate whole-track arrays. Bounded GPU
-chunks do not make the local pipeline stream recordings with bounded memory. The small bitmap UI font
+The analyzer, player, stitcher, and feature extractor still allocate whole-track
+arrays. Worker plan validation and inspection stream the PCM checks by chunk.
+The small bitmap UI font
 supports ASCII; richer typography and translated metadata need a proper text
 renderer. The prototype uses native Linux OpenGL entry points; other platforms
 will need a portable GL loader and packaging work.

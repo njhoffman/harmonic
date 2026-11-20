@@ -76,14 +76,13 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   Evaluate per-prompt checkpoints, startup/model scratch outside the bound
   output, and recovery after GPU OOM.
 - [ ] **Keep Python and native provenance validation in agreement** (p2) [test]
-  Shared fixtures cover missing retained chunk indices and invalid retained job
-  hashes. Extend them for other missing or inconsistent metadata, silent
-  targets, uneven final chunks, and corruption as both readers evolve.
+  Shared fixtures cover missing chunk indices, invalid job hashes, mismatched
+  run bindings, missing trim metadata, and negative levels. Extend coverage
+  for other report fields as both readers evolve.
 - [ ] **Bound memory for long recordings** (p2) [perf]
-  Plan validation reconstructs full stereo PCM; stitching uses whole-track
-  accumulators, and feature extraction/player decoding also load whole tracks.
-  GPU chunks alone do not bound local RAM. Measure long-recording limits and
-  stream/seek local processing before treating the workflow as library-ready.
+  Worker plan validation and inspection now stream PCM checks by chunk.
+  Stitching, feature extraction, and playback still load whole tracks or
+  whole-track accumulators. Measure and reduce memory for those stages.
 - [ ] **Add validated artifact retention and cleanup policies** (p2) [feature]
   Keep current benchmark WAVs/jobs for quality review. Delete separated audio
   only after validating durable features/provenance and confirming retention
@@ -127,6 +126,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Validate song plans without allocating a full PCM track in the worker** (p2) [perf]
+  Keep an overlap tail and hash each new sample exactly once. Tests cover the
+  bounded validator, conflicting overlap bytes, and the full PCM hash.
 
 - [x] **Bind SAM resume to imported code and runtime identity** (p2) [bug]
   Reject changed local worker modules, runtime fingerprints, and mismatched chunk

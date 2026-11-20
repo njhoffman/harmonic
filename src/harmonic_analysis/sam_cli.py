@@ -97,8 +97,8 @@ def main() -> int:
                                duration=arguments.duration, targets=targets, seed=arguments.seed)
             print(f"🟢 Saved GPU-worker job: {path}")
         elif arguments.command == "inspect-song":
-            from .sam_chunks import load_plan
-            plan, _ = load_plan(arguments.plan)
+            from .sam_chunks import validate_plan
+            plan = validate_plan(arguments.plan)
             print(json.dumps(plan, indent=2))
         elif arguments.command == "stitch":
             from .sam_chunks import stitch_song

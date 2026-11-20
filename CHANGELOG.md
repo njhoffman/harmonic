@@ -5,6 +5,15 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.9] - 2026-11-19
+
+### Fixed
+
+- Validate song-plan PCM incrementally in the GPU worker and `inspect-song`,
+  avoiding a whole-track PCM allocation during those checks.
+- Reject invalid retained chunk padding and level metadata consistently in the
+  Python and native readers.
+
 ## [0.12.8] - 2026-11-19
 
 ### Fixed
@@ -349,7 +358,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.8...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.9...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -374,3 +383,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.6]: https://github.com/njhoffman/harmonic/tree/v0.12.6
 [0.12.7]: https://github.com/njhoffman/harmonic/tree/v0.12.7
 [0.12.8]: https://github.com/njhoffman/harmonic/tree/v0.12.8
+[0.12.9]: https://github.com/njhoffman/harmonic/tree/v0.12.9

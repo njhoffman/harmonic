@@ -16,10 +16,10 @@ import wave
 import numpy as np
 
 from harmonic_analysis.analysis import analyze, decode_audio
-from harmonic_analysis import sam_jobs
+from harmonic_analysis import sam_chunks, sam_jobs
 from harmonic_analysis.bundle import read_bundle
 from harmonic_analysis.sam_chunks import (TEXT_REVISION, coordinates, load_plan, make_plan, overlap_metrics,
-                                           stitch_song, validate_song_metadata, validate_song_result, weights)
+                                           stitch_song, validate_plan, validate_song_metadata, validate_song_result, weights)
 from harmonic_analysis.sam_jobs import digest, load_job, new_directory, read_wave, save_pair, write_json
 from harmonic_analysis.source_features import build_source_bundle
 
@@ -103,6 +103,32 @@ class SongChunkTests(unittest.TestCase):
         # Merged output remains verifiable after individual chunk WAVs are discarded.
         shutil.rmtree(self.results)
         validate_song_result(self.plan_path,merged)
+
+    def test_plan_validation_streams_pcm_and_checks_overlaps_and_full_hash(self):
+        allocate = np.empty
+
+        def bounded_allocation(shape, *args, **kwargs):
+            self.assertNotEqual(shape,self.samples.shape,'validator allocated full-song PCM')
+            return allocate(shape,*args,**kwargs)
+
+        with patch.object(sam_chunks.np,'empty',side_effect=bounded_allocation):
+            self.assertEqual(validate_plan(self.plan_path),self.plan)
+        np.testing.assert_array_equal(load_plan(self.plan_path)[1],self.samples)
+
+        job_path = self.plan_path.parent / self.plan['chunks'][1]['job']
+        job, pcm = load_job(job_path)
+        for position, problem in ((0,'overlapping source PCM'),(400,'full-song PCM checksum')):
+            with self.subTest(problem=problem):
+                changed = pcm.copy()
+                changed[position,0] += 0.125
+                wav_input = job_path.with_name('input.npy')
+                np.save(wav_input,changed)
+                job['input']['sha256'] = digest(wav_input)
+                write_json(job_path,job)
+                self.plan['chunks'][1]['sha256'] = digest(job_path)
+                write_json(self.plan_path,self.plan)
+                with self.assertRaisesRegex(ValueError,problem):
+                    validate_plan(self.plan_path)
 
     def test_single_model_session_and_validated_resume_after_interruption(self):
         calls=0
@@ -305,7 +331,7 @@ with lock(Path(sys.argv[2])):
         retained=bundle.parent/'sam-report.json'
         original_report=json.loads(retained.read_text())
         original_bundle=json.loads(bundle.read_text())
-        for fault in ('missing index', 'invalid job hash', 'different run binding'):
+        for fault in ('missing index', 'invalid job hash', 'different run binding', 'missing trim', 'negative peak'):
             with self.subTest(fault=fault):
                 report=copy.deepcopy(original_report)
                 item=report['chunking']['chunks'][0]
@@ -315,8 +341,14 @@ with lock(Path(sys.argv[2])):
                     child=json.loads(item['report_json'])
                     if fault == 'invalid job hash':
                         child['job_sha256']=item['job_sha256']='invalid'
-                    else:
+                    elif fault == 'different run binding':
                         child['run_binding_sha256']='a'*64
+                    else:
+                        wav = child['pairs']['vocals']['target']
+                        if fault == 'missing trim':
+                            del wav['right_trim_samples']
+                        else:
+                            wav['peak'] = -1
                     item['report_json']=json.dumps(child)
                     item['report_sha256']=hashlib.sha256(item['report_json'].encode()).hexdigest()
                 write_json(retained,report)

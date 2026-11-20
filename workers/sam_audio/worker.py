@@ -261,12 +261,11 @@ def song_run_binding(plan_hash: str, text_revision: str, state: dict) -> dict:
 def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -> Path:
     state = ready_state()
     preflight_done = time.monotonic()
-    from harmonic_analysis.sam_chunks import load_plan, plan_path
+    from harmonic_analysis.sam_chunks import plan_path, validate_plan
     from harmonic_analysis.sam_jobs import digest, load_job, new_directory, validate_result, write_json
     plan_file = plan_path(plan_file)
     plan_hash = digest(plan_file)
-    plan, samples = load_plan(plan_file)
-    del samples
+    plan = validate_plan(plan_file)
     plan_validated = time.monotonic()
     binding = song_run_binding(plan_hash, plan["text_model_revision"], state)
     binding_hash = hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
@@ -314,7 +313,7 @@ def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -
     if digest(plan_file) != plan_hash:
         raise ValueError("Song plan changed during inference")
     # Revalidate all completed artifacts before atomically publishing the completion marker.
-    load_plan(plan_file)
+    validate_plan(plan_file)
     for entry in plan["chunks"]:
         report = validate_result(plan_file.parent / entry["job"], output / "chunks" / f"{entry['index']:06d}")
         if report["job_sha256"] != entry["sha256"] or report.get("run_binding_sha256") != binding_hash:

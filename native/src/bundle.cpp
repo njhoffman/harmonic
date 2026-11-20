@@ -21,6 +21,12 @@ template<class T> T unwrap(arrow::Result<T> result) {
 void require(bool value, const std::string& message) {
     if (!value) throw std::runtime_error("Invalid analysis bundle: " + message);
 }
+bool json_integer(const Json::Value& value) {
+    return value.type() == Json::intValue || value.type() == Json::uintValue;
+}
+bool valid_level(const Json::Value& value) {
+    return value.isNumeric() && std::isfinite(value.asDouble()) && value.asDouble() >= 0;
+}
 std::shared_ptr<arrow::Array> column(const std::shared_ptr<arrow::Table>& table,
                                    const std::string& name, arrow::Type::type type) {
     auto values = table->GetColumnByName(name);
@@ -206,7 +212,7 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                 require(index < chunking["chunks"].size(), "missing chunk provenance");
                 const auto& item = chunking["chunks"][index];
                 const auto raw = item["report_json"].asString();
-                require((item["index"].type() == Json::intValue || item["index"].type() == Json::uintValue) &&
+                require(json_integer(item["index"]) &&
                         item["index"].isUInt() && item["index"].asUInt() == index, "invalid retained chunk index");
                 require(sha256(raw.data(), raw.size()) == item["report_sha256"].asString(),
                         "retained chunk report checksum mismatch");
@@ -228,13 +234,21 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                 require(child.isMember("run_binding_sha256") == report.isMember("run_binding_sha256") &&
                         child["run_binding_sha256"] == run_binding, "inconsistent retained chunk run binding");
                 for (const auto& target : report["pairs"].getMemberNames()) {
-                    require(child["pairs"][target]["description"] == report["pairs"][target]["description"],
+                    const auto& pair = child["pairs"][target];
+                    require(pair["description"] == report["pairs"][target]["description"],
                             "inconsistent retained chunk prompt");
+                    require(valid_level(pair["sum_error_rms"]), "invalid retained chunk reconstruction level");
                     for (const auto* role : {"target", "residual"}) {
-                        const auto& wave = child["pairs"][target][role];
+                        const auto& wave = pair[role];
+                        const auto& raw_count = wave["raw_sample_count"];
+                        const auto& trim = wave["right_trim_samples"];
                         require(wave["artifact"].asString() == target + "-" + role + ".wav" &&
-                                wave["sample_count"].asInt64() == n &&
-                                std::regex_match(wave["sha256"].asString(), hash_pattern), "invalid retained chunk waveform");
+                                json_integer(wave["sample_count"]) && wave["sample_count"].asInt64() == n &&
+                                std::regex_match(wave["sha256"].asString(), hash_pattern) &&
+                                json_integer(trim) && trim.isInt64() && trim.asInt64() >= 0 &&
+                                trim.asInt64() < report["codec_hop_samples"].asInt() &&
+                                json_integer(raw_count) && raw_count.isInt64() && raw_count.asInt64() == n + trim.asInt64() &&
+                                valid_level(wave["rms"]) && valid_level(wave["peak"]), "invalid retained chunk waveform");
                     }
                 }
                 ++index;

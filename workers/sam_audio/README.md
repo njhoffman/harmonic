@@ -207,6 +207,10 @@ using the existing pinned model/settings. The song plan pins the auxiliary text
 revision and binds source identity, all input/job hashes, sample coordinates,
 prompts, seed, chunk duration, and overlap.
 
+The worker validates plan PCM one chunk at a time. It compares the saved overlap
+tail with the next chunk and incrementally hashes the unique samples. Stitching
+still assembles whole-track arrays locally.
+
 One model load serves all pending chunks. A matching existing output is resumed
 only after validating completed WAVs and job/model/code/lock provenance. A
 completion marker is published after every chunk validates, with per-invocation

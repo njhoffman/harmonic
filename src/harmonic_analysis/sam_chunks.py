@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import re
+import sys
 
 import numpy as np
 
@@ -65,7 +66,7 @@ def make_plan(samples: np.ndarray, source: dict, output: Path, *, chunk: int, ov
                 "targets": targets, "seed": seed, "settings": SETTINGS,
                 "text_model_revision": text_revision, "chunks": chunks}
         write_json(temporary / "plan.json", plan)
-        load_plan(temporary / "plan.json")
+        validate_plan(temporary / "plan.json")
     return output.resolve() / "plan.json"
 
 
@@ -96,6 +97,18 @@ def plan_path(path: Path) -> Path:
 
 
 def load_plan(path: Path) -> tuple[dict, np.ndarray]:
+    plan, full = _read_plan(path, materialize=True)
+    assert full is not None
+    return plan, full
+
+
+def validate_plan(path: Path) -> dict:
+    """Validate all child jobs and their PCM without allocating a whole-track array."""
+    plan, _ = _read_plan(path, materialize=False)
+    return plan
+
+
+def _read_plan(path: Path, *, materialize: bool) -> tuple[dict, np.ndarray | None]:
     path = plan_path(path)
     try:
         plan = json.loads(path.read_text())
@@ -111,7 +124,8 @@ def load_plan(path: Path) -> tuple[dict, np.ndarray]:
             raise ValueError("chunk coverage/count mismatch")
         # Hash the reconstructed non-overlapping PCM exactly once. Overlapping inputs must agree bit-for-bit.
         pcm_hash = hashlib.sha256()
-        full = np.empty((plan["sample_count"], 2), dtype="<f4")
+        full = np.empty((plan["sample_count"], 2), dtype="<f4") if materialize else None
+        tail = None
         filled = 0
         for index, ((start, count), entry) in enumerate(zip(points, plan["chunks"], strict=True)):
             if (entry["index"] != index or entry["job"] != f"chunks/{index:06d}/job.json"
@@ -125,12 +139,16 @@ def load_plan(path: Path) -> tuple[dict, np.ndarray]:
                     or any(job[k] != plan[k] for k in ("targets", "seed", "settings", "model"))):
                 raise ValueError("chunk job provenance mismatch")
             previous = filled - start
-            if previous and not np.array_equal(full[start:filled], samples[:previous]):
+            samples = np.ascontiguousarray(samples)
+            if previous and not np.array_equal(tail, samples[:previous].view(np.uint8)):
                 raise ValueError("overlapping source PCM differs between chunks")
-            full[filled:start + count] = samples[previous:]
-            pcm_hash.update(samples[previous:].tobytes())
+            if full is not None:
+                full[filled:start + count] = samples[previous:]
+            pcm_hash.update(memoryview(samples[previous:]).cast("B"))
             filled = start + count
-        if filled != len(full) or pcm_hash.hexdigest() != plan["source"]["pcm_sha256"]:
+            if filled < plan["sample_count"]:
+                tail = samples[-plan["overlap_samples"]:].view(np.uint8).copy()
+        if filled != plan["sample_count"] or pcm_hash.hexdigest() != plan["source"]["pcm_sha256"]:
             raise ValueError("full-song PCM checksum mismatch")
         return plan, full
     except (KeyError, TypeError, AttributeError, OSError, ValueError) as error:
@@ -178,6 +196,10 @@ def run_binding_hash(report: dict) -> str | None:
     return value
 
 
+def valid_level(value: object) -> bool:
+    return type(value) in (int, float) and 0 <= value <= sys.float_info.max
+
+
 def validate_song_metadata(report: dict) -> list[dict]:
     """Validate retained original chunk reports without requiring chunk WAVs or model packages."""
     try:
@@ -191,6 +213,9 @@ def validate_song_metadata(report: dict) -> list[dict]:
         if len(points) != len(chunking["chunks"]):
             raise ValueError("chunk report count mismatch")
         binding_hash = run_binding_hash(report)
+        hop = report["codec_hop_samples"]
+        if type(hop) is not int or not 0 < hop <= SAMPLE_RATE:
+            raise ValueError("invalid retained chunk codec hop")
         reports = []
         for index, ((start, count), item) in enumerate(zip(points, chunking["chunks"], strict=True)):
             if type(item.get("index")) is not int or item["index"] != index:
@@ -211,10 +236,17 @@ def validate_song_metadata(report: dict) -> list[dict]:
             for name, pair in child["pairs"].items():
                 if pair["description"] != report["pairs"][name]["description"]:
                     raise ValueError("inconsistent prompts between chunks")
+                if not valid_level(pair.get("sum_error_rms")):
+                    raise ValueError("invalid retained chunk reconstruction level")
                 for role in ("target", "residual"):
                     record = pair[role]
-                    if (record["artifact"] != f"{name}-{role}.wav" or record["sample_count"] != count
-                            or not re.fullmatch(r"[0-9a-f]{64}", record["sha256"])):
+                    raw_count, trim = record.get("raw_sample_count"), record.get("right_trim_samples")
+                    if (record["artifact"] != f"{name}-{role}.wav"
+                            or type(record["sample_count"]) is not int or record["sample_count"] != count
+                            or not re.fullmatch(r"[0-9a-f]{64}", record["sha256"])
+                            or type(raw_count) is not int or type(trim) is not int or not 0 <= trim < hop
+                            or raw_count != count + trim
+                            or not all(valid_level(record.get(key)) for key in ("rms", "peak"))):
                         raise ValueError("invalid retained chunk waveform provenance")
             reports.append(child)
         return reports
