@@ -501,6 +501,25 @@ for sample, outside both fades. Compare the aligned 72–98 second mix, vocal
 target, and residual clips in `data/source-check-v0.12.0/vocal-review/` to check
 whether a vocal phrase is lost from the target or stays in the residual.
 
+The benchmark artifacts were recovered from Charon to Minerva on 2026-11-20:
+all 422 selected files matched their source SHA-256 hashes, and the raw chunks,
+merged results, comparison jobs, and native feature bundle were revalidated.
+The recovery reports and diagnostic plot are in `data/recovery-minerva-20261120/`.
+A listening packet is present on both computers. Run this on the computer whose
+audio output you use (Charon when working through SSH from that laptop):
+
+```sh
+mpv --no-config --replaygain=no --volume=100 \
+  --playlist=data/recovery-minerva-20261120/listening/review-order.m3u
+```
+
+It plays the original-level mono mix, vocal target, and vocal residual over
+72–98 seconds, then over the unblended 82–88 second center. All six WAVs are
+48 kHz float32 with a checksum/sample-coordinate manifest. No normalization,
+gain correction, or new model inference was applied. Listen for a vocal phrase
+disappearing from the target and remaining in the residual, and for audible
+changes through the 80–82 and 88–90 second fades. Listening approval is pending.
+
 The stitched report retains the original checksum-protected chunk reports,
 coordinates, model/worker/auxiliary revisions, and fade policy. Full-song output
 uses `harmonic.sam-audio-song-result.v1` and requires a v0.12.0+ reader; excerpt

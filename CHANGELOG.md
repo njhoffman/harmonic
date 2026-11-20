@@ -5,6 +5,16 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.11] - 2026-11-20
+
+### Documentation
+
+- Record checksum-verified recovery of SAM benchmark jobs, separation results,
+  and review evidence from Charon to Minerva, with current contract validation.
+- Document the original-level vocal listening playlist available on both
+  computers and the pending AWS context-comparison support request. Preserve
+  full-song listening and inference quality gates as incomplete.
+
 ## [0.12.10] - 2026-11-20
 
 ### Documentation
@@ -368,7 +378,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.10...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.11...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -395,3 +405,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.8]: https://github.com/njhoffman/harmonic/tree/v0.12.8
 [0.12.9]: https://github.com/njhoffman/harmonic/tree/v0.12.9
 [0.12.10]: https://github.com/njhoffman/harmonic/tree/v0.12.10
+[0.12.11]: https://github.com/njhoffman/harmonic/tree/v0.12.11

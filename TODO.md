@@ -32,7 +32,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   fades out of the target or stays in the residual at 80–90 seconds. Then
   review the full tracks and the unnormalized seam clips at 24, 72, 80, 88,
   and 264 seconds in `data/source-check-v0.12.0/seam-review/`. Listening
-  findings and approval are pending.
+  findings and approval are pending. On 2026-11-20, the original artifacts were
+  recovered from Charon and revalidated on Minerva. A six-clip playlist with
+  72–98 and 82–88 second mix/target/residual comparisons is available on both
+  computers at `data/recovery-minerva-20261120/listening/review-order.m3u`.
 - [ ] **Establish a consistent context and prompt policy** (p1) [test]
   First repeat the raw 80–90 second job at the same settings, then compare
   shifted 10-second windows and a 20-second window over their shared 82–88
@@ -47,6 +50,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   no inference results. An organization administrator must authorize the EC2
   launch, or the comparison needs another approved GPU host. Temporary AWS
   resources were removed. Run details are in `data/aws-gpu/vocal-context/`.
+  AWS account-support case `179521358600649` was submitted on 2026-11-20;
+  administrator authorization remains pending. All four prepared comparison
+  jobs are restored and validated on Minerva, including the byte-identical
+  80–90 second repeat and shared 82–88 second source samples.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
   Billie Jean is the only supplied real recording. Include a cappella,
   instrumental, quiet passages, and absent requested instruments to expose
@@ -126,6 +133,17 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Recover and validate Minerva's SAM benchmark artifacts** (p2) [chore]
+  Copied 422 files (1,001,872,094 bytes) from Charon without overwriting files;
+  every SHA-256 matched. Revalidated 37 raw chunk results, the three full-song
+  target/residual pairs, the original excerpt, four context jobs, and native
+  source features. Recomputed both vocal fades exactly and verified the
+  unblended 82–88 second center matches the raw chunk sample for sample.
+  Transfer/validation reports and the listening packet are under
+  `data/recovery-minerva-20261120/`. The 12-file listening packet and reports
+  were copied back to Charon and independently checked by SHA-256.
+  Full-song listening approval and context inference remain open above.
 
 - [x] **Install and verify Minerva's projectM playback setup** (p2) [chore]
   Local projectM 4.2.0 revision `9e26f5b5bf89b015f197a16a61bcb21f4946d985`
