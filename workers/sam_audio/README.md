@@ -222,6 +222,14 @@ restart verifies the binding and published chunks, it removes recognized chunk
 scratch directories and `.completed.json.tmp` under the lock. Cleanup stays
 inside the bound output and leaves symlinks and unrecognized chunk files in place.
 
+The CLI prints elapsed time from command dispatch through completion publication
+and lock release. `completed.json` records each invocation's `timing_seconds`
+and `elapsed_seconds_through_validation`. The JSON total ends before reading
+and updating the completion history. Model setup includes downloads and loading.
+Pending-chunk time includes writing chunk results and closing the model session.
+Both stages are zero when every chunk is reused. The older elapsed fields keep
+their original start after readiness, initial plan validation, and the reuse scan.
+
 After retrieving results, `just sam-stitch PLAN CHUNKS NEW` applies complementary
 half-cosine overlap-add to new full-length float WAVs and retains every original
 chunk report and checksum. The local `sam-validate-song` and `sam-features`

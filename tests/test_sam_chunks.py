@@ -116,11 +116,24 @@ class SongChunkTests(unittest.TestCase):
         done=json.loads(path.read_text())
         self.assertEqual(done['reused_chunks'],2)
         self.assertEqual(self.session_loads,2)
+        timing=done['timing_seconds']
+        self.assertGreater(timing['model_setup'],0)
+        self.assertGreater(timing['process_pending_chunks'],0)
+        self.assertAlmostEqual(done['elapsed_seconds_through_validation'],sum(timing.values()))
+        self.assertAlmostEqual(done['elapsed_seconds_this_invocation'],
+                               timing['model_setup']+timing['process_pending_chunks']+timing['final_validation'])
         self.run_fake()
         self.assertEqual(self.session_loads,2)  # All results reused; do not load a model at all.
         history=json.loads(path.read_text())['invocations']
         self.assertEqual(len(history),2)
+        self.assertEqual(history[0],done['invocations'][0])
         self.assertEqual(history[-1]['new_chunks'],0)
+        cached=history[-1]['timing_seconds']
+        self.assertEqual(cached['model_setup'],0)
+        self.assertEqual(cached['process_pending_chunks'],0)
+        self.assertGreater(cached['output_setup_reuse_scan_and_cleanup'],0)
+        self.assertGreater(cached['final_validation'],0)
+        self.assertAlmostEqual(history[-1]['elapsed_seconds_through_validation'],sum(cached.values()))
         wave_path=self.results/'chunks/000000/vocals-target.wav'
         wave_path.write_bytes(wave_path.read_bytes()+b'corrupt')
         with self.assertRaisesRegex(ValueError,'checksum'): self.run_fake()

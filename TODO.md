@@ -86,11 +86,6 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   accumulators, and feature extraction/player decoding also load whole tracks.
   GPU chunks alone do not bound local RAM. Measure long-recording limits and
   stream/seek local processing before treating the workflow as library-ready.
-- [ ] **Report end-to-end timing and clarify seam metrics** (p2) [perf]
-  Invocation elapsed fields exclude readiness, initial validation, and reuse
-  scans. Add total command/stage timings before comparing cold and cached runs.
-  `zero_lag_correlation` is an uncentered normalized dot product; the lag search
-  is bounded to at most ±40 ms. Neither proves perceptual continuity or latency.
 - [ ] **Add validated artifact retention and cleanup policies** (p2) [feature]
   Keep current benchmark WAVs/jobs for quality review. Delete separated audio
   only after validating durable features/provenance and confirming retention
@@ -134,6 +129,12 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Report full-song run stages and end-to-end timing** (p2) [perf]
+  The CLI reports elapsed time through publication and lock release, and the
+  completion report keeps per-invocation stage timings. Cached runs explicitly
+  record zero model-setup and inference-stage time. The guide explains the
+  historical timer, uncentered correlation, and bounded seam lag search.
 
 - [x] **Clean up abandoned files inside a bound full-song output** (p2) [bug]
   Restart removes incomplete worker scratch under the lock after provenance

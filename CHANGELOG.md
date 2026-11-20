@@ -5,6 +5,14 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.7] - 2026-11-19
+
+### Fixed
+
+- Report full-song command time and per-stage timings so cached runs include
+  preflight and reuse validation. Keep the original elapsed field for existing
+  consumers and record the new timings in each invocation's history.
+
 ## [0.12.6] - 2026-11-19
 
 ### Fixed
@@ -333,7 +341,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.6...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.7...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -356,3 +364,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.4]: https://github.com/njhoffman/harmonic/tree/v0.12.4
 [0.12.5]: https://github.com/njhoffman/harmonic/tree/v0.12.5
 [0.12.6]: https://github.com/njhoffman/harmonic/tree/v0.12.6
+[0.12.7]: https://github.com/njhoffman/harmonic/tree/v0.12.7

@@ -205,9 +205,10 @@ def song_output_lock(output: Path):
 
 
 def run_song(plan_file: Path, output: Path) -> Path:
+    invocation_start = time.monotonic()
     output = output.resolve()
     with song_output_lock(output):
-        return run_locked_song(plan_file, output)
+        return run_locked_song(plan_file, output, invocation_start=invocation_start)
 
 
 def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[str]) -> int:
@@ -233,14 +234,16 @@ def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[st
     return removed
 
 
-def run_locked_song(plan_file: Path, output: Path) -> Path:
+def run_locked_song(plan_file: Path, output: Path, *, invocation_start: float) -> Path:
     state = ready_state()
+    preflight_done = time.monotonic()
     from harmonic_analysis.sam_chunks import load_plan, plan_path
     from harmonic_analysis.sam_jobs import digest, load_job, new_directory, validate_result, write_json
     plan_file = plan_path(plan_file)
     plan_hash = digest(plan_file)
     plan, samples = load_plan(plan_file)
     del samples
+    plan_validated = time.monotonic()
     binding = {"plan_sha256": plan_hash, "worker_code_sha256": digest(Path(__file__)),
                "worker_lock_sha256": digest(Path(__file__).with_name("uv.lock")),
                "text_model_revision": plan["text_model_revision"]}
@@ -271,14 +274,18 @@ def run_locked_song(plan_file: Path, output: Path) -> Path:
     if removed:
         print(f"Removed {removed} abandoned SAM scratch paths from {output}", flush=True)
     began = time.monotonic()
+    model_ready = began
+    chunks_done = began
     if pending:
         first, _ = load_job(plan_file.parent / pending[0][0]["job"])
         with model_session(first, state, plan["text_model_revision"]) as session:
+            model_ready = time.monotonic()
             with Progress("Separating full-song chunks", len(plan["chunks"])) as progress:
                 progress.update(reused)
                 for count, (entry, destination) in enumerate(pending, start=reused + 1):
                     separate_job(plan_file.parent / entry["job"], destination, session, began=time.monotonic())
                     progress.update(count)
+        chunks_done = time.monotonic()
     if digest(plan_file) != plan_hash:
         raise ValueError("Song plan changed during inference")
     # Revalidate all completed artifacts before atomically publishing the completion marker.
@@ -287,14 +294,26 @@ def run_locked_song(plan_file: Path, output: Path) -> Path:
         report = validate_result(plan_file.parent / entry["job"], output / "chunks" / f"{entry['index']:06d}")
         if report["job_sha256"] != entry["sha256"]:
             raise ValueError("Completed chunk job identity changed")
+    validated = time.monotonic()
+    timing = {
+        "lock_and_preflight": preflight_done - invocation_start,
+        "initial_plan_validation": plan_validated - preflight_done,
+        "output_setup_reuse_scan_and_cleanup": began - plan_validated,
+        "model_setup": model_ready - began,
+        "process_pending_chunks": chunks_done - model_ready,
+        "final_validation": validated - chunks_done,
+    }
+    invocation = {"new_chunks": len(pending), "reused_chunks": reused, "elapsed_seconds": validated - began,
+                  "elapsed_seconds_through_validation": validated - invocation_start, "timing_seconds": timing}
     summary = {**binding, "chunks": len(plan["chunks"]), "reused_chunks": reused,
-               "new_chunks": len(pending), "elapsed_seconds_this_invocation": time.monotonic() - began,
+               "new_chunks": len(pending), "elapsed_seconds_this_invocation": invocation["elapsed_seconds"],
+               "elapsed_seconds_through_validation": invocation["elapsed_seconds_through_validation"],
+               "timing_seconds": timing,
                "runtime": state, "bitwise_determinism_guaranteed": False}
     history = []
     if (output / "completed.json").is_file():
         history = json.loads((output / "completed.json").read_text()).get("invocations", [])
-    summary["invocations"] = history + [{"new_chunks": len(pending), "reused_chunks": reused,
-                                        "elapsed_seconds": summary["elapsed_seconds_this_invocation"]}]
+    summary["invocations"] = history + [invocation]
     temporary = output / ".completed.json.tmp"
     write_json(temporary, summary)
     temporary.replace(output / "completed.json")
@@ -319,7 +338,12 @@ def main() -> int:
             report = doctor()
             print(json.dumps(report, indent=2))
             return 0 if report["ready"] else 1
-        path = run_song(args.plan, args.output) if args.command == "run-song" else run(args.job, args.output, text_revision=args.text_revision)
+        if args.command == "run-song":
+            command_start = time.monotonic()
+            path = run_song(args.plan, args.output)
+            print(f"🟢 Full-song run completed in {time.monotonic() - command_start:.3f} s")
+        else:
+            path = run(args.job, args.output, text_revision=args.text_revision)
         print(f"🟢 Saved separation report: {path}")
         return 0
     except ImportError:

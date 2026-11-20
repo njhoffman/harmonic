@@ -426,6 +426,12 @@ On resume, a matching run clears abandoned chunk scratch directories and an
 unfinished completion file before inference. Published chunks and unrelated
 files stay in place.
 
+The worker prints the elapsed time through completion publication and lock
+release. Each invocation in `completed.json` records `timing_seconds` for
+preflight, plan validation, reuse checks, model setup, pending chunks, and
+final validation. `elapsed_seconds_through_validation` sums those stages.
+The older `elapsed_seconds_this_invocation` field starts after the reuse scan.
+
 Retrieve results, then validate, blend, and extract features locally:
 
 ```sh
@@ -453,9 +459,9 @@ recording with 165.206 seconds of separation across the three prompts. The
 initial worker invocation measured 386.690 seconds including download/model
 loading (excluding preflight); peak reserved GPU memory was 19.074 GiB and peak
 host RSS 29.878 GiB. A second invocation reused all 37 chunks with zero new
-inference. Reported invocation timings start after readiness, initial plan
-validation, and the reuse scan; they are not total command wall times. Full-song
-WAVs, feature validation, and native compositor checks passed.
+inference. The v0.12.0 benchmark recorded the older timer, starting after
+readiness, initial plan validation, and the reuse scan. Full-song WAVs,
+feature validation, and native compositor checks passed.
 
 **Full-song audio quality is still under review.** Some neighboring vocal
 estimates disagree strongly: at 80–82 seconds one estimate has RMS 0.102 while
