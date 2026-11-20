@@ -42,6 +42,11 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   if context changes leave the dropout unresolved.
   Verified comparison inputs are ready in `data/sam-jobs/billie-jean-vocal-context/`.
   Use the original pinned auxiliary text revision on the GPU host.
+  **Blocked (2026-11-19):** AWS Organizations policy `p-kkr52ast` explicitly
+  denied `ec2:RunInstances` through `DenyCompute`. The comparison produced
+  no inference results. An organization administrator must authorize the EC2
+  launch, or the comparison needs another approved GPU host. Temporary AWS
+  resources were removed. Run details are in `data/aws-gpu/vocal-context/`.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
   Billie Jean is the only supplied real recording. Include a cappella,
   instrumental, quiet passages, and absent requested instruments to expose
