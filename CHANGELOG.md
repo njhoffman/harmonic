@@ -5,6 +5,13 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.14] - 2026-11-20
+
+### Improved
+
+- Expand shared Python and native bundle checks for SAM model and worker hashes,
+  auxiliary model revisions, codec settings, and retained chunk prompts.
+
 ## [0.12.13] - 2026-11-20
 
 ### Improved
@@ -398,7 +405,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.13...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.12.14...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -428,3 +435,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.11]: https://github.com/njhoffman/harmonic/tree/v0.12.11
 [0.12.12]: https://github.com/njhoffman/harmonic/tree/v0.12.12
 [0.12.13]: https://github.com/njhoffman/harmonic/tree/v0.12.13
+[0.12.14]: https://github.com/njhoffman/harmonic/tree/v0.12.14

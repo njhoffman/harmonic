@@ -88,10 +88,11 @@ check; full-song approval remains open.
   Completed-chunk resume is verified; an unfinished chunk reruns every prompt.
   Evaluate per-prompt checkpoints, startup/model scratch outside the bound
   output, and recovery after GPU OOM.
-- [ ] **Keep Python and native provenance validation in agreement** (p2) [test]
-  Shared fixtures cover missing chunk indices, invalid job hashes, mismatched
-  run bindings, missing trim metadata, and negative levels. Extend coverage
-  for other report fields as both readers evolve.
+- [x] **Keep Python and native provenance validation in agreement** (p2) [test]
+  Shared full-song bundle fixtures verify that both readers reject missing chunk
+  indices, invalid job/model/worker hashes, mismatched run bindings, malformed
+  auxiliary revisions, invalid codec hops, inconsistent chunk prompts, missing
+  trim metadata, and negative levels.
 - [ ] **Bound memory for long recordings** (p2) [perf]
   Worker plan validation and inspection now stream PCM checks by chunk.
   Stitching now bounds float64 scratch to a chunk/overlap and measures levels

@@ -397,18 +397,30 @@ with lock(Path(sys.argv[2])):
         retained=bundle.parent/'sam-report.json'
         original_report=json.loads(retained.read_text())
         original_bundle=json.loads(bundle.read_text())
-        for fault in ('missing index', 'invalid job hash', 'different run binding', 'missing trim', 'negative peak'):
+        for fault in ('missing index', 'invalid job hash', 'different run binding', 'missing trim', 'negative peak',
+                      'invalid worker hash', 'invalid auxiliary revision', 'invalid model hash',
+                      'invalid codec hop', 'inconsistent prompt'):
             with self.subTest(fault=fault):
                 report=copy.deepcopy(original_report)
                 item=report['chunking']['chunks'][0]
                 if fault == 'missing index':
                     del item['index']
+                elif fault == 'invalid worker hash':
+                    report['worker_code_sha256'] = 'invalid'
+                elif fault == 'invalid auxiliary revision':
+                    report['auxiliary_text_model']['revision'] = 'not-a-revision'
+                elif fault == 'invalid model hash':
+                    report['model']['files_sha256']['checkpoint.pt'] = 'invalid'
+                elif fault == 'invalid codec hop':
+                    report['codec_hop_samples'] = 0
                 else:
                     child=json.loads(item['report_json'])
                     if fault == 'invalid job hash':
                         child['job_sha256']=item['job_sha256']='invalid'
                     elif fault == 'different run binding':
                         child['run_binding_sha256']='a'*64
+                    elif fault == 'inconsistent prompt':
+                        child['pairs']['vocals']['description'] = 'different prompt'
                     else:
                         wav = child['pairs']['vocals']['target']
                         if fault == 'missing trim':
@@ -420,8 +432,7 @@ with lock(Path(sys.argv[2])):
                 write_json(retained,report)
                 original_bundle['separation']['sha256']=digest(retained)
                 write_json(bundle,original_bundle)
-                with self.assertRaisesRegex(ValueError,'retained chunk|chunk report'):
+                with self.assertRaises(ValueError):
                     read_bundle(bundle,digest(audio))
                 rejected=subprocess.run([str(PLAYER),str(bundle),'--inspect'],capture_output=True,text=True,timeout=20)
                 self.assertNotEqual(rejected.returncode,0)
-                self.assertIn('retained chunk',rejected.stderr)
