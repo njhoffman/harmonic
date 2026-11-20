@@ -73,10 +73,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   models/auxiliaries, prompts/anchors, settings/seed, and schema. Hashing the whole
   worker file also invalidates resume after documentation-only edits; make the
   compatibility policy explicit. The mix-only catalog still rejects schema 2.
-- [ ] **Harden interruption recovery and clean up crash leftovers** (p2) [feature]
+- [ ] **Evaluate finer checkpoints and OOM recovery** (p2) [feature]
   Completed-chunk resume is verified; an unfinished chunk reruns every prompt.
-  Add finer checkpoints if worthwhile, clean up abandoned temporary files under
-  the writer lock, and extend interruption/OOM recovery tests.
+  Evaluate per-prompt checkpoints, startup/model scratch outside the bound
+  output, and recovery after GPU OOM.
 - [ ] **Keep Python and native provenance validation in agreement** (p2) [test]
   Shared fixtures cover missing retained chunk indices and invalid retained job
   hashes. Extend them for other missing or inconsistent metadata, silent
@@ -134,6 +134,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Clean up abandoned files inside a bound full-song output** (p2) [bug]
+  Restart removes incomplete worker scratch under the lock after provenance
+  checks. Tests verify chunk reuse and preserve unrecognized files and symlinks.
 
 - [x] **Prevent concurrent writers to a full-song SAM output** (p2) [bug]
   Competing workers fail before preflight, including when they use a symlink to

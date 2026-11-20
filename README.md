@@ -422,6 +422,9 @@ inside an unfinished chunk reruns that chunk. The worker locks the resolved
 output path before preflight and exits immediately if another worker holds it.
 Leave the hidden `.<output-name>.lock` file beside the output directory. The
 operating system releases the lock when the worker exits or is killed.
+On resume, a matching run clears abandoned chunk scratch directories and an
+unfinished completion file before inference. Published chunks and unrelated
+files stay in place.
 
 Retrieve results, then validate, blend, and extract features locally:
 

@@ -217,8 +217,10 @@ reports the busy output and exits before model setup. Keep the hidden
 `.<output-name>.lock` file beside the output even after the process exits. The
 operating system releases the lock on process exit, including a forced kill.
 Run on a filesystem that supports file locking and use one worker release per
-output. A previous release's partial run still needs that release's worker hash
-to resume. Automatic cleanup of crash leftovers remains open.
+output. Resume older partial runs with the original worker release. Once a
+restart verifies the binding and published chunks, it removes recognized chunk
+scratch directories and `.completed.json.tmp` under the lock. Cleanup stays
+inside the bound output and leaves symlinks and unrecognized chunk files in place.
 
 After retrieving results, `just sam-stitch PLAN CHUNKS NEW` applies complementary
 half-cosine overlap-add to new full-length float WAVs and retains every original

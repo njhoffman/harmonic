@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(harmonic VERSION 0.12.5 LANGUAGES C CXX)
+project(harmonic VERSION 0.12.6 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

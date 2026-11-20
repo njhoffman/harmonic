@@ -12,6 +12,7 @@ from pathlib import Path
 import platform
 import re
 import resource
+import shutil
 import sys
 import tempfile
 import time
@@ -209,6 +210,29 @@ def run_song(plan_file: Path, output: Path) -> Path:
         return run_locked_song(plan_file, output)
 
 
+def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[str]) -> int:
+    """Remove abandoned worker files inside a verified, locked song output."""
+    chunks = output / "chunks"
+    allowed_files = {"report.json"} | {f"{name}-{role}.wav" for name in target_names
+                                      for role in ("target", "residual")}
+    removed = 0
+    if chunks.is_dir():
+        for path in chunks.iterdir():
+            name = re.fullmatch(r"\.(\d+)-[a-z0-9_]{8}", path.name)
+            if (name and name[1] in chunk_names and not path.is_symlink() and path.is_dir()
+                    and all(file.name in allowed_files and not file.is_symlink() and file.is_file()
+                            for file in path.iterdir())):
+                shutil.rmtree(path)
+                removed += 1
+    temporary = output / ".completed.json.tmp"
+    if temporary.is_symlink() or (temporary.exists() and not temporary.is_file()):
+        raise ValueError(f"Unexpected completion scratch path: {temporary}")
+    if temporary.is_file():
+        temporary.unlink()
+        removed += 1
+    return removed
+
+
 def run_locked_song(plan_file: Path, output: Path) -> Path:
     state = ready_state()
     from harmonic_analysis.sam_chunks import load_plan, plan_path
@@ -226,10 +250,13 @@ def run_locked_song(plan_file: Path, output: Path) -> Path:
     else:
         with new_directory(output) as temporary:
             write_json(temporary / "run.json", binding)
+    chunk_dir = output / "chunks"
+    if chunk_dir.is_symlink():
+        raise ValueError(f"Unexpected symlink for song chunks: {chunk_dir}")
     pending = []
     reused = 0
     for index, entry in enumerate(plan["chunks"]):
-        destination = output / "chunks" / f"{index:06d}"
+        destination = chunk_dir / f"{index:06d}"
         if destination.exists():
             report = validate_result(plan_file.parent / entry["job"], destination)
             if (report["worker_code_sha256"] != binding["worker_code_sha256"]
@@ -239,6 +266,10 @@ def run_locked_song(plan_file: Path, output: Path) -> Path:
             reused += 1
         else:
             pending.append((entry, destination))
+    removed = clean_song_scratch(output, {f"{entry['index']:06d}" for entry in plan["chunks"]},
+                                 set(plan["targets"]))
+    if removed:
+        print(f"Removed {removed} abandoned SAM scratch paths from {output}", flush=True)
     began = time.monotonic()
     if pending:
         first, _ = load_job(plan_file.parent / pending[0][0]["job"])

@@ -156,6 +156,50 @@ with lock(Path(sys.argv[2])):
         self.assertEqual(done['new_chunks'],len(self.plan['chunks']))
         self.assertEqual(json.loads(self.run_fake().read_text())['new_chunks'],0)
 
+    def test_resume_cleans_only_known_scratch_and_keeps_published_chunks(self):
+        def interrupted(job, destination, session, *, began):
+            if destination.name == '000001':
+                scratch = Path(tempfile.mkdtemp(prefix='.000001-', dir=destination.parent))
+                (scratch/'vocals-target.wav').write_bytes(b'partial waveform')
+                raise RuntimeError('simulated abrupt exit without staging cleanup')
+            return self.fake_separate(job,destination,session,began=began)
+
+        with self.assertRaisesRegex(RuntimeError,'abrupt exit'):
+            self.run_fake(interrupted)
+        chunk_dir = self.results/'chunks'
+        abandoned, = chunk_dir.glob('.000001-*')
+        first_wave = chunk_dir/'000000/vocals-target.wav'
+        first_hash = digest(first_wave)
+        completion_scratch = self.results/'.completed.json.tmp'
+        completion_scratch.write_text('{"incomplete":')
+        unknown = chunk_dir/'.000001-abcd1234'
+        unknown.mkdir()
+        (unknown/'notes.txt').write_text('keep')
+        outside = self.root/'outside'
+        outside.mkdir()
+        external_file = outside/'vocals-target.wav'
+        external_file.write_text('keep')
+        link = chunk_dir/'.000002-abcd1234'
+        link.symlink_to(outside, target_is_directory=True)
+
+        binding = self.results/'run.json'
+        original = binding.read_text()
+        binding.write_text('{}')
+        with self.assertRaisesRegex(ValueError,'different plan/worker'):
+            self.run_fake()
+        self.assertTrue(abandoned.is_dir())
+        self.assertTrue(completion_scratch.is_file())
+        binding.write_text(original)
+
+        summary = json.loads(self.run_fake().read_text())
+        self.assertEqual(summary['reused_chunks'],1)
+        self.assertEqual(digest(first_wave),first_hash)
+        self.assertFalse(abandoned.exists())
+        self.assertFalse(completion_scratch.exists())
+        self.assertEqual((unknown/'notes.txt').read_text(),'keep')
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(external_file.read_text(),'keep')
+
     def test_crossfade_smooths_known_level_disagreement_without_normalization(self):
         def stepped(job,destination,session,**kwargs):
             index=int(destination.name)
