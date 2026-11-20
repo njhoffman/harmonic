@@ -211,8 +211,14 @@ One model load serves all pending chunks. A matching existing output is resumed
 only after validating completed WAVs and job/model/code/lock provenance. A
 completion marker is published after every chunk validates, with per-invocation
 new/reused counts. Invalid partial artifacts fail explicitly; prompts in an
-unfinished chunk are not individually cached. Keep one worker per output; there
-is no concurrent-writer lock. Automatic cleanup of crash leftovers is not provided.
+unfinished chunk are not individually cached. Current workers take an exclusive
+Linux file lock before opening or creating an output. A competing invocation
+reports the busy output and exits before model setup. Keep the hidden
+`.<output-name>.lock` file beside the output even after the process exits. The
+operating system releases the lock on process exit, including a forced kill.
+Run on a filesystem that supports file locking and use one worker release per
+output. A previous release's partial run still needs that release's worker hash
+to resume. Automatic cleanup of crash leftovers remains open.
 
 After retrieving results, `just sam-stitch PLAN CHUNKS NEW` applies complementary
 half-cosine overlap-add to new full-length float WAVs and retains every original

@@ -1,9 +1,10 @@
-"""GPU-only short-excerpt worker. Help and doctor work without model packages."""
+"""GPU worker for excerpts and full songs. Help and doctor need no model packages."""
 
 from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
+import fcntl
 from importlib import metadata
 import json
 import os
@@ -185,7 +186,30 @@ def run(job_path: Path, output: Path, *, text_revision: str | None = None) -> Pa
         return separate_job(job_path, output, session, began=began)
 
 
+@contextmanager
+def song_output_lock(output: Path):
+    """Hold one Linux advisory lock for the lifetime of a song invocation."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = output.with_name(f".{output.name}.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError(f"Another SAM worker is using song output {output}") from error
+        yield
+    finally:
+        # Keep the inode so competing invocations always lock the same file.
+        os.close(fd)
+
+
 def run_song(plan_file: Path, output: Path) -> Path:
+    output = output.resolve()
+    with song_output_lock(output):
+        return run_locked_song(plan_file, output)
+
+
+def run_locked_song(plan_file: Path, output: Path) -> Path:
     state = ready_state()
     from harmonic_analysis.sam_chunks import load_plan, plan_path
     from harmonic_analysis.sam_jobs import digest, load_job, new_directory, validate_result, write_json
@@ -196,7 +220,6 @@ def run_song(plan_file: Path, output: Path) -> Path:
     binding = {"plan_sha256": plan_hash, "worker_code_sha256": digest(Path(__file__)),
                "worker_lock_sha256": digest(Path(__file__).with_name("uv.lock")),
                "text_model_revision": plan["text_model_revision"]}
-    output = output.resolve()
     if output.exists():
         if not (output / "run.json").is_file() or json.loads((output / "run.json").read_text()) != binding:
             raise ValueError("Existing song output belongs to a different plan/worker; choose a new directory")

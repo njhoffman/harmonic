@@ -4,6 +4,7 @@ import importlib.util
 import json
 from contextlib import contextmanager
 from pathlib import Path
+import select
 import shutil
 import subprocess
 import sys
@@ -124,6 +125,36 @@ class SongChunkTests(unittest.TestCase):
         wave_path.write_bytes(wave_path.read_bytes()+b'corrupt')
         with self.assertRaisesRegex(ValueError,'checksum'): self.run_fake()
         self.assertEqual(self.session_loads,2)
+
+    def test_song_output_lock_blocks_other_process_and_releases_after_kill(self):
+        script = """
+import runpy
+import sys
+from pathlib import Path
+
+lock = runpy.run_path(sys.argv[1])["song_output_lock"]
+with lock(Path(sys.argv[2])):
+    print("locked", flush=True)
+    sys.stdin.read()
+"""
+        alias = self.root / 'alias'
+        alias.symlink_to(self.results.parent, target_is_directory=True)
+        with subprocess.Popen([sys.executable,'-c',script,str(WORKER),str(self.results)],
+                              stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE) as owner:
+            try:
+                self.assertTrue(select.select([owner.stdout],[],[],10)[0], 'Lock holder timed out')
+                self.assertEqual(owner.stdout.readline(), b'locked\n')
+                with patch.object(worker,'ready_state') as preflight:
+                    with self.assertRaisesRegex(ValueError,'Another SAM worker'):
+                        worker.run_song(self.plan_path,alias/self.results.name)
+                    preflight.assert_not_called()
+                self.assertFalse(self.results.exists())
+            finally:
+                owner.kill()
+                owner.communicate(timeout=10)
+        done = json.loads(self.run_fake().read_text())
+        self.assertEqual(done['new_chunks'],len(self.plan['chunks']))
+        self.assertEqual(json.loads(self.run_fake().read_text())['new_chunks'],0)
 
     def test_crossfade_smooths_known_level_disagreement_without_normalization(self):
         def stepped(job,destination,session,**kwargs):

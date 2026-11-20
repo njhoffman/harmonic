@@ -418,7 +418,10 @@ runtime fingerprints; retain the exact source release/environment for restarts.
 This is job-local resume, not a cross-version or shared catalog cache.
 A corrupt existing chunk causes an error. Inputs and completed results are never
 silently overwritten. Resume is currently at chunk granularity; a failed prompt
-inside an unfinished chunk reruns that chunk. Use one worker per output directory.
+inside an unfinished chunk reruns that chunk. The worker locks the resolved
+output path before preflight and exits immediately if another worker holds it.
+Leave the hidden `.<output-name>.lock` file beside the output directory. The
+operating system releases the lock when the worker exits or is killed.
 
 Retrieve results, then validate, blend, and extract features locally:
 

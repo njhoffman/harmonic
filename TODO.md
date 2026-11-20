@@ -73,11 +73,10 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   models/auxiliaries, prompts/anchors, settings/seed, and schema. Hashing the whole
   worker file also invalidates resume after documentation-only edits; make the
   compatibility policy explicit. The mix-only catalog still rejects schema 2.
-- [ ] **Harden interruption recovery and single-writer behavior** (p2) [feature]
+- [ ] **Harden interruption recovery and clean up crash leftovers** (p2) [feature]
   Completed-chunk resume is verified; an unfinished chunk reruns every prompt.
-  Add finer checkpoints if worthwhile, explicit concurrent-writer protection,
-  crash-leftover cleanup, and interruption/OOM recovery tests. Currently use one
-  worker per output directory; there is no lock or automatic orphan cleanup.
+  Add finer checkpoints if worthwhile, clean up abandoned temporary files under
+  the writer lock, and extend interruption/OOM recovery tests.
 - [ ] **Keep Python and native provenance validation in agreement** (p2) [test]
   Shared fixtures cover missing retained chunk indices and invalid retained job
   hashes. Extend them for other missing or inconsistent metadata, silent
@@ -135,6 +134,11 @@ Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
   references if access, licensing, capacity, and the quality question warrant it.
 
 ## Verified foundation
+
+- [x] **Prevent concurrent writers to a full-song SAM output** (p2) [bug]
+  Competing workers fail before preflight, including when they use a symlink to
+  the same output. A process-kill check verifies the next worker can acquire
+  the lock and publish results. A subsequent invocation reuses those chunks.
 
 - [x] **Recognize song plans by payload kind in the feature adapter** (p2) [bug]
   `sam-features` accepts a valid renamed plan and produces the same feature
