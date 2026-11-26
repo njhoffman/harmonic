@@ -5,6 +5,14 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-11-25
+
+### Documentation
+
+- Record the listening result that favored the original vocal prompt, and
+  document the 20-second Billie Jean seam test and the voice-and-piano
+  comparison with sample-aligned target/residual listening clips.
+
 ## [0.13.1] - 2026-11-25
 
 ### Documentation
@@ -425,7 +433,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.13.2...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -458,3 +466,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.14]: https://github.com/njhoffman/harmonic/tree/v0.12.14
 [0.13.0]: https://github.com/njhoffman/harmonic/tree/v0.13.0
 [0.13.1]: https://github.com/njhoffman/harmonic/tree/v0.13.1
+[0.13.2]: https://github.com/njhoffman/harmonic/tree/v0.13.2

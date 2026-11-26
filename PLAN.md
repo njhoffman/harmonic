@@ -446,7 +446,12 @@ Dependency licenses need a similarly concrete review before distribution. libpro
 
 ## 12. Most valuable next step
 
-Evaluate the controlled lead-vocal prompt comparison before extending the library. The 80–90 second repeat reproduced the vocal dropout, and a 75–95 second input partially recovered the phrase with audible bass bleed. Compare the lead-vocal prompts over the same source samples at their original levels. If the review identifies a cleaner target and residual, check the neighboring seams and a contrasting recording before changing the 10s/2s baseline. The full-song seam clips are available at 24, 72, 80, 88, and 264 seconds.
+Review the 20-second `man singing` candidate before extending the library.
+The original prompt retained the clearest vocal of the three evaluated over
+82–88 seconds, with audible bass bleed. Compare the candidate across its
+neighboring overlaps and on a contrasting recording before changing the
+10s/2s baseline. The original full-song seam clips are available at 24, 72,
+80, 88, and 264 seconds.
 
 The playback → prompted features → synchronized graphs → reloadable bundle slice is implemented. Its next completion gate is consistent full-song separation on contrasting recordings, including absent-instrument controls. Follow with complete cache provenance, interruption recovery, and measured target-GPU performance. Lyrics and semantic styling remain independent later additions.
 
@@ -454,7 +459,7 @@ The playback → prompted features → synchronized graphs → reloadable bundle
 
 Start with **Michael Jackson’s “Billie Jean.”** Its opening makes it easy to follow the percussion, bass, and vocal entrances. Look for changes you can recognize by ear and then confirm in the graphs.
 
-These are suggested listening tests. Billie Jean has real excerpt and full-song GPU runs; only the excerpt has owner listening approval. The other recordings remain untested.
+These are suggested listening tests. Billie Jean has real excerpt and full-song GPU runs; only the excerpt has owner listening approval. The other recordings in the table remain untested.
 
 | Song | Why it’s useful | What to test |
 | --- | --- | --- |

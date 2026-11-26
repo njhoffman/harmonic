@@ -46,19 +46,21 @@ check; full-song approval remains open.
   The 80–90 second repeat reproduced the dropout. The owner heard the phrase
   in the 75–95 second target with bass bleed and quieter vocals in its residual.
   The 78–88 second target mostly contained drums despite its higher RMS.
-  The original and two lead-vocal prompts ran on Blackwell with the same
-  75–95 second input, checkpoint, seed, and auxiliary text revision. The
-  checksum-verified playlist at
-  `data/aws-gpu/vocal-prompts/listening/prompt-review.m3u` is present on
-  Minerva and Charon. Audition 82–88 seconds for vocal clarity, bass/drum
-  bleed, and how much of the phrase remains in each residual.
-  Check the neighboring seams and a contrasting recording before adopting a
-  context or prompt policy. Evaluate anchors/span settings separately if needed.
+  In the controlled 75–95 second prompt comparison, the owner preferred
+  `man singing`: the vocal phrase came through despite bass bleed and
+  faded to a faint echo in its residual. The lead-singing variant isolated
+  bass, and the melody/lyrics variant left a clearly audible vocal in the
+  residual. Five subsequent Blackwell jobs produced a validated 20s/2s
+  Billie Jean seam candidate and a 10s/20s voice-and-piano comparison. Review
+  the checksum-verified `data/aws-gpu/vocal-seams/listening/seam-review.m3u`
+  on Minerva or Charon. Check vocal recovery at 82–88 seconds and listen
+  through the 72–74 and 90–92 second overlaps. Evaluate anchors/span settings
+  separately if needed.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
-  Billie Jean is the only supplied real recording. Include a cappella,
-  instrumental, quiet passages, and absent requested instruments to expose
-  false extraction, dropouts, and misleading visual activity. Synthetic tests
-  and one approved excerpt do not complete this gate.
+  The contrast packet includes Leon Lishner and Roger Nelson's voice-and-piano
+  recording at 26–32 seconds. Listen to both window lengths for vocal clarity,
+  piano bleed, and singing in the residual. A cappella, instrumental, quiet
+  passages, and absent requested instruments still need coverage.
 - [ ] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero

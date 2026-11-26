@@ -520,9 +520,11 @@ and remain in the residual. Together with the sample-exact raw/stitch checks,
 this establishes an audible separation failure in the baseline. In the
 follow-up comparison, the 20-second window partially recovered the vocal, with
 bass still audible in its target and singing still present in the residual.
-The focused prompt comparison and remaining seam review address the open
-full-song quality gate. See the [worker guide](workers/sam_audio/README.md) for
-the comparison evidence.
+The original prompt won the owner's comparison of three vocal descriptions.
+A sample-aligned listening packet compares the 20s/2s seam candidate against
+the baseline and includes a voice-and-piano recording. See the
+[worker guide](workers/sam_audio/README.md#20-second-seam-and-voice-and-piano-comparison-2026-11-25)
+for the playback command and measured evidence.
 
 The benchmark artifacts were recovered from Charon to Minerva on 2026-11-20:
 all 422 selected files matched their source SHA-256 hashes, and the raw chunks,

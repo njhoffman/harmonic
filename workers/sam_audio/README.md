@@ -412,8 +412,41 @@ mpv --no-config --replaygain=no --volume=95 \
 The playlist starts with the mono mix, then each prompt's target followed
 immediately by its residual. All seven clips preserve their source sample
 positions and original relative levels. The shared playback volume leaves
-headroom for float peaks above 1.0. Listening approval, a prompt policy,
-and full-song seam validation remain open.
+headroom for float peaks above 1.0. In the prompt review, the owner
+preferred `man singing`: the vocal was audible despite competing bass, and
+the residual had only a faint vocal echo. The lead-singing prompt extracted
+bass with no audible vocal. The melody/lyrics prompt left clearer vocals
+in the residual than in the target. A full-song prompt policy still depends
+on seam and contrasting-recording review.
+
+### 20-second seam and voice-and-piano comparison (2026-11-25)
+
+Five jobs ran in one pinned Blackwell model session with the original
+`man singing` prompt. For Billie Jean, the 54–74, 72–92, and 90–110 second
+windows use the full-song 20-second grid. The same two-second complementary
+half-cosine weights join 72–74 and 90–92 seconds. Over 82–88 seconds, target RMS
+was 0.1248 for the candidate and 0.0061 for the 10s/2s baseline. At the new
+90–92 second overlap, the raw target levels were 0.0703 and 0.1289 RMS.
+Review the phrase recovery and the continuity through both new joins by ear.
+
+The contrasting comparison uses Charles Dibdin's “Oh, What a Charming
+Thing's a Battle,” performed by Leon Lishner (voice) and Roger Nelson (piano).
+The 24–34 and 18–38 second jobs share the same 26–32 second review samples.
+[Recording and CC BY-SA 2.0 attribution](https://commons.wikimedia.org/wiki/File%3ADibdin_-_Oh%2C_What_A_Charming_Thing%27s_A_Battle.ogg)
+
+The 15 clips and attribution are in the checksum-verified
+`data/aws-gpu/vocal-seams/listening/` directory on Minerva and Charon.
+Each section plays the mix, then each window's target and residual
+consecutively. The common playback volume leaves headroom.
+
+```sh
+mpv --no-config --replaygain=no --volume=87 \
+  --playlist=data/aws-gpu/vocal-seams/listening/seam-review.m3u
+```
+
+Listening review of the 20-second candidate and the contrasting excerpt is
+pending. The full-song default remains 10-second windows with two-second
+overlaps.
 
 ## License observations
 
