@@ -5,6 +5,8 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+
+from support import requires
 import wave
 
 import numpy as np
@@ -51,7 +53,7 @@ class AnalysisTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             extract_features(np.full((4, 2), np.nan))
 
-    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is required")
+    @requires(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is required")
     def test_complete_bundle_preserves_duration_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

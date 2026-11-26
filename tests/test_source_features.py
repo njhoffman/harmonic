@@ -5,6 +5,8 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+
+from support import requires
 import wave
 
 import numpy as np
@@ -20,7 +22,7 @@ from harmonic_analysis.source_features import build_source_bundle
 PLAYER = Path(os.environ.get("HARMONIC_PLAYER", "build/harmonic-player")).resolve()
 
 
-@unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg is required")
+@requires(shutil.which("ffmpeg"), "FFmpeg is required")
 class SourceFeatureTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -141,7 +143,7 @@ class SourceFeatureTests(unittest.TestCase):
             build_source_bundle(self.mix, self.job, self.result, destination)
         self.assertFalse(destination.exists())
 
-    @unittest.skipUnless(PLAYER.is_file(), "Build the native player")
+    @requires(PLAYER.is_file(), "Build the native player")
     def test_native_coverage_interpolation_and_original_audio_transport(self):
         for sample, covered in ((self.start - 1, False), (self.start, True),
                                 (self.start + 4800, True), (self.start + self.count - 1, True),

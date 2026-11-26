@@ -28,9 +28,12 @@ This file only adds what is specific to Claude Code or overrides a global rule.
 
 - Full suite: Monitor on `~/.shell/scripts/test-progress -C . --events`; it
   falls back to `just test`, which builds the native player first.
-- One file: `.venv/bin/python -m unittest tests.test_<name> -v`.
-- Native, FFmpeg, and projectM tests skip when their tools are missing; report
-  the skip count instead of calling a run with skips a full pass.
+- One file: `.venv/bin/python -m unittest discover -s tests -p 'test_<name>.py' -v`
+  (tests import `tests/support.py` as `support`, so run from `tests/` on the path).
+- FFmpeg and native-player tests use `support.requires`: they skip normally
+  but fail under `HARMONIC_REQUIRE_INTEGRATION=1`, which `just release` sets.
+  projectM, global todo tools, and fzf stay optional skips; report the skip
+  count instead of calling a run with skips a full pass.
 
 ## Layout
 

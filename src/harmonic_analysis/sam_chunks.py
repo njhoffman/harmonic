@@ -355,6 +355,8 @@ def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
         completed = results / "completed.json"
         if completed.is_file():
             run = json.loads(completed.read_text())
+            if not isinstance(run, dict) or not isinstance(run.get("plan_sha256"), str):
+                raise ValueError("Malformed run completion record: expected an object with plan_sha256")
             if run["plan_sha256"] != plan_hash:
                 raise ValueError("Run completion record belongs to another plan")
             merged["run"] = run

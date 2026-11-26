@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+from support import requires
 from unittest.mock import patch
 import wave
 
@@ -19,7 +21,7 @@ from harmonic_analysis.analysis import analyze, sha256_file
 from harmonic_analysis.catalog import CACHE_KEY, import_track, list_tracks
 
 
-@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is required")
+@requires(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is required")
 class CatalogTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

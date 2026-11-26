@@ -70,6 +70,18 @@ sam-run job="data/sam-jobs/billie-jean" output="data/sam-results/billie-jean":
 sam-validate job="data/sam-jobs/billie-jean" result="data/sam-results/billie-jean": sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli validate {{ quote(job) }} {{ quote(result) }}
 
+# Prepare mixed, vocal-only, and accompaniment-only benchmark jobs from aligned stems.
+sam-vocal-benchmark-prepare vocal accompaniment output start="0" duration="12" prompt="man singing": sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli prepare-vocal-benchmark {{ quote(vocal) }} {{ quote(accompaniment) }} --output {{ quote(output) }} --start {{ quote(start) }} --duration {{ quote(duration) }} --prompt {{ quote(prompt) }}
+
+# Score a validated mixed benchmark result against its reference stems (report v2).
+sam-vocal-score-mix job result vocal accompaniment: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli benchmark-vocals {{ quote(job) }} {{ quote(result) }} --case mix --vocal-stem {{ quote(vocal) }} --accompaniment-stem {{ quote(accompaniment) }}
+
+# Score a validated vocal-only benchmark result (the job PCM is its reference).
+sam-vocal-score-isolated job result: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli benchmark-vocals {{ quote(job) }} {{ quote(result) }} --case vocal-only
+
 # Score a saved accompaniment-only SAM result for false vocal extraction.
 sam-vocal-control job result: sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli benchmark-vocals {{ quote(job) }} {{ quote(result) }} --case accompaniment-only
@@ -161,7 +173,7 @@ release summary="" trailer="": check-version
         echo "Tag ${release_tag} already exists; do not move it or repeat this release." >&2
         exit 1
     fi
-    just test
+    HARMONIC_REQUIRE_INTEGRATION=1 just test
     commit_args=(-m "chore(release): ${release_tag}${release_summary:+ - ${release_summary}}")
     if [[ -n "${release_trailer}" ]]; then commit_args+=(--trailer "${release_trailer}"); fi
     git commit "${commit_args[@]}"

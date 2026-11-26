@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+from support import requires
 import wave
 
 import numpy as np
@@ -32,7 +34,7 @@ class SAMWorkerTests(unittest.TestCase):
         return save_job(self.samples, self.root / "job", source=self.source,
                         start_sample=50, targets=dict(DEFAULT_TARGETS))
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg is required")
+    @requires(shutil.which("ffmpeg"), "FFmpeg is required")
     def test_real_preparation_preserves_source_timebase_and_moves_without_source(self):
         audio = self.root / "source.wav"
         tone = (12000 * np.sin(2 * np.pi * 440 * np.arange(8000) / 8000)).astype("<i2")

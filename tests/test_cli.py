@@ -4,6 +4,8 @@ import subprocess
 import sys
 import unittest
 
+from support import requires
+
 from harmonic_analysis import __version__
 
 PLAYER = Path(os.environ.get("HARMONIC_PLAYER", "build/harmonic-player")).resolve()
@@ -37,11 +39,11 @@ class CommandLineTests(unittest.TestCase):
     def test_analyzer_version_needs_no_input(self):
         self.check_version([sys.executable, "-m", "harmonic_analysis"])
 
-    @unittest.skipUnless(PLAYER.is_file(), "Build the native player to check its CLI")
+    @requires(PLAYER.is_file(), "Build the native player to check its CLI")
     def test_player_help_needs_no_input(self):
         self.check_help([str(PLAYER)])
 
-    @unittest.skipUnless(PLAYER.is_file(), "Build the native player to check its CLI")
+    @requires(PLAYER.is_file(), "Build the native player to check its CLI")
     def test_player_version_needs_no_input(self):
         self.check_version([str(PLAYER)])
 

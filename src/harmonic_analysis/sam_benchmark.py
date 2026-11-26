@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from .analysis import decode_audio
-from .sam_jobs import (DEFAULT_TARGETS, SAMPLE_RATE, load_job, new_directory, read_wave,
+from .sam_jobs import (DEFAULT_TARGETS, SAMPLE_RATE, digest, load_job, new_directory, read_wave,
                        save_job, validate_result)
 
 CASES = ("mix", "vocal-only", "accompaniment-only")
@@ -123,6 +123,10 @@ def score_case(job_path: Path, result_path: Path, case: str, *, vocal: Path | No
         raise ValueError("The job input is only a constant offset; target ratios are undefined")
 
     directory = result_path if result_path.is_dir() else result_path.parent
+    for role in ("target", "residual"):
+        # validate_result hashed these files; refuse ones replaced since then.
+        if digest(directory / f"vocals-{role}.wav") != report["pairs"]["vocals"][role]["sha256"]:
+            raise ValueError(f"vocals-{role}.wav changed after validation")
     target, residual = (read_wave(directory / f"vocals-{role}.wav") for role in ("target", "residual"))
     estimates = np.column_stack((target, residual)).astype(np.float64)
     estimate_means = estimates.mean(axis=0)

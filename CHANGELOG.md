@@ -5,6 +5,43 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-26
+
+### Added
+
+- `just sam-vocal-benchmark-prepare`, `just sam-vocal-score-mix`, and
+  `just sam-vocal-score-isolated` cover the reference vocal benchmark
+  workflow that previously needed direct `harmonic-sam` calls.
+
+### Changed
+
+- `just release` runs the suite with `HARMONIC_REQUIRE_INTEGRATION=1`. FFmpeg
+  and native-player tests then fail instead of skipping when their tools are
+  missing. projectM, global todo tools, and fzf remain optional.
+- Test files import `tests/support.py`. Run a single file with
+  `python -m unittest discover -s tests -p 'test_<name>.py'`.
+
+### Fixed
+
+- `harmonic-sam stitch` reports a malformed run completion record as an error
+  instead of a traceback.
+- Vocal benchmark scoring refuses target or residual WAVs replaced after
+  validation.
+- Chunk tests honor `HARMONIC_PLAYER`, like the other native tests.
+
+### Validation
+
+- New tests cover `inspect-song`, `stitch`, `validate-song`,
+  `prepare-vocal-benchmark`, and `benchmark-vocals` through the command line,
+  `--target` parsing, and benchmark edge cases (unequal stems, out-of-range
+  windows, argument checks, collinear references).
+
+### Documentation
+
+- Record an offline study of source-presence cues on the MUSDB18 results. Two
+  cues detect a bass fill-in, but neither is reliable when a melodic
+  instrument fills the vocal target.
+
 ## [0.16.1] - 2026-11-26
 
 ### Validation
@@ -565,7 +602,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.16.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.17.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -609,3 +646,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.15.2]: https://github.com/njhoffman/harmonic/tree/v0.15.2
 [0.16.0]: https://github.com/njhoffman/harmonic/tree/v0.16.0
 [0.16.1]: https://github.com/njhoffman/harmonic/tree/v0.16.1
+[0.17.0]: https://github.com/njhoffman/harmonic/tree/v0.17.0

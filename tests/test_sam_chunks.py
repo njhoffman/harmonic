@@ -2,6 +2,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from contextlib import contextmanager
 from pathlib import Path
 import select
@@ -10,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+from support import requires
 from unittest.mock import patch
 import wave
 
@@ -25,7 +28,7 @@ from harmonic_analysis.source_features import build_source_bundle
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / 'workers/sam_audio/worker.py'
-PLAYER = ROOT / 'build/harmonic-player'
+PLAYER = Path(os.environ.get('HARMONIC_PLAYER', ROOT / 'build/harmonic-player')).resolve()
 spec = importlib.util.spec_from_file_location('sam_song_worker', WORKER)
 worker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
@@ -162,6 +165,47 @@ class SongChunkTests(unittest.TestCase):
             result = stitch_song(self.plan_path, self.results, self.root / 'bounded')
             validate_song_result(self.plan_path, result)
         self.assertEqual((result.parent / 'vocals-target.wav').read_bytes(), expected.read_bytes())
+
+    def test_stitch_rejects_malformed_completion_records_cleanly(self):
+        self.run_fake()
+        completed = self.results/'completed.json'
+        for index, body in enumerate(('[]', '{}', '{"plan_sha256": 7}')):
+            completed.write_text(body)
+            with self.assertRaisesRegex(ValueError, 'Malformed run completion record'):
+                stitch_song(self.plan_path, self.results, self.root/f'malformed-{index}')
+            self.assertFalse((self.root/f'malformed-{index}').exists())
+
+    def cli(self, *arguments):
+        return subprocess.run([sys.executable, '-m', 'harmonic_analysis.sam_cli', *map(str, arguments)],
+                              capture_output=True, text=True, timeout=60)
+
+    def test_song_subcommands_through_the_command_line(self):
+        inspected = self.cli('inspect-song', self.plan_path)
+        self.assertEqual(inspected.returncode, 0, inspected.stderr)
+        self.assertEqual(len(json.loads(inspected.stdout)['chunks']), len(self.plan['chunks']))
+        self.run_fake()
+        merged = self.root/'cli-merged'
+        stitched = self.cli('stitch', self.plan_path, self.results, '--output', merged)
+        self.assertEqual(stitched.returncode, 0, stitched.stderr)
+        self.assertIn('Saved full-song separation', stitched.stdout)
+        validated = self.cli('validate-song', self.plan_path, merged)
+        self.assertEqual(validated.returncode, 0, validated.stderr)
+        self.assertIn('Validated 1 full-song pairs', validated.stdout)
+        again = self.cli('stitch', self.plan_path, self.results, '--output', merged)
+        self.assertEqual(again.returncode, 1)
+        self.assertIn('Output already exists', again.stderr)
+        self.assertNotIn('Traceback', again.stderr)
+
+    def test_target_arguments_must_be_distinct_name_description_pairs(self):
+        for command in ('prepare', 'prepare-song'):
+            for targets in (['vocals'], ['vocals=man singing', 'vocals=woman singing']):
+                extra = [] if command == 'prepare-song' else ['--duration', '1']
+                result = self.cli(command, self.root/'missing.wav', '--output', self.root/f'never-{command}',
+                                  *extra, *[item for target in targets for item in ('--target', target)])
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn('distinct NAME=DESCRIPTION pair', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+                self.assertFalse((self.root/f'never-{command}').exists())
 
     def test_stitch_preserves_single_chunk_and_one_sample_final_tail(self):
         for count in (100, 2000, 2001):
@@ -416,7 +460,7 @@ with lock(Path(sys.argv[2])):
         write_json(merged,report)
         with self.assertRaisesRegex(ValueError,'checksum'): validate_song_result(self.plan_path,merged)
 
-    @unittest.skipUnless(shutil.which('ffmpeg') and PLAYER.is_file(),'Build the native player and install FFmpeg')
+    @requires(shutil.which('ffmpeg') and PLAYER.is_file(),'Build the native player and install FFmpeg')
     def test_full_song_feature_bundle_native_reading_and_no_internal_window_padding(self):
         audio=self.root/'source.wav'
         signal=(np.sin(np.arange(96000)*2*np.pi*220/48000)*12000).astype('<i2')

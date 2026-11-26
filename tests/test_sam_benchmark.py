@@ -1,6 +1,12 @@
+import json
 import shutil
+import subprocess
+import sys
+import wave
 import tempfile
 import unittest
+
+from support import requires
 from pathlib import Path
 from unittest.mock import patch
 
@@ -136,6 +142,83 @@ class CenteredScoringTests(unittest.TestCase):
         self.assertAlmostEqual(report["means"]["references"]["vocal"], -0.036, places=5)
         self.assertNotAlmostEqual(report["raw"]["residual_error_rms"], report["residual_error_rms"], places=3)
         self.assertEqual([window["start_sample"] for window in report["vocal_windows"]], [0, 4800])
+
+    def test_scoring_refuses_waves_replaced_after_validation(self):
+        self.prepare(self.voice, self.guitar)
+        path, output = self.result("vocal-only", self.voice, np.zeros(9600))
+        from harmonic_analysis import sam_benchmark
+        original = sam_benchmark.validate_result
+
+        def validate_then_replace(*args):
+            report = original(*args)
+            wave = output / "vocals-target.wav"
+            data = bytearray(wave.read_bytes())
+            data[-4:] = np.float32(0.5).tobytes()
+            wave.write_bytes(bytes(data))
+            return report
+        with patch.object(sam_benchmark, "validate_result", side_effect=validate_then_replace):
+            with self.assertRaisesRegex(ValueError, "vocals-target.wav changed after validation"):
+                score_case(path, output, "vocal-only")
+
+    def test_preparation_rejects_misaligned_or_short_stems_and_bad_windows(self):
+        stems = [np.zeros((9600, 2), "<f4"), np.zeros((9599, 2), "<f4")]
+        with patch("harmonic_analysis.sam_benchmark.decode_audio", side_effect=stems):
+            with self.assertRaisesRegex(ValueError, "equal decoded lengths"):
+                prepare_cases(Path("v.wav"), Path("a.wav"), self.root / "unequal", start=0, duration=0.1)
+        for start, duration, message in ((0.15, 0.1, "beyond the reference stems"), (-1, 0.1, "nonnegative"),
+                                         (0, 31, "up to 30 seconds"), (0, float("nan"), "up to 30 seconds")):
+            stems = [np.zeros((9600, 2), "<f4")] * 2
+            with patch("harmonic_analysis.sam_benchmark.decode_audio", side_effect=stems):
+                with self.assertRaisesRegex(ValueError, message):
+                    prepare_cases(Path("v.wav"), Path("a.wav"), self.root / "window", start=start, duration=duration)
+        self.assertFalse((self.root / "unequal").exists() or (self.root / "window").exists())
+
+    def test_argument_checks_and_collinear_references(self):
+        self.prepare(self.voice, self.voice)
+        path, output = self.result("vocal-only", self.voice, np.zeros(9600))
+        for case, options, message in (("bogus", {}, "Invalid benchmark case"),
+                                       ("vocal-only", {"absent_limit": 1.5}, "absent-target limit"),
+                                       ("vocal-only", {"vocal": Path("v.wav")}, "apply to mixed cases")):
+            with self.assertRaisesRegex(ValueError, message):
+                score_case(path, output, case, **options)
+        path, output = self.result("mix", 2 * self.voice, np.zeros(9600))
+        with self.assertRaisesRegex(ValueError, "Both reference stems"):
+            score_case(path, output, "mix", vocal=Path("v.wav"))
+        # Identical vocal and accompaniment references cannot be told apart: gains are null.
+        report = self.score("mix", 2 * self.voice, np.zeros(9600))
+        self.assertEqual(report["reference_gains"], {"vocal": None, "accompaniment": None})
+        self.assertTrue(all(window["vocal_gain"] is None for window in report["vocal_windows"]))
+
+    @requires(shutil.which("ffmpeg"), "FFmpeg is required")
+    def test_prepare_and_score_through_the_command_line(self):
+        rate = 48000
+        t = np.arange(rate) / rate
+        for name, signal in (("vocal", 0.25 * np.sin(2 * np.pi * 440 * t)), ("backing", 0.125 * np.sin(2 * np.pi * 110 * t))):
+            with wave.open(str(self.root / f"{name}.wav"), "wb") as handle:
+                handle.setnchannels(2); handle.setsampwidth(2); handle.setframerate(rate)
+                pcm = np.round(np.repeat(signal[:, None], 2, axis=1) * 32767).astype("<i2")
+                handle.writeframes(pcm.tobytes())
+        cli = [sys.executable, "-m", "harmonic_analysis.sam_cli"]
+        jobs = self.root / "cli-jobs"
+        prepared = subprocess.run([*cli, "prepare-vocal-benchmark", self.root / "vocal.wav", self.root / "backing.wav",
+                                   "--output", jobs, "--duration", "0.5", "--start", "0.25"],
+                                  capture_output=True, text=True, timeout=60)
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.jobs = jobs
+        job, pcm = load_job(jobs / "vocal-only" / "job.json")
+        self.assertEqual((job["start_sample"], len(pcm)), (12000, 24000))
+        path, output = self.result("vocal-only", pcm.mean(axis=1), np.zeros(len(pcm)))
+        scored = subprocess.run([*cli, "benchmark-vocals", path, output, "--case", "vocal-only"],
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(scored.returncode, 0, scored.stderr)
+        report = json.loads(scored.stdout)
+        self.assertEqual(report["kind"], "harmonic.sam-vocal-benchmark.v2")
+        self.assertAlmostEqual(report["reference_gains"]["vocal"]["target"], 1, places=5)
+        missing = subprocess.run([*cli, "benchmark-vocals", path, output, "--case", "mix"],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("Both reference stems", missing.stderr)
+        self.assertNotIn("Traceback", missing.stderr)
 
     def test_constant_and_silent_references_are_rejected(self):
         self.prepare(np.full(9600, 0.1), self.guitar)

@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+
+from support import requires
 import wave
 
 import numpy as np
@@ -16,7 +18,7 @@ from harmonic_analysis.analysis import analyze, sha256_file
 PLAYER = Path(os.environ.get("HARMONIC_PLAYER", "build/harmonic-player")).resolve()
 
 
-@unittest.skipUnless(PLAYER.is_file() and shutil.which("ffmpeg"), "Build the native player to run integration checks")
+@requires(PLAYER.is_file() and shutil.which("ffmpeg"), "Build the native player to run integration checks")
 class NativeIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

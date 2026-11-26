@@ -521,17 +521,17 @@ start. The mixed input is their sample-by-sample sum. Use one prompt for
 all three cases. Run each generated job through the regular SAM worker.
 
 ```sh
-.venv/bin/harmonic-sam prepare-vocal-benchmark vocal.wav backing.wav \
-  --duration 12 --output data/vocal-benchmark/jobs
-.venv/bin/harmonic-sam benchmark-vocals data/vocal-benchmark/jobs/mix \
-  data/vocal-benchmark/results/mix --case mix \
-  --vocal-stem vocal.wav --accompaniment-stem backing.wav
+just sam-vocal-benchmark-prepare vocal.wav backing.wav data/vocal-benchmark/jobs 0 12
+just sam-vocal-score-mix data/vocal-benchmark/jobs/mix \
+  data/vocal-benchmark/results/mix vocal.wav backing.wav
+just sam-vocal-score-isolated data/vocal-benchmark/jobs/vocal-only \
+  data/vocal-benchmark/results/vocal-only
 just sam-vocal-control data/aws-gpu/vocal-followup/jobs/guitar-005-025 \
   data/aws-gpu/vocal-followup/output/results/guitar-005-025
 ```
 
-For a saved isolated case, select `--case vocal-only` or
-`--case accompaniment-only`. The job PCM supplies its reference.
+For accompaniment-only cases use `just sam-vocal-control`; both isolated
+recipes use the job PCM as the reference.
 Mixed cases verify that the supplied stems reproduce the prepared job on
 its original sample grid. Scoring removes each stream's mean over the whole
 excerpt (input, references, target, residual) so constant sample offsets
@@ -617,7 +617,12 @@ files are never redistributed.
 
 Target RMS therefore cannot indicate whether a source is present. Downstream
 features need a separate presence signal before a "vocals" stream can be
-trusted on instrumental passages.
+trusted on instrumental passages. An offline study of runtime-only cues
+(`presence.py`, `presence_cv.py`, and `scores/presence-*.json`) found two that
+detect the bass fill-in: the target's energy fraction below 150 Hz (vocal AUC
+0.92) and correlation with other targets (0.89). Neither is reliable when a
+melodic instrument fills the vocal target. The electronic instrumental was
+called vocal in every window under leave-one-song-out testing.
 
 ## License observations
 

@@ -144,6 +144,16 @@ Local evidence is ignored by Git. See the
   bass targets, or agreement across prompts (only the mismatched-gender prompt
   produced silence). Then expose a per-window presence flag in source features
   so scenes do not animate "vocals" from bass.
+  **Offline cue study (2026-11-26, `data/aws-gpu/musdb-run/presence*.py`):**
+  per 1 s window, target RMS cannot separate present from absent vocals
+  (AUC 0.47). The target's energy fraction below 150 Hz scores AUC 0.92, and
+  correlation with other targets scores 0.89 for vocals and 0.83 for drums.
+  A leave-one-song-out logistic model reaches held-out AUC 0.96–0.98 on the
+  sung tracks, but classified the electronic instrumental (vocal target
+  filled by a synth line) as vocal in 100% of windows, and drums on reggae
+  reached only 0.65. Hand-built cues catch the bass fill-in, not melodic
+  fill-ins. Next candidate: SAM's own span predictor (`predict_spans`, disabled
+  in the pinned settings). That needs a worker setting change and a GPU run.
 - [ ] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
   Measure target-GPU frame times, stutters, and physical-output timing after
   seeks. Investigate the known GLX search-path warning involving `~/.local/lib`.
@@ -197,12 +207,12 @@ Local evidence is ignored by Git. See the
   none, so excerpt runs resolve the current T5 head. Song plans already pin
   `sam_chunks.TEXT_REVISION`. Store the revision in excerpt jobs or default it,
   and expose it in the recipe so excerpt results stay comparable.
-- [ ] **Fail releases when integration tests are skipped** (p2) [test]
+- [x] **Fail releases when integration tests are skipped** (p2) [test]
   Native, FFmpeg, and projectM tests use `skipUnless`, so `just release` can
   publish on a host without ffmpeg or a player build. Add an opt-in flag (for
   example `HARMONIC_REQUIRE_INTEGRATION=1`, set by `release`) that turns those
   skips into failures, or at least report the skip count.
-- [ ] **Cover the remaining `harmonic-sam` subcommands and benchmark edges** (p2) [test]
+- [x] **Cover the remaining `harmonic-sam` subcommands and benchmark edges** (p2) [test]
   No argparse-level tests for `prepare-vocal-benchmark`, `benchmark-vocals`,
   `stitch`, `validate-song`, `inspect-song`, or `--target` parsing
   (`sam_cli.py`). `tests/test_sam_benchmark.py` lacks unequal stems, excerpts
@@ -249,11 +259,11 @@ Local evidence is ignored by Git. See the
   Smaller SAM checkpoints, Demucs, or paid services can provide controlled
   references if access, licensing, capacity, and the quality question warrant it.
 
-- [ ] **Return clean errors for malformed stitch completion records** (p3) [bug]
+- [x] **Return clean errors for malformed stitch completion records** (p3) [bug]
   `sam_chunks.py:357-358` indexes `run["plan_sha256"]` directly; a missing key
   or a non-object JSON raises KeyError/TypeError past the CLI's OSError and
   ValueError handler (`sam_cli.py:278`). Wrap the read in ValueError.
-- [ ] **Re-check WAV digests when scoring the benchmark** (p3) [bug]
+- [x] **Re-check WAV digests when scoring the benchmark** (p3) [bug]
   `sam_benchmark.py:92-93` reads the target/residual again after validation
   without comparing them to the report sha256 (stitching does), and a
   `struct.error` from `read_wave` reaches the user as a traceback.
@@ -261,11 +271,11 @@ Local evidence is ignored by Git. See the
   `sam_benchmark.py:43-44` stores a placeholder source path and only the PCM
   hash. Store each stem's path, sha256, and PCM sha256 so archived scores trace
   back to their source assets.
-- [ ] **Add just recipes for the vocal benchmark** (p3) [docs]
+- [x] **Add just recipes for the vocal benchmark** (p3) [docs]
   Only `sam-vocal-control` exists. `workers/sam_audio/README.md:524-527` calls
   `harmonic-sam prepare-vocal-benchmark` and `benchmark-vocals --case mix`
   directly. Add recipes for preparing and scoring each case and update the README.
-- [ ] **Honor `HARMONIC_PLAYER` in the chunk tests** (p3) [test]
+- [x] **Honor `HARMONIC_PLAYER` in the chunk tests** (p3) [test]
   `tests/test_sam_chunks.py:28` hard-codes `build/harmonic-player`, while the
   other test files accept the override.
 - [ ] **Add CI for the Python tests and native build** (p3) [chore]
