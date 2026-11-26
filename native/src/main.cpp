@@ -13,7 +13,7 @@ struct Options {
     std::filesystem::path manifest, audio, render_check, preset, compositor_check, frame_report;
     std::vector<std::string> textures;
     bool help = false, version = false, inspect = false, audio_check = false;
-    bool explicit_view = false, residuals = false, fullscreen = false;
+    bool explicit_view = false, residuals = false, fullscreen = false, explicit_offset = false, save_offset = false;
     int width = 1280, height = 720;
     harmonic::Renderer::View view = harmonic::Renderer::View::graphs;
     int render_frames = 1;
@@ -40,7 +40,8 @@ void usage() {
         "  --view MODE           combined, preset, or graphs (default: combined with preset)\n"
         "  --sources MODE        Show SAM targets (default) or residuals in source graphs\n"
         "  --start SECONDS       Start at a position in the recording\n"
-        "  --offset-ms NUMBER    Feature timing offset; positive reads ahead\n"
+        "  --offset-ms NUMBER    Feature timing offset; positive reads ahead (overrides a saved offset)\n"
+        "  --save-offset         Save --offset-ms for the current output device and exit\n"
         "  --inspect             Validate bundle, checksums, and native decoding; no devices\n"
         "  --audio-check         Check the playback clock, pause/resume, and seek; no window\n"
         "  --render-check FILE   Render one frame to PPM using SDL's offscreen driver\n"
@@ -53,7 +54,8 @@ void usage() {
         "  --seek-every SECONDS  Scripted seeks during a frame report\n"
         "\nControls: Space play/pause; arrows seek 5s (Shift: 30s); Home restart;\n"
         "N absolute/normalized scale; R targets/residuals; V preset/graphs view; comma/period offset -/+10ms;\n"
-        "Backspace reset offset; click the track envelope to seek; Escape quit.\n"
+        "Backspace reset offset; S save offset for this output device; click the track envelope to seek;\n"
+        "Escape quit. Saved offsets live in $XDG_CONFIG_HOME/harmonic/calibration.json.\n"
         "\nprojectM playback: " << (harmonic::projectm_playback_available() ? "enabled" : "disabled") << '\n';
 }
 double numeric(const std::string& value) {
@@ -89,7 +91,11 @@ Options parse(int argc, char** argv) {
             options.residuals = mode == "residuals";
         }
         else if (argument == "--start") options.start = numeric(value());
-        else if (argument == "--offset-ms") options.offset_ms = numeric(value());
+        else if (argument == "--offset-ms") {
+            options.offset_ms = numeric(value());
+            options.explicit_offset = true;
+        }
+        else if (argument == "--save-offset") options.save_offset = true;
         else if (argument == "--exit-after") options.exit_after = numeric(value());
         else if (argument == "--size") {
             const auto size = value();
@@ -134,7 +140,11 @@ Options parse(int argc, char** argv) {
         if (!options.explicit_view) options.view = harmonic::Renderer::View::combined;
     }
     if (options.render_frames != 1 && options.render_check.empty()) throw std::runtime_error("--render-frames requires --render-check");
+    if (std::abs(options.offset_ms) > harmonic::max_offset_seconds * 1000)
+        throw std::runtime_error("Offset must be within +/-2000 ms");
     const bool check_mode = options.inspect || options.audio_check || !options.render_check.empty() || !options.compositor_check.empty();
+    if (options.save_offset && (!options.explicit_offset || check_mode || !options.frame_report.empty() || !options.preset.empty()))
+        throw std::runtime_error("--save-offset needs --offset-ms and no check, preset, or report options");
     if (check_mode && (options.fullscreen || !options.frame_report.empty()))
         throw std::runtime_error("--fullscreen and --frame-report apply to interactive playback only");
     if (!options.frame_report.empty() && options.exit_after <= 0) throw std::runtime_error("--frame-report requires --exit-after");
@@ -245,7 +255,7 @@ int main(int argc, char** argv) {
         }
         const bool video_check = !options.render_check.empty() || !options.compositor_check.empty();
         if (video_check) SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "offscreen");
-        check(SDL_Init(video_check ? SDL_INIT_VIDEO : (options.audio_check ? SDL_INIT_AUDIO : SDL_INIT_AUDIO | SDL_INIT_VIDEO)), "Initialize SDL");
+        check(SDL_Init(video_check ? SDL_INIT_VIDEO : (options.audio_check || options.save_offset ? SDL_INIT_AUDIO : SDL_INIT_AUDIO | SDL_INIT_VIDEO)), "Initialize SDL");
         struct QuitSDL { ~QuitSDL() { SDL_Quit(); } } quit;
         if (video_check) {
             harmonic::Renderer renderer(1280, 720, true);
@@ -274,6 +284,25 @@ int main(int argc, char** argv) {
         }
         harmonic::Transport transport(audio);
         if (options.audio_check) { audio_check(transport); return 0; }
+        const auto device = transport.device_key();
+        std::filesystem::path calibration_file;
+        std::optional<double> saved_ms;
+        try {
+            calibration_file = harmonic::calibration_path();
+            const auto calibration = harmonic::load_calibration(calibration_file, device);
+            if (!calibration.error.empty())
+                std::cerr << "🟡 Ignoring " << calibration_file.string() << ": " << calibration.error << '\n';
+            saved_ms = calibration.offset_ms;
+        } catch (const std::exception& error) {
+            std::cerr << "🟡 " << error.what() << '\n';
+        }
+        if (options.save_offset) {
+            if (calibration_file.empty()) throw std::runtime_error("No calibration file location");
+            harmonic::save_calibration(calibration_file, device, options.offset_ms);
+            std::cout << "🟢 Saved offset " << options.offset_ms << " ms for " << device << " in "
+                      << calibration_file.string() << '\n';
+            return 0;
+        }
         harmonic::Renderer renderer(options.width, options.height, false);
         if (options.fullscreen) {
             check(SDL_SetWindowFullscreen(renderer.window(), true), "Enter fullscreen");
@@ -289,6 +318,22 @@ int main(int argc, char** argv) {
         }
         bool running = true, relative = true;
         double offset = options.offset_ms / 1000;
+        std::string offset_source = options.explicit_offset ? "argument" : "default";
+        if (!options.explicit_offset && saved_ms) {
+            offset = *saved_ms / 1000;
+            offset_source = "device";
+            std::cout << "🔵 Applying saved offset " << *saved_ms << " ms for " << device << '\n';
+        }
+        const double initial_offset_ms = offset * 1000;
+        auto same_ms = [](double a, double b) { return std::abs(a - b) < 0.05; };
+        auto update_offset_label = [&] {
+            const double ms = offset * 1000;
+            if (saved_ms && same_ms(ms, *saved_ms)) renderer.set_offset_label("DEVICE");
+            else if (options.explicit_offset && same_ms(ms, options.offset_ms)) renderer.set_offset_label("ARG");
+            else if (saved_ms || !same_ms(ms, 0)) renderer.set_offset_label("UNSAVED");
+            else renderer.set_offset_label("");
+        };
+        update_offset_label();
         auto view = options.view;
         auto prepare_preset = [&](double position) {
             if (preset && view != harmonic::Renderer::View::graphs) {
@@ -324,7 +369,19 @@ int main(int argc, char** argv) {
             seek_now(seconds);
             timer->seek(requested, SDL_GetTicksNS(), from, transport.position());
         };
-        auto set_offset = [&](double seconds) { offset = seconds; reset_preset(); };
+        auto set_offset = [&](double seconds) { offset = seconds; reset_preset(); update_offset_label(); };
+        auto save_offset = [&] {
+            // A failed save is reported but never interrupts playback.
+            try {
+                if (calibration_file.empty()) throw std::runtime_error("No calibration file location");
+                harmonic::save_calibration(calibration_file, device, offset * 1000);
+                saved_ms = std::round(offset * 10000) / 10;
+                update_offset_label();
+                std::cout << "🟢 Saved offset " << *saved_ms << " ms for " << device << '\n';
+            } catch (const std::exception& error) {
+                std::cerr << "🔴 Offset not saved: " << error.what() << '\n';
+            }
+        };
         seek(options.start);
         transport.resume();
         const Uint64 started = SDL_GetTicksNS();
@@ -359,8 +416,9 @@ int main(int argc, char** argv) {
                             else { view = harmonic::Renderer::View::combined; reset_preset(); }
                         }
                         break;
-                    case SDLK_COMMA: set_offset(std::max(-2.0, offset - 0.01)); break;
-                    case SDLK_PERIOD: set_offset(std::min(2.0, offset + 0.01)); break;
+                    case SDLK_COMMA: set_offset(std::max(-harmonic::max_offset_seconds, offset - 0.01)); break;
+                    case SDLK_PERIOD: set_offset(std::min(harmonic::max_offset_seconds, offset + 0.01)); break;
+                    case SDLK_S: save_offset(); break;
                     case SDLK_BACKSPACE: set_offset(0); break;
                     default: break;
                     }
@@ -429,6 +487,10 @@ int main(int argc, char** argv) {
             output["driver"] = SDL_GetCurrentAudioDriver() ? SDL_GetCurrentAudioDriver() : "";
             output["sample_rate"] = harmonic::sample_rate;
             output["device_buffer_seconds"] = transport.buffer_seconds();
+            output["device"] = device;
+            context["offset"]["initial_ms"] = initial_offset_ms;
+            context["offset"]["final_ms"] = offset * 1000;
+            context["offset"]["source"] = offset_source;
             timer->write(options.frame_report, context);
             std::cout << "🟢 Frame report: " << options.frame_report.string() << '\n';
         }

@@ -113,6 +113,12 @@ void Transport::seek(double seconds) {
     if (was_playing) check(SDL_ResumeAudioStreamDevice(stream_), "Resume after seek");
 }
 
+std::string Transport::device_key() const {
+    const char* driver = SDL_GetCurrentAudioDriver();
+    const char* name = SDL_GetAudioDeviceName(SDL_GetAudioStreamDevice(stream_));
+    return std::string(driver ? driver : "unknown") + "/" + (name ? name : "default");
+}
+
 std::int64_t Transport::queued_frames() {
     Lock lock(stream_);
     const int queued = SDL_GetAudioStreamQueued(stream_);

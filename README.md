@@ -156,12 +156,33 @@ Controls:
 | Restart | Home or Restart |
 | Switch absolute/track-normalized display | N or the scale button |
 | Cycle combined, preset, and graph views when a preset is loaded | V |
-| Adjust visual synchronization | Comma/period: -/+10 ms; Backspace: reset |
+| Adjust visual synchronization | Comma/period: -/+10 ms; Backspace: reset to 0 |
+| Save the offset for this output device | S |
 | Quit | Escape or close the window |
 
 Positive synchronization offset reads features and preset PCM ahead of the displayed audio time.
 An amber envelope marker shows the adjusted feature position. Playback starts
 automatically; it pauses at the end and Play restarts it.
+
+Output paths differ in latency, and SDL reports only its own buffer, so the
+offset is calibrated per output device. Tune it by ear with comma and period,
+then press **S** to save it. Saved offsets are stored in
+`$XDG_CONFIG_HOME/harmonic/calibration.json` (default `~/.config`), keyed by
+`<SDL audio driver>/<device name>`, such as
+`pulseaudio/Xonar SoundCard Analog Stereo`. The player applies the saved offset
+for the active device at startup. An explicit `--offset-ms` overrides it, and
+`--offset-ms N --save-offset` saves one without playing. Offsets are limited
+to +/-2000 ms.
+
+The readout after the offset shows where it came from:
+
+- `DEVICE`: the saved value.
+- `ARG`: the `--offset-ms` value.
+- `UNSAVED`: changed since loading.
+
+A calibration file that cannot be parsed is reported, ignored, and never
+overwritten. Check modes (`--render-check`, `--compositor-check`, `--inspect`)
+never apply saved offsets.
 
 Additional options:
 
@@ -398,10 +419,16 @@ vsyncs and intervals over 2.5 periods as stalls.
 The runner samples the ALSA hardware queue (`/proc/asound/.../status`) while
 each scenario plays. It records the compositor, GPU clients and load, the
 PipeWire quantum, and `xrandr`, and writes reports, logs, exit statuses, and
-`summary.json` under `data/perf/`. The latency figure is a software-chain
-estimate: the player's clock subtracts SDL's device buffer, while the ALSA
-queue behind the sound server is not compensated. The DAC and panel latency are
-unmeasured.
+`summary.json` under `data/perf/`. Frame reports also record the applied offset,
+its source, and the output device.
+
+The latency fields report only the queues the system exposes. The player's
+clock subtracts SDL's device buffer; the ALSA queue behind the sound server is
+not compensated. The `alsa-refr` column subtracts one refresh from the ALSA
+queue. Both terms are minimums: the sound server and DAC add to the audio side,
+and a compositor adds frames to the picture. The column therefore bounds
+neither the size nor the sign of the real audio/picture offset. Use a saved
+device offset for that.
 
 Results on 2026-11-26 (GTX 960, driver 580.178.04, i3 with picom, one
 2560x1440 monitor at 59.95 Hz, with Chrome, glava, and four mpv clients also on
@@ -421,8 +448,10 @@ the GPU):
   new frame for about 100 ms while the preset resets, and settles in
   117-133 ms.
 - The ALSA queue held a median 28-29 ms against a compensated 16 ms SDL
-  buffer. Audio therefore reaches the DAC at least about 12 ms after its frame
-  is presented.
+  buffer. The picture took at least one 16.7 ms refresh, and picom adds about
+  one more frame in windowed mode. The real offset is therefore unknown in
+  both size and sign. (v0.19.0 called this a lower bound of 12 ms; that was
+  wrong.)
 
 ## SAM source features and graphs
 

@@ -150,6 +150,8 @@ def summarize(report: dict) -> dict:
         "sdl_queue": _stats(queued[keep] * 1000 / rate),
         "device_buffer_ms": report["audio"]["device_buffer_seconds"] * 1000,
         "audio_driver": report["audio"]["driver"],
+        "audio_device": report["audio"].get("device"),
+        "offset": report.get("offset"),
     }
 
 
@@ -214,22 +216,24 @@ class AlsaSampler:
 
 
 def latency_estimate(summary: dict, alsa: dict | None) -> dict:
-    """Combine reported queues into an audio-versus-picture offset estimate.
+    """Report the queues the system exposes; this is not an offset measurement.
 
     The player's clock already subtracts the SDL device buffer. The ALSA queue
-    downstream of the sound server is not compensated, and the picture reaches
-    the panel about one refresh after its swap. A positive offset means sound
-    arrives after the frame that shows its position. Sound-server buffering
-    beyond ALSA and the DAC and panel delays are not included, so the offset is
-    a lower bound on audio lateness.
+    behind the sound server is not compensated, and the picture needs at least
+    one refresh after its swap. `alsa_minus_refresh_ms` subtracts the second
+    from the first. Both are minimums: the sound server and DAC add to the
+    audio side, and a compositor adds frames to the picture side. The
+    difference therefore bounds neither the size nor the sign of the real
+    offset. Calibrate by ear or with a loopback.
     """
     estimate = {"compensated_device_buffer_ms": summary["device_buffer_ms"],
                 "display_present_ms": summary["period_ms"], "alsa_delay_ms": None,
-                "audio_late_lower_bound_ms": None, "basis": "software chain; DAC and panel latency unmeasured"}
+                "alsa_minus_refresh_ms": None,
+                "basis": "reported minimums only; not a bound on the audio/picture offset"}
     if alsa and alsa["delay_ms"]:
         estimate["alsa_device"] = alsa["device"]
         estimate["alsa_delay_ms"] = alsa["delay_ms"]
-        estimate["audio_late_lower_bound_ms"] = alsa["delay_ms"]["p50"] - summary["period_ms"]
+        estimate["alsa_minus_refresh_ms"] = alsa["delay_ms"]["p50"] - summary["period_ms"]
     return estimate
 
 
@@ -398,7 +402,7 @@ def _fmt(value, digits=1):
 
 def table(results: dict) -> str:
     rows = [("scenario", "px", "fps", "int p50", "int p99", "int max", "missed", "stalls",
-             "cpu p99", "gpu p99", "seek p50", "seek max", "alsa p50", "late>=")]
+             "cpu p99", "gpu p99", "seek p50", "seek max", "alsa p50", "alsa-refr")]
     for entry in results["scenarios"]:
         summary = entry.get("summary")
         if not summary:
@@ -414,7 +418,7 @@ def table(results: dict) -> str:
             _fmt(summary["seek_settle"]["p50"] if summary["seek_settle"] else None),
             _fmt(summary["seek_present"]["max"] if summary["seek_present"] else None),
             _fmt(latency["alsa_delay_ms"]["p50"] if latency["alsa_delay_ms"] else None),
-            _fmt(latency["audio_late_lower_bound_ms"])))
+            _fmt(latency["alsa_minus_refresh_ms"])))
     widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
     return "\n".join("  ".join(cell.ljust(width) for cell, width in zip(row, widths)) for row in rows)
 

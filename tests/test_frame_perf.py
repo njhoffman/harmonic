@@ -25,7 +25,9 @@ def report(intervals_ms=None, frames=150, seeks=None, refresh=50.0, gpu=None):
         "kind": "harmonic.frame-report.v1", "frame_count": frames, "view": "graphs", "preset": None,
         "gl": {"renderer": "Test GPU", "swap_interval": 1},
         "display": {"refresh_hz": refresh, "pixel_width": 1920, "pixel_height": 1080, "fullscreen": False},
-        "audio": {"sample_rate": 48000, "device_buffer_seconds": 0.016, "driver": "dummy"},
+        "audio": {"sample_rate": 48000, "device_buffer_seconds": 0.016, "driver": "dummy",
+                  "device": "dummy/System audio playback device"},
+        "offset": {"initial_ms": -20.0, "final_ms": -20.0, "source": "device"},
         "frames": {"begin_ns": begin, "draw_ns": draw, "swap_ns": swap,
                    "gpu_ns": gpu if gpu is not None else [2_000_000] * frames,
                    "position": [index / 50 for index in range(frames)], "queued_frames": [960] * frames},
@@ -51,6 +53,8 @@ class SummarizeTests(unittest.TestCase):
         self.assertAlmostEqual(summary["fps"], 50.0)
         self.assertAlmostEqual(summary["sdl_queue"]["p50"], 20.0)
         self.assertEqual(summary["steady"], {"missed_vsync": 0, "stalls": 0})
+        self.assertEqual(summary["offset"]["source"], "device")
+        self.assertEqual(summary["audio_device"], "dummy/System audio playback device")
         # Frames 0-49 begin within the first second (start-up), so 100 of the
         # 149 intervals, those ending on frames 50-149, are steady playback.
         self.assertEqual(summary["frames"], 150)
@@ -133,11 +137,11 @@ class OutputChainTests(unittest.TestCase):
         summary = {"device_buffer_ms": 16.0, "period_ms": 16.68}
         alsa = {"device": "Xonar/pcm0p/sub0", "delay_ms": {"p50": 42.4}}
         estimate = latency_estimate(summary, alsa)
-        self.assertAlmostEqual(estimate["audio_late_lower_bound_ms"], 42.4 - 16.68)
+        self.assertAlmostEqual(estimate["alsa_minus_refresh_ms"], 42.4 - 16.68)
         self.assertEqual(estimate["compensated_device_buffer_ms"], 16.0)
         unknown = latency_estimate(summary, None)
         self.assertIsNone(unknown["alsa_delay_ms"])
-        self.assertIsNone(unknown["audio_late_lower_bound_ms"])
+        self.assertIsNone(unknown["alsa_minus_refresh_ms"])
 
 
 class DesktopLoadTests(unittest.TestCase):

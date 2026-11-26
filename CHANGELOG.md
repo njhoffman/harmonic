@@ -5,6 +5,38 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-26
+
+### Added
+
+- Per-device sync offsets. Press **S** during playback to save the current
+  offset for the active output device (`<SDL audio driver>/<device name>`) in
+  `$XDG_CONFIG_HOME/harmonic/calibration.json` (default `~/.config`).
+  - The player applies the saved offset at startup, and `--offset-ms`
+    overrides it.
+  - `--offset-ms N --save-offset` saves an offset without playing.
+  - The offset readout shows `DEVICE`, `ARG`, or `UNSAVED`.
+  - Saving keeps other devices' entries and writes the file atomically.
+  - A file that cannot be parsed is reported, ignored, and never overwritten.
+- Frame reports and summaries record the applied offset, its source, and the
+  output device.
+
+### Changed
+
+- **Incompatible:** `--offset-ms` now rejects values beyond +/-2000 ms, the
+  range the offset keys already enforced.
+- **Incompatible:** in `just perf-desktop` summaries, `audio_late_lower_bound_ms`
+  is renamed `alsa_minus_refresh_ms`, and the table column `late>=` is now
+  `alsa-refr`.
+
+### Fixed
+
+- Corrected the v0.19.0 latency reading. The ALSA queue minus one refresh is
+  not a lower bound on how late audio is: the sound server and DAC add to the
+  audio side, and the compositor adds frames to the picture. The real offset's
+  size and sign stay unmeasured until a loopback check; until then, calibrate
+  per device.
+
 ## [0.19.0] - 2026-11-26
 
 ### Added
@@ -689,7 +721,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.20.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -737,3 +769,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.17.1]: https://github.com/njhoffman/harmonic/tree/v0.17.1
 [0.18.0]: https://github.com/njhoffman/harmonic/tree/v0.18.0
 [0.19.0]: https://github.com/njhoffman/harmonic/tree/v0.19.0
+[0.20.0]: https://github.com/njhoffman/harmonic/tree/v0.20.0

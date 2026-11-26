@@ -6,13 +6,16 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace harmonic {
 
 inline constexpr int sample_rate = 48000;
 inline constexpr int channels = 2;
+inline constexpr double max_offset_seconds = 2.0;
 
 std::string sha256(const void* data, std::size_t bytes);
 std::string sha256_file(const std::filesystem::path& path);
@@ -73,6 +76,8 @@ public:
     double position();
     double duration() const { return static_cast<double>(audio_.size() / channels) / sample_rate; }
     double buffer_seconds() const { return buffer_seconds_; }
+    // "<SDL audio driver>/<output device name>": the key for saved calibration.
+    std::string device_key() const;
     // Frames written to the SDL stream that the device has not consumed yet.
     std::int64_t queued_frames();
     std::string error();
@@ -99,6 +104,8 @@ public:
     Renderer& operator=(const Renderer&) = delete;
     SDL_Window* window() const { return window_; }
     void set_residuals(bool value) { residuals_ = value; }
+    // Shown after the offset readout: where the current offset came from.
+    void set_offset_label(std::string value) { offset_label_ = std::move(value); }
     enum class View { graphs, combined, preset };
     void draw(const Bundle& bundle, double seconds, bool paused, double offset, bool relative,
               View view = View::graphs);
@@ -116,6 +123,7 @@ private:
     unsigned int program_ = 0, vao_ = 0, vbo_ = 0;
     int resolution_ = -1;
     bool residuals_ = false;
+    std::string offset_label_;
     std::vector<Vertex> vertices_;
 };
 
@@ -137,6 +145,18 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+
+// Per-output-device feature offsets saved from the player (S key). The file is
+// $XDG_CONFIG_HOME/harmonic/calibration.json (default ~/.config). A file that
+// cannot be parsed is reported in `error`, never applied, and never overwritten.
+struct Calibration {
+    std::filesystem::path path;
+    std::optional<double> offset_ms;
+    std::string error;
+};
+std::filesystem::path calibration_path();
+Calibration load_calibration(const std::filesystem::path& path, const std::string& device);
+void save_calibration(const std::filesystem::path& path, const std::string& device, double offset_ms);
 
 // Records per-frame CPU, swap, and GPU timing plus scripted seeks for a
 // --frame-report. GPU time uses GL_TIMESTAMP pairs, which cannot conflict with

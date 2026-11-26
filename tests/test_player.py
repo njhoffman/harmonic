@@ -35,8 +35,10 @@ class NativeIntegrationTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.manifest_path = analyze(self.audio, self.root / "bundle")
 
-    def invoke(self, *arguments, interactive=False):
-        environment = dict(os.environ, SDL_AUDIODRIVER="dummy")
+    def invoke(self, *arguments, interactive=False, config=None):
+        # Never read or write the owner's saved offsets.
+        environment = dict(os.environ, SDL_AUDIODRIVER="dummy",
+                           XDG_CONFIG_HOME=str(config or self.root / "config"))
         if interactive:
             environment["SDL_VIDEODRIVER"] = "offscreen"
         return subprocess.run([str(PLAYER), str(self.manifest_path), *arguments],
@@ -101,6 +103,76 @@ class NativeIntegrationTests(unittest.TestCase):
             self.assertGreaterEqual(seek["call_ns"], 0)
             self.assertGreaterEqual(seek["to"], 0)
         self.assertFalse(report_path.with_name("frames.json.tmp").exists())
+        self.assertEqual(report["offset"], {"initial_ms": 0.0, "final_ms": 0.0, "source": "default"})
+        self.assertTrue(report["audio"]["device"].startswith("dummy/"))
+
+    def frame_offset(self, *arguments):
+        report_path = self.root / "offset-frames.json"
+        result = self.invoke(*arguments, "--exit-after", "0.2", "--frame-report", str(report_path),
+                             interactive=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result, json.loads(report_path.read_text())["offset"]
+
+    def test_saved_device_offset_is_applied_and_overridden(self):
+        saved = self.invoke("--offset-ms", "-20", "--save-offset")
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        calibration_path = self.root / "config" / "harmonic" / "calibration.json"
+        calibration = json.loads(calibration_path.read_text())
+        self.assertEqual(calibration["kind"], "harmonic.calibration.v1")
+        (device, entry), = calibration["devices"].items()
+        self.assertTrue(device.startswith("dummy/"))
+        self.assertEqual(entry["offset_ms"], -20.0)
+        self.assertRegex(entry["saved"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        result, offset = self.frame_offset()
+        self.assertIn("Applying saved offset -20 ms", result.stdout)
+        self.assertEqual(offset, {"initial_ms": -20.0, "final_ms": -20.0, "source": "device"})
+        _, offset = self.frame_offset("--offset-ms", "15")
+        self.assertEqual(offset["source"], "argument")
+        self.assertEqual(offset["initial_ms"], 15.0)
+        # Saving another value keeps one entry per device and replaces it.
+        self.assertEqual(self.invoke("--offset-ms", "-30.04", "--save-offset").returncode, 0)
+        calibration = json.loads(calibration_path.read_text())
+        self.assertEqual(list(calibration["devices"]), [device])
+        self.assertEqual(calibration["devices"][device]["offset_ms"], -30.0)
+        self.assertFalse(calibration_path.with_name("calibration.json.tmp").exists())
+
+    def test_other_devices_are_preserved_and_bad_files_are_never_applied_or_overwritten(self):
+        calibration_path = self.root / "config" / "harmonic" / "calibration.json"
+        calibration_path.parent.mkdir(parents=True)
+        other = {"offset_ms": 12.5, "saved": "2026-01-01T00:00:00Z", "player_version": "0.1.0"}
+        calibration_path.write_text(json.dumps({"kind": "harmonic.calibration.v1",
+                                                "devices": {"pulseaudio/HDMI": other}}))
+        self.assertEqual(self.invoke("--offset-ms", "-10", "--save-offset").returncode, 0)
+        devices = json.loads(calibration_path.read_text())["devices"]
+        self.assertEqual(devices["pulseaudio/HDMI"], other)
+        self.assertEqual(len(devices), 2)
+        for content, message in (("{bad", "unreadable JSON"),
+                                 (json.dumps({"kind": "other", "devices": {}}), "expected kind"),
+                                 (json.dumps({"kind": "harmonic.calibration.v1",
+                                              "devices": {"x": {"offset_ms": 2500}}}), "within +/-2000")):
+            with self.subTest(message=message):
+                calibration_path.write_text(content)
+                result, offset = self.frame_offset()
+                self.assertIn("Ignoring", result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(offset["source"], "default")
+                refused = self.invoke("--offset-ms", "5", "--save-offset")
+                self.assertNotEqual(refused.returncode, 0)
+                self.assertIn("Refusing to overwrite", refused.stderr)
+                self.assertEqual(calibration_path.read_text(), content)
+
+    def test_offset_options_are_validated(self):
+        cases = [
+            (("--offset-ms", "2000.5"), "within +/-2000"),
+            (("--save-offset",), "needs --offset-ms"),
+            (("--offset-ms", "5", "--save-offset", "--inspect"), "needs --offset-ms"),
+        ]
+        for arguments, message in cases:
+            with self.subTest(arguments=arguments):
+                result = self.invoke(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+        self.assertFalse((self.root / "config").exists())
 
     def test_frame_report_options_are_validated(self):
         report = str(self.root / "frames.json")

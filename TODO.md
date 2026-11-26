@@ -181,16 +181,23 @@ Local evidence is ignored by Git. See the
   (1440p). Output latency is a software-chain estimate only (see the loopback
   item). The GLX runtime-path warning no longer appears: `~/.local/lib` holds no
   GL libraries.
-- [ ] **Compensate the uncompensated output queue in the audio clock** (p1) [bug]
+- [x] **Calibrate the audio/picture offset per output device** (p1) [bug]
   The clock subtracts only SDL's 16 ms device buffer. The ALSA hardware queue
-  behind PipeWire holds a median 28-29 ms, so sound reaches the DAC at least
-  about 12 ms after the frame showing its position (after one 16.7 ms refresh
-  for the picture). Options: a measured default `--offset-ms`, or reading the
-  sink latency at runtime. Confirm the direction with the loopback measurement.
-- [ ] **Measure physical audio/picture offset with a loopback** (p2) [test]
-  The frame report adds up reported queues only; DAC, sound-server buffering
-  beyond ALSA, and panel latency are unmeasured. Add a flash-and-click
-  calibration view and record it with a camera or microphone at the desk.
+  behind PipeWire holds a median 28-29 ms, and the picture needs at least one
+  16.7 ms refresh plus a picom frame when windowed. The real offset is unknown in
+  size and sign (v0.19.0 wrongly reported a 12 ms lower bound), and SDL exposes
+  no output latency, so a fixed correction would be a guess.
+  **Done (v0.20.0):** **S** saves the current offset for the active
+  `<driver>/<device>` in `$XDG_CONFIG_HOME/harmonic/calibration.json`. The
+  saved offset is applied at startup, `--offset-ms` overrides it, and
+  `--offset-ms N --save-offset` saves one without playing. Frame reports
+  record the applied offset and its source. The owner still needs to save a
+  value for the Xonar output.
+- [ ] **Measure physical audio/picture offset with a loopback** (p1) [test]
+  Saved offsets are tuned by ear. The frame report adds up reported queues
+  only; DAC, sound-server buffering beyond ALSA, and panel latency are
+  unmeasured. Add a flash-and-click calibration view, record it with a camera
+  or microphone at the desk, and save the result with `--save-offset`.
 - [ ] **Hide the ~100 ms picture freeze on preset seeks** (p2) [perf]
   Every seek with a preset leaves a 93-110 ms gap before the next presented
   frame (preset reset and first draw while the clock is held; graphs-only seeks

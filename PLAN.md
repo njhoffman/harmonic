@@ -393,7 +393,9 @@ picom: graphs and light-to-median presets hold about 59 fps at 1920x1080 and
 2560x1440, and the heaviest library preset falls to 15 and 10 fps. Steady
 playback has 1-4 swap-blocked stalls a minute on the shared desktop. Preset
 seeks freeze the picture for about 100 ms. The ALSA queue (28-29 ms) is not
-compensated by the audio clock. The README records the full table. The earlier
+compensated by the audio clock. The compositor delays the picture too, so the
+real offset needs a per-device calibration (saved offsets, v0.20.0) or a
+loopback measurement. The README records the full table. The earlier
 GLX runtime-path warning is gone, because `~/.local/lib` no longer holds GL
 libraries. Set a preset GPU budget from these reports before promising a
 frame-rate target.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(harmonic VERSION 0.19.0 LANGUAGES C CXX)
+project(harmonic VERSION 0.20.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -54,7 +54,7 @@ endif()
 add_executable(harmonic-player
     native/src/main.cpp native/src/audio.cpp native/src/bundle.cpp
     native/src/transport.cpp native/src/renderer.cpp native/src/preset_renderer.cpp
-    native/src/compositor_check.cpp native/src/frame_timer.cpp)
+    native/src/compositor_check.cpp native/src/frame_timer.cpp native/src/calibration.cpp)
 target_include_directories(harmonic-player PRIVATE native/include)
 target_compile_definitions(harmonic-player PRIVATE GL_GLEXT_PROTOTYPES HARMONIC_VERSION="${PROJECT_VERSION}")
 target_compile_options(harmonic-player PRIVATE -Wall -Wextra -Wpedantic)

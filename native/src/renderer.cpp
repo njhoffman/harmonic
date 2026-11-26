@@ -200,7 +200,8 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
     text(left + 440, 109, "ONSET", 1.5f, 0.51f, 0.65f, 0.73f);
     rect(left + 502, 108, 95, 12, 0.09f, 0.15f, 0.2f);
     rect(left + 502, 108, 95 * onset, 12, 0.96f, 0.65f, 0.32f);
-    text(width - 260, 109, "OFFSET " + number(offset * 1000, 0) + " MS", 1.5f, 0.51f, 0.65f, 0.73f);
+    text(width - 270, 109, "OFFSET " + number(offset * 1000, 0) + " MS" +
+         (offset_label_.empty() ? "" : " " + offset_label_), 1.5f, 0.51f, 0.65f, 0.73f);
 
     if (view != View::preset) {
         constexpr float top = 154, graph_height = 270;
