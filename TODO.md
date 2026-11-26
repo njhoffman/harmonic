@@ -198,7 +198,7 @@ Local evidence is ignored by Git. See the
   only; DAC, sound-server buffering beyond ALSA, and panel latency are
   unmeasured. Add a flash-and-click calibration view, record it with a camera
   or microphone at the desk, and save the result with `--save-offset`.
-- [ ] **Hide the ~100 ms picture freeze on preset seeks** (p2) [perf]
+- [ ] **Accept preset seek latency; revisit with drag-to-scrub** (p3) [perf]
   Every seek with a preset leaves a 93-110 ms gap before the next presented
   frame (preset reset and first draw while the clock is held; graphs-only seeks
   settle in about 33 ms). Keep showing the last frame or the graphs while the
@@ -217,6 +217,15 @@ Local evidence is ignored by Git. See the
   (c) keep a pre-created spare engine (moves the 75 ms creation to an idle
   frame, which hitches later instead). A cold shader cache made the heaviest
   preset's first load take 4.2 s.
+  **Decision (2026-11-26, owner agreed):** keep the fresh-history restart. The
+  audio clock is held during the reset, so picture and sound resume together:
+  the cost is seek latency (117-133 ms with a preset, 33 ms without), not a
+  playback hitch, and only discrete seeks (arrows, Home, click) trigger it.
+  Fresh history keeps a position's image independent of how it was reached.
+  The alternatives either give that up or move the stall into playback.
+  Revisit if drag-to-scrub is added: reuse the engine while dragging and do one
+  fresh restart on release. In-playback preset switching (scene controller)
+  uses projectM's own transitions and is unaffected.
 - [ ] **Set a preset GPU budget for the GTX 960** (p2) [perf]
   The heaviest library preset needs GPU p99 59 ms at 1080p and 94 ms at 1440p.
   Use per-preset GPU time from frame reports to filter or rank presets before

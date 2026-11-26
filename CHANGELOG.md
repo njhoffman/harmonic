@@ -5,6 +5,16 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-11-26
+
+### Changed
+
+- Decided to keep the fresh-history projectM restart on seeks. With a preset, a
+  seek takes 117-133 ms instead of 33 ms, and picture and sound resume
+  together. The alternatives give up reproducible preset history or move the
+  stall into playback. The checklist item is now p3 and will be revisited if
+  drag-to-scrub is added.
+
 ## [0.22.1] - 2026-11-26
 
 ### Validation
@@ -797,7 +807,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.2...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -851,3 +861,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.21.1]: https://github.com/njhoffman/harmonic/tree/v0.21.1
 [0.22.0]: https://github.com/njhoffman/harmonic/tree/v0.22.0
 [0.22.1]: https://github.com/njhoffman/harmonic/tree/v0.22.1
+[0.22.2]: https://github.com/njhoffman/harmonic/tree/v0.22.2
