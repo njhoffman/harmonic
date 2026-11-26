@@ -5,6 +5,39 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-26
+
+### Added
+
+- MUSDB18 multi-target benchmark commands, replacing the local evidence
+  scripts:
+  - `harmonic-sam prepare-musdb ZIP TRACK... --output RUN`
+    (`just sam-musdb-prepare`) decodes each track's stems and picks the
+    windows. It writes references, the mix, ablation, context, and
+    instrumental cases, and a manifest. Each job's `source.stems` records the
+    zip member and stem identities.
+  - `score-musdb RUN RESULTS --output DIR` (`just sam-musdb-score`) writes
+    lag-aligned multi-target scores and a summary.
+  - `musdb-context RUN RESULTS --output FILE` (`just sam-musdb-context`)
+    compares 10, 20, and 30 s context on each track's common core.
+  - All outputs must be new.
+
+### Fixed
+
+- Scoring no longer crashes on a present target that comes back silent. It now
+  reports a dropout: gain 0, lag 0, and null correlations. The evidence script
+  failed on that case with a NaN in its JSON output.
+
+### Validation
+
+- From the re-downloaded, md5-verified `musdb18.zip`, the commands reproduce
+  the 2026-11-26 run exactly:
+  - the manifest's windows and jobs;
+  - all 16 reference stems, byte for byte;
+  - all 27 job inputs, byte for byte, with metadata differing only in
+    `app_version` and the added `source.stems`;
+  - all 27 per-job scores, the summary, and the context comparison.
+
 ## [0.21.1] - 2026-11-26
 
 ### Added
@@ -753,7 +786,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.21.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -805,3 +838,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.20.1]: https://github.com/njhoffman/harmonic/tree/v0.20.1
 [0.21.0]: https://github.com/njhoffman/harmonic/tree/v0.21.0
 [0.21.1]: https://github.com/njhoffman/harmonic/tree/v0.21.1
+[0.22.0]: https://github.com/njhoffman/harmonic/tree/v0.22.0

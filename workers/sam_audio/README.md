@@ -629,6 +629,34 @@ means, as in the v2 benchmark. Jobs, scripts, and scores are in
 `data/references/musdb18/ATTRIBUTION.md`; MUSDB18 is non-commercial, so the
 files are never redistributed.
 
+Since v0.22.0, project commands replace the preparation, scoring, and context
+scripts:
+
+```sh
+just sam-musdb-prepare data/references/musdb18/musdb18.zip data/musdb/run \
+  "Al James - Schoolboy Facination" "Angels In Amplifiers - I'm Alright"
+# Run each data/musdb/run/jobs/* job through the worker into data/musdb/results/<job>/
+just sam-musdb-score data/musdb/run data/musdb/results data/musdb/scores
+just sam-musdb-context data/musdb/run data/musdb/results data/musdb/context.json
+```
+
+`prepare-musdb` decodes each named `*.stem.mp4` member and picks the core and
+instrumental windows. It writes full-length references, the cases above, and a
+`harmonic.musdb-run.v1` manifest. Each job's `source.stems` records the zip
+member, its sha256, the stream index, and each stem's decoded-PCM sha256.
+`score-musdb` writes `harmonic.musdb-benchmark.v1` scores per job plus
+`summary.json`. A present target that comes back silent is scored as a dropout
+(lag 0, null correlations) instead of failing. Every output must be new.
+
+From the re-downloaded zip (md5 verified), the commands reproduce the archived
+run exactly:
+
+- the manifest's windows and jobs;
+- all 16 reference stems, byte for byte;
+- all 27 job inputs, byte for byte. Job metadata differs only in
+  `app_version` and the added `source.stems`;
+- all 27 per-job scores, `summary.json`, and the context comparison.
+
 | Finding | Evidence |
 | --- | --- |
 | Present sources are extracted in the mix | Vocal target gain 0.77 / 0.90 / 0.97, drums 0.74 / 0.86 / 0.91, bass 0.93 / 0.95 / 0.97; other-stem bleed ≤ 0.08 |

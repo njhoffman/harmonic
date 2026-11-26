@@ -273,12 +273,16 @@ Local evidence is ignored by Git. See the
   past the stem end, rank-deficient gain fits, silent references, and argument
   checks (`sam_benchmark.py:21-90`).
 
-- [ ] **Make the MUSDB multi-target benchmark a project command** (p2) [feature]
+- [x] **Make the MUSDB multi-target benchmark a project command** (p2) [feature]
   `data/aws-gpu/musdb-run/{prepare,score,context}.py` are local evidence
   scripts. Move stem extraction, case generation, lag-aligned multi-stem
   scoring, and the common-core context comparison into `harmonic_analysis`
   with tests and `just` recipes, so future model or prompt changes can be
   re-run the same way.
+  **Done (v0.22.0):** `harmonic_analysis.sam_musdb` with `prepare-musdb`,
+  `score-musdb`, and `musdb-context` (`just sam-musdb-*`). From the md5-verified
+  zip it reproduces the archived run's references, job inputs, scores, and
+  context comparison exactly. Silent present targets now score as dropouts.
 
 ## Local experience and integration (P2)
 

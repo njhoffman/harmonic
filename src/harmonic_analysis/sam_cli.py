@@ -11,7 +11,7 @@ import sys
 
 from . import __version__
 from .analysis import SAMPLE_RATE, decode_audio, sha256_file
-from .sam_jobs import DEFAULT_TARGETS, load_job, save_job, validate_result
+from .sam_jobs import DEFAULT_TARGETS, load_job, save_job, validate_result, write_json
 from .terminal import Progress
 
 
@@ -93,6 +93,18 @@ def main() -> int:
     benchmark.add_argument("--vocal-stem", type=Path)
     benchmark.add_argument("--accompaniment-stem", type=Path)
     benchmark.add_argument("--absent-limit", type=float, default=0.05)
+    musdb_prepare = commands.add_parser("prepare-musdb", help="Decode MUSDB18 tracks into references and multi-target jobs")
+    musdb_prepare.add_argument("archive", type=Path, help="musdb18.zip with *.stem.mp4 members")
+    musdb_prepare.add_argument("tracks", nargs="+", help="Track names as stored in the zip, without .stem.mp4")
+    musdb_prepare.add_argument("--output", required=True, type=Path, help="New run directory")
+    musdb_score = commands.add_parser("score-musdb", help="Score validated MUSDB results (lag-aligned, multi-target)")
+    musdb_score.add_argument("run", type=Path)
+    musdb_score.add_argument("results", type=Path, help="Directory of per-job result directories")
+    musdb_score.add_argument("--output", required=True, type=Path, help="New scores directory")
+    musdb_context = commands.add_parser("musdb-context", help="Compare 10 s, 20 s, and 30 s context on the common core")
+    musdb_context.add_argument("run", type=Path)
+    musdb_context.add_argument("results", type=Path)
+    musdb_context.add_argument("--output", required=True, type=Path, help="New JSON file")
     arguments = parser.parse_args()
     try:
         if arguments.command in ("prepare", "prepare-song"):
@@ -122,6 +134,26 @@ def main() -> int:
                                 vocal=arguments.vocal_stem, accompaniment=arguments.accompaniment_stem,
                                 absent_limit=arguments.absent_limit)
             print(json.dumps(report, indent=2, allow_nan=False))
+        elif arguments.command == "prepare-musdb":
+            from .sam_musdb import prepare as prepare_musdb
+            path = prepare_musdb(arguments.archive, arguments.tracks, arguments.output)
+            print(f"🟢 Saved MUSDB benchmark run: {path}")
+        elif arguments.command == "score-musdb":
+            from .sam_musdb import score, summary_lines
+            summary = score(arguments.run, arguments.results, arguments.output)
+            print("\n".join(summary_lines(summary)))
+            print(f"🟢 Saved {len(summary['jobs'])} job scores and summary.json in {arguments.output}")
+        elif arguments.command == "musdb-context":
+            from .sam_musdb import compare_context
+            if arguments.output.exists():
+                raise ValueError(f"Refusing to overwrite {arguments.output}")
+            comparison = compare_context(arguments.run, arguments.results)
+            write_json(arguments.output, comparison)
+            for track, rows in comparison.items():
+                for target, configs in rows.items():
+                    print(f"{track[:22]:22} {target:15}",
+                          "  ".join(f"{k} {v['expected_target_gain']:.3f}" for k, v in configs.items()))
+            print(f"🟢 Saved context comparison: {arguments.output}")
         elif arguments.command == "inspect-song":
             from .sam_chunks import validate_plan
             plan = validate_plan(arguments.plan)

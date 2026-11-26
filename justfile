@@ -86,6 +86,20 @@ sam-vocal-score-isolated job result: sync
 sam-vocal-control job result: sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli benchmark-vocals {{ quote(job) }} {{ quote(result) }} --case accompaniment-only
 
+# Decode MUSDB18 tracks into references and multi-target benchmark jobs (new run directory).
+# Track names contain spaces: each stays one argument.
+[positional-arguments]
+sam-musdb-prepare archive output +tracks: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli prepare-musdb "$1" --output "$2" "${@:3}"
+
+# Score validated MUSDB results: lag-aligned multi-target gains, dropouts, and absence checks.
+sam-musdb-score run results output: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli score-musdb {{ quote(run) }} {{ quote(results) }} --output {{ quote(output) }}
+
+# Compare 10 s, 20 s, and 30 s context on each track's common 20 s core.
+sam-musdb-context run results output: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli musdb-context {{ quote(run) }} {{ quote(results) }} --output {{ quote(output) }}
+
 # Prepare a complete recording as <=30s chunks with sample-based overlap.
 sam-prepare-song audio=default_audio output="data/sam-jobs/billie-jean-song" chunk="10" overlap="2": sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli prepare-song {{ quote(audio) }} --output {{ quote(output) }} --chunk-duration {{ quote(chunk) }} --overlap {{ quote(overlap) }}
