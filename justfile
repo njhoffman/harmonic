@@ -147,6 +147,9 @@ release summary="" trailer="": check-version
     release_branch="$(git symbolic-ref --short HEAD)"
     release_summary={{ quote(summary) }}
     release_trailer={{ quote(trailer) }}
+    if [[ "${release_summary}" == summary=* || "${release_trailer}" == trailer=* ]]; then
+        echo "Pass the summary and trailer positionally: just release \"<summary>\" \"<Key: value>\"" >&2; exit 1
+    fi
     git fetch --tags --quiet origin
     git diff --quiet || { echo "Stage or resolve unstaged changes before releasing." >&2; exit 1; }
     test -z "$(git ls-files --others --exclude-standard)" || { echo "Stage approved new files before releasing." >&2; exit 1; }

@@ -5,6 +5,15 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-26
+
+### Fixed
+
+- Correct the documented `just release` usage: the summary and trailer are
+  positional (`just release "<summary>" "<Key: value>"`). `just` does not parse
+  `summary=`/`trailer=` for recipe parameters, which garbled the v0.15.0
+  release commit message. `release` now rejects arguments in that form.
+
 ## [0.15.0] - 2026-11-26
 
 ### Added
@@ -499,7 +508,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.15.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -539,3 +548,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.14.1]: https://github.com/njhoffman/harmonic/tree/v0.14.1
 [0.14.2]: https://github.com/njhoffman/harmonic/tree/v0.14.2
 [0.15.0]: https://github.com/njhoffman/harmonic/tree/v0.15.0
+[0.15.1]: https://github.com/njhoffman/harmonic/tree/v0.15.1

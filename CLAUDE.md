@@ -14,7 +14,8 @@ This file only adds what is specific to Claude Code or overrides a global rule.
 - Release flow: `just bump patch|minor|major`, complete the dated
   `CHANGELOG.md` entry (move `[Unreleased]` items into it), update `TODO.md`,
   stage only the approved files, then
-  `just release summary="<one-line summary>" trailer="Co-Authored-By: <attribution line>"`.
+  `just release "<one-line summary>" "Co-Authored-By: <attribution line>"`
+  (positional: `name=value` is not parsed for recipe parameters).
   `release` fetches tags, runs `just test`, commits, tags, pushes atomically,
   builds, and runs `just publish-release X.Y.Z` (GitHub release from that
   version's CHANGELOG section). After it, compare `git tag` with

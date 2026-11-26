@@ -677,7 +677,9 @@ For each approved update:
 1. Implement the scoped changes and run `just bump patch` (or `minor`/`major`).
 2. Complete the new dated entry in [CHANGELOG.md](CHANGELOG.md).
 3. Review and stage the approved files, including new files.
-4. Run `just release summary="<one line>"` (optionally `trailer="Key: value"`).
+4. Run `just release "<one line>"` (optionally a second argument, a `"Key: value"`
+   commit trailer). The arguments are positional; `just` does not accept `name=value`
+   for recipe parameters.
 
 `just release` verifies version/changelog consistency, fetches remote tags,
 requires staged changes with no remaining unstaged or untracked files, builds and

@@ -16,7 +16,7 @@
   interface changes also require a minor bump and an explicit changelog note.
   After 1.0, incompatible public interface changes require a major bump.
 - Stage only the approved update, including new files, and use
-  `just release summary="<one line>"` (plus `trailer="..."` for attribution).
+  `just release "<one line>" ["<Key: value> trailer"]` (positional arguments).
   It checks version consistency, fetches tags, builds/tests before committing,
   commits and creates the annotated tag, atomically pushes the branch/tag,
   builds again, then creates the GitHub release from the changelog entry.
