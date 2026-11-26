@@ -4,9 +4,11 @@
 
 - After every approved update, bump the SemVer version, update `CHANGELOG.md`,
   commit the approved changes, create an annotated `vMAJOR.MINOR.PATCH` Git tag,
-  push the branch and tag to GitHub, and build the published commit.
+  and build. Releases stay local: never push, and never ask whether to push.
+  The owner pushes in batches; push only when explicitly asked, with
+  `just push-releases`.
 - A direct implementation request or explicit approval authorizes this workflow
-  for that scope. Do not ask again for routine commit/tag/push/build approval.
+  for that scope. Do not ask again for routine commit/tag/build approval.
   Questions, reviews, and unapproved work in progress are not releases.
 - Use `just bump patch|minor|major` to synchronize `pyproject.toml`,
   `CMakeLists.txt`, the Python package version, and `uv.lock`. Complete the dated
@@ -18,11 +20,14 @@
 - Stage only the approved update, including new files, and use
   `just release "<one line>" ["<Key: value> trailer"]` (positional arguments).
   It checks version consistency, fetches tags, builds/tests before committing,
-  commits and creates the annotated tag, atomically pushes the branch/tag,
-  builds again, then creates the GitHub release from the changelog entry.
+  commits, creates the annotated tag, builds again, and prints how far the
+  branch is ahead of `origin` (`just release-status`). When the owner asks for a
+  push, `just push-releases` atomically pushes the branch with every unpushed
+  version tag and creates each missing GitHub release from its changelog entry.
 - Never move or overwrite a published tag, force-push, or include unrelated work.
-  If publishing fails after the local commit/tag, retry that push rather than
-  creating another version or moving the tag. Report any failed stage precisely.
+  If a push fails, retry `just push-releases` rather than creating another
+  version or moving a tag; if only a GitHub release fails, run
+  `just publish-release X.Y.Z`. Report any failed stage precisely.
 - Keep recordings, generated analysis, environments, and build outputs out of Git.
 
 ## Development

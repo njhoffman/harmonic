@@ -171,7 +171,9 @@ check-version:
 bump level="patch":
     python3 scripts/version.py bump {{ quote(level) }}
 
-# Release an already bumped, documented, and staged approved update.
+# Release an already bumped, documented, and staged approved update locally:
+# test, commit, annotated tag, build. Nothing is pushed; `just push-releases`
+# sends the batch when the owner asks.
 release summary="" trailer="": check-version
     #!/usr/bin/env bash
     set -euo pipefail
@@ -199,9 +201,36 @@ release summary="" trailer="": check-version
     if [[ -n "${release_trailer}" ]]; then commit_args+=(--trailer "${release_trailer}"); fi
     git commit "${commit_args[@]}"
     git tag --annotate "${release_tag}" --message "Harmonic ${release_tag}"
-    git push --atomic --set-upstream origin "HEAD:refs/heads/${release_branch}" "refs/tags/${release_tag}"
     just build
-    just publish-release "${release_version}"
+    just release-status
+
+# How far the branch is ahead of its remote: unpushed commits and version tags.
+release-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+        echo "🟡 No upstream branch: nothing has been pushed."; exit 0
+    fi
+    ahead="$(git rev-list --count '@{u}..HEAD')"
+    remote_tags="$(git ls-remote --tags origin 'v*' | sed -n 's#.*refs/tags/\(v[0-9.]*\)$#\1#p' | sort -u)"
+    unpushed="$(comm -23 <(git tag --list 'v*' | sort -u) <(printf '%s\n' "${remote_tags}"))"
+    echo "🔵 ${ahead} commit(s) ahead of $(git rev-parse --abbrev-ref '@{u}'); unpushed tags: ${unpushed:-none}" | tr '\n' ' '
+    echo
+
+# Push the branch and every unpushed version tag atomically, then create the
+# missing GitHub releases. Run only when the owner asks for a push.
+push-releases:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    branch="$(git symbolic-ref --short HEAD)"
+    git fetch --tags --quiet origin
+    remote_tags="$(git ls-remote --tags origin 'v*' | sed -n 's#.*refs/tags/\(v[0-9.]*\)$#\1#p' | sort -u)"
+    mapfile -t unpushed < <(comm -23 <(git tag --list 'v*' | sort -u) <(printf '%s\n' "${remote_tags}") | sort -V)
+    refs=("HEAD:refs/heads/${branch}")
+    for tag in "${unpushed[@]}"; do refs+=("refs/tags/${tag}"); done
+    git push --atomic --set-upstream origin "${refs[@]}"
+    for tag in "${unpushed[@]}"; do just publish-release "${tag#v}"; done
+    just release-status
 
 # Create the GitHub release for an already pushed tag from its CHANGELOG.md entry.
 publish-release version:

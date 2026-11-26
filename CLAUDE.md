@@ -7,21 +7,21 @@ This file only adds what is specific to Claude Code or overrides a global rule.
 
 ## Precedence over global instructions
 
-- **Releases push automatically here.** AGENTS.md's approved-update workflow
-  overrides the global "push only when asked" rule for this repo: a direct
+- **Releases stay local (global rule, owner decision 2026-11-26).** A direct
   implementation request or explicit approval authorizes bump, commit, tag,
-  push, build, and GitHub release for that scope.
+  and build for that scope. Never push and never ask whether to push; run
+  `just push-releases` only when the owner asks in so many words.
 - Release flow: `just bump patch|minor|major`, complete the dated
   `CHANGELOG.md` entry (move `[Unreleased]` items into it), update `TODO.md`,
   stage only the approved files, then
   `just release "<one-line summary>" "Co-Authored-By: <attribution line>"`
   (positional: `name=value` is not parsed for recipe parameters).
-  `release` fetches tags, runs `just test`, commits, tags, pushes atomically,
-  builds, and runs `just publish-release X.Y.Z` (GitHub release from that
-  version's CHANGELOG section). After it, compare `git tag` with
-  `git ls-remote --tags origin`.
-- If a stage fails after the local commit/tag: retry the push
-  (`git push --atomic origin HEAD:refs/heads/main refs/tags/vX.Y.Z`) or
+  `release` fetches tags, runs `just test`, commits, tags, builds, and ends
+  with `just release-status` (commits ahead and unpushed tags); report that
+  line. `just push-releases` (on request only) pushes the branch and every
+  unpushed tag atomically, creates the missing GitHub releases, and reprints
+  the status; tags then match the remote.
+- If a push fails: retry `just push-releases`; if only a GitHub release fails:
   `just publish-release X.Y.Z`. Never create another version or move the tag.
 
 ## Testing

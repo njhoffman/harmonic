@@ -5,6 +5,17 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.5] - 2026-11-26
+
+### Changed
+
+- `just release` stays local. It tests, commits, creates the annotated tag, and
+  builds, then reports the commits ahead and the unpushed tags
+  (`just release-status`). It no longer pushes or creates the GitHub release.
+- `just push-releases` pushes the branch and every unpushed version tag
+  atomically, then creates each missing GitHub release, so releases go out in
+  batches. AGENTS.md, CLAUDE.md, and the README describe the new flow.
+
 ## [0.22.4] - 2026-11-26
 
 ### Fixed
@@ -832,7 +843,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.4...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.5...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -889,3 +900,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.22.2]: https://github.com/njhoffman/harmonic/tree/v0.22.2
 [0.22.3]: https://github.com/njhoffman/harmonic/tree/v0.22.3
 [0.22.4]: https://github.com/njhoffman/harmonic/tree/v0.22.4
+[0.22.5]: https://github.com/njhoffman/harmonic/tree/v0.22.5

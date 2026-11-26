@@ -793,12 +793,14 @@ For each approved update:
 `just release` verifies version/changelog consistency, fetches remote tags,
 requires staged changes with no remaining unstaged or untracked files, builds and
 tests, commits as `chore(release): vX.Y.Z - <summary>`, creates an annotated tag,
-atomically pushes the current branch and tag to `origin`, builds the published
-commit, and creates the GitHub release from that version's changelog entry
-(`just publish-release X.Y.Z`; `python3 scripts/version.py notes X.Y.Z` prints
-the notes). Published tags are immutable. If pushing fails after the local
-commit/tag, retry that push; if only the GitHub release fails, rerun
-`just publish-release X.Y.Z`. Do not bump again or move the tag.
+and builds. It pushes nothing. It ends with `just release-status`, which reports
+the commits ahead of `origin` and the version tags not yet pushed. Releases are
+pushed in batches with `just push-releases`. It atomically pushes the current
+branch and every unpushed version tag, then creates each missing GitHub release
+from that version's changelog entry (`just publish-release X.Y.Z`;
+`python3 scripts/version.py notes X.Y.Z` prints the notes). Published tags are
+immutable. If a push fails, retry `just push-releases`; if only a GitHub release
+fails, rerun `just publish-release X.Y.Z`. Do not bump again or move a tag.
 
 `just version` prints the source version; `just check-version` validates all
 version fields and the changelog. The built player and installed analyzer also
