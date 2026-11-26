@@ -36,7 +36,12 @@ jobs:
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
             libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libdrm-dev libgbm-dev \
             libudev-dev libdbus-1-dev \
-            ninja-build pkg-config cmake
+            ninja-build pkg-config cmake just
+
+      # The GPU host bootstrap installs Ubuntu's own just, which is much older
+      # than the pinned one below. Recipes must parse with it.
+      - name: Parse justfile with Ubuntu's just
+        run: /usr/bin/just --version && /usr/bin/just --summary
 
       - uses: astral-sh/setup-uv@v6
         with:

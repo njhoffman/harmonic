@@ -1,4 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
+# Recipes receive their arguments as $1, $2, ... too (sam-musdb-prepare keeps
+# track names with spaces intact). A setting, not the [positional-arguments]
+# attribute, so the apt `just` (1.21) on the Ubuntu 24.04 GPU host parses it.
+set positional-arguments
 
 python := justfile_directory() / ".venv/bin/python"
 player := justfile_directory() / "build/harmonic-player"
@@ -88,7 +92,6 @@ sam-vocal-control job result: sync
 
 # Decode MUSDB18 tracks into references and multi-target benchmark jobs (new run directory).
 # Track names contain spaces: each stays one argument.
-[positional-arguments]
 sam-musdb-prepare archive output +tracks: sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli prepare-musdb "$1" --output "$2" "${@:3}"
 

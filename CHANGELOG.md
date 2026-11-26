@@ -5,6 +5,18 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.4] - 2026-11-26
+
+### Fixed
+
+- The justfile parses again with the older `just` that Ubuntu 24.04 packages,
+  which the GPU host bootstrap installs. v0.22.0 used the
+  `[positional-arguments]` recipe attribute, which that version rejects, so
+  `just sam-sync` failed before the worker could start. It now uses the
+  `set positional-arguments` setting. Track names with spaces still pass to
+  `sam-musdb-prepare` intact.
+- CI now also parses the justfile with Ubuntu's packaged `just`.
+
 ## [0.22.3] - 2026-11-26
 
 ### Validation
@@ -820,7 +832,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.3...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.4...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -876,3 +888,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.22.1]: https://github.com/njhoffman/harmonic/tree/v0.22.1
 [0.22.2]: https://github.com/njhoffman/harmonic/tree/v0.22.2
 [0.22.3]: https://github.com/njhoffman/harmonic/tree/v0.22.3
+[0.22.4]: https://github.com/njhoffman/harmonic/tree/v0.22.4
