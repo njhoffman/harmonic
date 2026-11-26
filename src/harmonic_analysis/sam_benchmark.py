@@ -64,8 +64,31 @@ def _gains(refs: dict[str, np.ndarray], estimates: np.ndarray) -> dict:
             for name, pair in zip(active, gains / norms[:, None], strict=True)}
 
 
+def _mean(samples: np.ndarray) -> float:
+    return float(np.mean(samples, dtype=np.float64))
+
+
+def _levels(mono: np.ndarray, refs: dict[str, np.ndarray], estimates: np.ndarray) -> dict:
+    """Level, gain, and error metrics for one consistent set of waveforms."""
+    input_rms, target_rms = _rms(mono), _rms(estimates[:, 0])
+    return {
+        "input_rms": input_rms, "target_rms": target_rms, "residual_rms": _rms(estimates[:, 1]),
+        "target_over_input_rms": target_rms / input_rms if input_rms else None,
+        "reference_gains": _gains(refs, estimates),
+        "target_error_rms": _rms(estimates[:, 0] - refs.get("vocal", 0)),
+        "residual_error_rms": _rms(estimates[:, 1] - refs.get("accompaniment", 0)),
+    }
+
+
 def score_case(job_path: Path, result_path: Path, case: str, *, vocal: Path | None = None,
                accompaniment: Path | None = None, absent_limit: float = 0.05) -> dict:
+    """Score one validated case after removing each stream's excerpt mean.
+
+    Constant sample offsets in references or model outputs otherwise dominate
+    RMS ratios and waveform gains. Means are taken over the whole excerpt and
+    subtracted on the original sample grid; raw metrics and the removed means
+    are retained in the report.
+    """
     if case not in CASES or not math.isfinite(absent_limit) or not 0 <= absent_limit <= 1:
         raise ValueError("Invalid benchmark case or absent-target limit")
     if case != "mix" and (vocal is not None or accompaniment is not None):
@@ -86,17 +109,27 @@ def score_case(job_path: Path, result_path: Path, case: str, *, vocal: Path | No
         refs = {"vocal": vocals.mean(axis=1), "accompaniment": backing.mean(axis=1)}
     else:
         refs = {"vocal" if case == "vocal-only" else "accompaniment": mono}
-    if any(_rms(samples) == 0 for samples in refs.values()):
-        raise ValueError("Each declared present source must contain audible-channel signal")
+    ref_means = {name: _mean(samples) for name, samples in refs.items()}
+    centered_refs = {name: samples.astype(np.float64) - ref_means[name] for name, samples in refs.items()}
+    for name, samples in refs.items():
+        if _rms(samples) == 0:
+            raise ValueError("Each declared present source must contain audible-channel signal")
+        if _rms(centered_refs[name]) == 0:
+            raise ValueError(f"The {name} reference is only a constant offset ({ref_means[name]:.6g}); "
+                             "it has no signal to score")
+    input_mean = _mean(mono)
+    centered_input = mono.astype(np.float64) - input_mean
+    if _rms(centered_input) == 0:
+        raise ValueError("The job input is only a constant offset; target ratios are undefined")
 
     directory = result_path if result_path.is_dir() else result_path.parent
     target, residual = (read_wave(directory / f"vocals-{role}.wav") for role in ("target", "residual"))
     estimates = np.column_stack((target, residual)).astype(np.float64)
-    mix_rms = _rms(mono)
-    target_rms = _rms(target)
-    ratio = target_rms / mix_rms if mix_rms else None
+    estimate_means = estimates.mean(axis=0)
+    centered_estimates = estimates - estimate_means
+    centered = _levels(centered_input, centered_refs, centered_estimates)
     output = {
-        "schema_version": 1, "kind": "harmonic.sam-vocal-benchmark.v1", "case": case,
+        "schema_version": 2, "kind": "harmonic.sam-vocal-benchmark.v2", "case": case,
         "job_sha256": report["job_sha256"], "source": job["source"], "prompt": job["targets"]["vocals"],
         "start_sample": job["start_sample"], "sample_count": len(pcm), "sample_rate": SAMPLE_RATE,
         "model": report["model"], "auxiliary_text_model": report.get("auxiliary_text_model"),
@@ -105,24 +138,25 @@ def score_case(job_path: Path, result_path: Path, case: str, *, vocal: Path | No
         "worker_lock_sha256": report.get("worker_lock_sha256"),
         "target_sha256": report["pairs"]["vocals"]["target"]["sha256"],
         "residual_sha256": report["pairs"]["vocals"]["residual"]["sha256"],
-        "input_rms": mix_rms, "target_rms": target_rms, "residual_rms": _rms(residual),
-        "target_over_input_rms": ratio,
-        "reference_gains": _gains(refs, estimates),
         "reference_mono_pcm_sha256": {name: hashlib.sha256(samples.tobytes()).hexdigest()
                                       for name, samples in refs.items()},
-        "target_error_rms": _rms(estimates[:, 0] - refs.get("vocal", 0)),
-        "residual_error_rms": _rms(estimates[:, 1] - refs.get("accompaniment", 0)),
+        "centering": "excerpt_mean",
+        "means": {"input": input_mean, "target": float(estimate_means[0]),
+                  "residual": float(estimate_means[1]), "references": ref_means},
+        **centered,
+        "raw": _levels(mono, refs, estimates),
     }
+    ratio = centered["target_over_input_rms"]
     if case == "accompaniment-only":
         output["absence_check"] = {"target_over_input_rms_limit": absent_limit, "pass": ratio <= absent_limit}
     else:
-        vocal_floor = _rms(refs["vocal"]) * 0.01
+        vocal_floor = _rms(centered_refs["vocal"]) * 0.01
         windows = []
         for start in range(0, len(pcm), WINDOW_SAMPLES):
             section = slice(start, min(start + WINDOW_SAMPLES, len(pcm)))
-            chunk = {name: samples[section] for name, samples in refs.items()}
+            chunk = {name: samples[section] for name, samples in centered_refs.items()}
             if _rms(chunk["vocal"]) > vocal_floor:
-                gains = _gains(chunk, estimates[section]).get("vocal")
+                gains = _gains(chunk, centered_estimates[section]).get("vocal")
                 windows.append({"start_sample": job["start_sample"] + start,
                                 "sample_count": section.stop - start, "vocal_gain": gains})
         output["vocal_windows"] = windows

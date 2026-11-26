@@ -16,10 +16,11 @@ Categories are `[feature]`, `[test]`, `[perf]`, `[bug]`, `[docs]`, and `[chore]`
 show incomplete tasks by default; use `--all` for completed tasks or `--help` for
 options. `just todo` retains the complete Markdown checklist.
 
-**Current gate:** account for DC offset in the vocal benchmark and verify the
-scorer against saved results before running another model comparison. The
-first reference run put guitar in the vocal target and left overtone singing
-in the residual, even on its own. Full-song processing and resume are
+**Current gate:** add a conventional unaccompanied singing reference and run
+it with the same prompt and settings. The benchmark scorer now removes each
+stream's excerpt mean (report v2) and reproduces the archived diagnostic: the
+first reference run put guitar in the vocal target (96.4% of input) and left
+overtone singing in the residual, even on its own. Full-song processing and resume are
 structurally validated. Billie Jean tuning is complete, 20s/2s remains the
 experimental vocal setting, and full-song listening approval remains open.
 Local evidence is ignored by Git. See the
@@ -27,19 +28,28 @@ Local evidence is ignored by Git. See the
 
 ## Separation quality and playback gates (P1)
 
-- [ ] **Make vocal benchmark scoring account for DC offset** (p1) [bug]
+- [x] **Make vocal benchmark scoring account for DC offset** (p1) [bug]
   Use mean-centered waveforms for reference gains, RMS errors, active-window
   vocal scores, and the absence check. Retain raw levels and the removed
   means in the report. Preserve sample positions and the original WAVs.
   Define the outcome for silent and DC-only references so their ratios are
-  handled explicitly.
-- [ ] **Re-score the three archived reference runs** (p1) [test]
+  handled explicitly. **Done (v0.16.0):** report kind
+  `harmonic.sam-vocal-benchmark.v2` uses whole-excerpt means and keeps `raw`
+  metrics and `means`. Silent, constant-only, and constant-input cases raise
+  errors. Covered by `tests/test_sam_benchmark.py`.
+- [x] **Re-score the three archived reference runs** (p1) [test]
   Reuse the validated mix, vocal-only, and accompaniment-only outputs under
   `data/aws-gpu/vocal-benchmark-run/output/results/`. Compare with the saved
   `scores/dc-offset-diagnostics.json`. Verify that the regular scorer shows
   the vocal mainly in the residual for the two positive cases and flags
   false extraction on the guitar-only case. Its centered target-to-input RMS
   ratio should be about 96.4%. This validation needs only local files.
+  **Done (2026-11-26):** v2 scores in `data/aws-gpu/vocal-benchmark-run/scores-v2/`
+  match the diagnostic to four decimals. Vocal residual gains are 0.958 (mix) and
+  0.980 (vocal-only), and the residual exceeds the target in all 120 windows.
+  Guitar-only gives 96.4% and fails. The earlier guitar controls in
+  `data/aws-gpu/vocal-followup/scores-v2/` give 94.0% and 97.1% centered
+  (52.2% and 60.6% raw) and also fail.
 - [ ] **Add a conventional unaccompanied singing reference** (p1) [test]
   Select a clearly licensed recording of conventional singing and pair it
   with an aligned accompaniment reference. Prepare the mixed, vocal-only,

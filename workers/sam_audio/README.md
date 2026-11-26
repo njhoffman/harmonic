@@ -533,13 +533,19 @@ just sam-vocal-control data/aws-gpu/vocal-followup/jobs/guitar-005-025 \
 For a saved isolated case, select `--case vocal-only` or
 `--case accompaniment-only`. The job PCM supplies its reference.
 Mixed cases verify that the supplied stems reproduce the prepared job on
-its original sample grid. The JSON report includes signed least-squares
+its original sample grid. Scoring removes each stream's mean over the whole
+excerpt (input, references, target, residual) so constant sample offsets
+cannot decide the outcome. Positions are unchanged. The report
+(`harmonic.sam-vocal-benchmark.v2`) keeps the removed values under `means`
+and the uncentered metrics under `raw`. A declared reference that is silent or
+only a constant offset, or an input with no signal beyond its offset, is an
+error. The JSON report includes signed least-squares
 reference gains, RMS errors against the ideal target and residual, and
 vocal gains in active 100 ms windows. A gain near one indicates a strong
 match on the original sample grid. The report uses null for gains when
 the active references cannot be separated reliably by the fit.
 
-The absence check compares target RMS with input RMS. The default reporting
+The absence check compares centered target RMS with centered input RMS. The default reporting
 limit is 5%, adjustable with `--absent-limit`. The JSON
 `absence_check.pass` field records the check outcome. The command exits
 successfully when it produces a valid report, including failing checks.
@@ -572,6 +578,12 @@ case the raw target measured 59.0% of input RMS and failed the 5% absence limit.
 After mean removal the ratio was 96.4%. The isolated vocal's raw target was
 73.1% of input RMS, versus 5.0% after mean removal. Future configuration
 comparisons should account for the offset and include broader vocal material.
+
+The v2 scorer reproduces these values exactly from the saved results (scores in
+`data/aws-gpu/vocal-benchmark-run/scores-v2/`). In the mixed and vocal-only cases,
+the residual exceeds the target in all 120 active vocal windows. The earlier
+guitar-only controls also fail when centered: 94.0% and 97.1% of input RMS, versus
+52.2% and 60.6% raw (`data/aws-gpu/vocal-followup/scores-v2/`).
 
 ## License observations
 
