@@ -677,13 +677,17 @@ For each approved update:
 1. Implement the scoped changes and run `just bump patch` (or `minor`/`major`).
 2. Complete the new dated entry in [CHANGELOG.md](CHANGELOG.md).
 3. Review and stage the approved files, including new files.
-4. Run `just release`.
+4. Run `just release summary="<one line>"` (optionally `trailer="Key: value"`).
 
-`just release` verifies version/changelog consistency, requires staged changes
-with no remaining unstaged or untracked files, builds and tests, commits, creates
-an annotated tag, atomically pushes the current branch and tag to `origin`, and
-builds the published commit. Published tags are immutable. If pushing fails after
-the local commit/tag, retry that push; do not bump again or move the tag.
+`just release` verifies version/changelog consistency, fetches remote tags,
+requires staged changes with no remaining unstaged or untracked files, builds and
+tests, commits as `chore(release): vX.Y.Z - <summary>`, creates an annotated tag,
+atomically pushes the current branch and tag to `origin`, builds the published
+commit, and creates the GitHub release from that version's changelog entry
+(`just publish-release X.Y.Z`; `python3 scripts/version.py notes X.Y.Z` prints
+the notes). Published tags are immutable. If pushing fails after the local
+commit/tag, retry that push; if only the GitHub release fails, rerun
+`just publish-release X.Y.Z`. Do not bump again or move the tag.
 
 `just version` prints the source version; `just check-version` validates all
 version fields and the changelog. The built player and installed analyzer also

@@ -5,6 +5,8 @@ and [PLAN.md](PLAN.md) for architecture. Check off only verified work and update
 this file with each approved change. Historical release details are in
 [CHANGELOG.md](CHANGELOG.md).
 
+Reviewed: 2026-11-26
+
 - **P1 `(p1)`**: next quality gates and validation that unblock the SAM milestone.
 - **P2 `(p2)`**: reliability, local improvements, and later integration work.
 - **P3 `(p3)`**: deferred scenes, library scale, services, and comparisons.
@@ -126,6 +128,12 @@ Local evidence is ignored by Git. See the
   indices, invalid job/model/worker hashes, mismatched run bindings, malformed
   auxiliary revisions, invalid codec hops, inconsistent chunk prompts, missing
   trim metadata, and negative levels.
+- [x] **Set up Claude Code project files and GitHub release publishing** (p2) [chore]
+  `CLAUDE.md` imports `AGENTS.md` and adds Claude-specific notes, and
+  `.claude/settings.json` holds the command allowlist. `just release` now
+  fetches tags, accepts a summary and trailer, and runs `just publish-release`,
+  which builds notes from `scripts/version.py notes` (covered by
+  `tests/test_version.py`).
 - [ ] **Bound memory for long recordings** (p2) [perf]
   Worker plan validation and inspection now stream PCM checks by chunk.
   Stitching now bounds float64 scratch to a chunk/overlap and measures levels
@@ -140,6 +148,28 @@ Local evidence is ignored by Git. See the
   The SAM License was inspected for the local prototype; Perception Models and
   ImageBind have noncommercial terms. Resolve dependency use, output reuse,
   binary/model redistribution, and service permissions before packaging.
+
+- [ ] **Clean prompt scratch directories whose suffix contains `_`** (p2) [bug]
+  `workers/sam_audio/worker.py:293` matches `-[a-z0-9]{8}`, but `tempfile.mkdtemp`
+  suffixes also use `_`, so about 20% of abandoned prompt checkpoints survive
+  resume. Use `[a-z0-9_]{8}` like the chunk regex at line 280 and add an
+  underscore case to `tests/test_sam_chunks.py` (around line 352).
+- [ ] **Pin the auxiliary T5 revision for excerpt runs** (p2) [bug]
+  `worker.py run()` defaults `text_revision` to None and `just sam-run` passes
+  none, so excerpt runs resolve the current T5 head. Song plans already pin
+  `sam_chunks.TEXT_REVISION`. Store the revision in excerpt jobs or default it,
+  and expose it in the recipe so excerpt results stay comparable.
+- [ ] **Fail releases when integration tests are skipped** (p2) [test]
+  Native, FFmpeg, and projectM tests use `skipUnless`, so `just release` can
+  publish on a host without ffmpeg or a player build. Add an opt-in flag (for
+  example `HARMONIC_REQUIRE_INTEGRATION=1`, set by `release`) that turns those
+  skips into failures, or at least report the skip count.
+- [ ] **Cover the remaining `harmonic-sam` subcommands and benchmark edges** (p2) [test]
+  No argparse-level tests for `prepare-vocal-benchmark`, `benchmark-vocals`,
+  `stitch`, `validate-song`, `inspect-song`, or `--target` parsing
+  (`sam_cli.py`). `tests/test_sam_benchmark.py` lacks unequal stems, excerpts
+  past the stem end, rank-deficient gain fits, silent references, and argument
+  checks (`sam_benchmark.py:21-90`).
 
 ## Local experience and integration (P2)
 
@@ -174,7 +204,38 @@ Local evidence is ignored by Git. See the
   Smaller SAM checkpoints, Demucs, or paid services can provide controlled
   references if access, licensing, capacity, and the quality question warrant it.
 
-## Verified foundation
+- [ ] **Return clean errors for malformed stitch completion records** (p3) [bug]
+  `sam_chunks.py:357-358` indexes `run["plan_sha256"]` directly; a missing key
+  or a non-object JSON raises KeyError/TypeError past the CLI's OSError and
+  ValueError handler (`sam_cli.py:278`). Wrap the read in ValueError.
+- [ ] **Re-check WAV digests when scoring the benchmark** (p3) [bug]
+  `sam_benchmark.py:92-93` reads the target/residual again after validation
+  without comparing them to the report sha256 (stitching does), and a
+  `struct.error` from `read_wave` reaches the user as a traceback.
+- [ ] **Record stem provenance in benchmark jobs and scores** (p3) [feature]
+  `sam_benchmark.py:43-44` stores a placeholder source path and only the PCM
+  hash. Store each stem's path, sha256, and PCM sha256 so archived scores trace
+  back to their source assets.
+- [ ] **Add just recipes for the vocal benchmark** (p3) [docs]
+  Only `sam-vocal-control` exists. `workers/sam_audio/README.md:524-527` calls
+  `harmonic-sam prepare-vocal-benchmark` and `benchmark-vocals --case mix`
+  directly. Add recipes for preparing and scoring each case and update the README.
+- [ ] **Honor `HARMONIC_PLAYER` in the chunk tests** (p3) [test]
+  `tests/test_sam_chunks.py:28` hard-codes `build/harmonic-player`, while the
+  other test files accept the override.
+- [ ] **Add CI for the Python tests and native build** (p3) [chore]
+  No `.github/` workflows exist; only a local `just release` runs the suite.
+  A minimal workflow with ffmpeg installed and projectM optional would catch
+  regressions between releases.
+- [ ] **Backfill GitHub releases for existing tags** (p3) [chore]
+  Tags v0.2.0 through v0.14.2 have no GitHub releases. `just publish-release
+  X.Y.Z` creates one from CHANGELOG.md. This is outward-facing, so it waits for
+  owner approval.
+
+## Completed
+
+### Verified foundation (completed 2026-11-26)
+
 
 - [x] **Resume SAM song chunks at prompt boundaries** (p2) [feature]
   Each completed target/residual pair is checkpointed atomically under its

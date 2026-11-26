@@ -5,6 +5,29 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-26
+
+### Added
+
+- `just release` creates a GitHub release from the version's changelog entry
+  after pushing. `just publish-release X.Y.Z` retries or backfills one, and
+  `python3 scripts/version.py notes [X.Y.Z]` prints the notes.
+- Claude Code project files: `CLAUDE.md` imports `AGENTS.md` and adds
+  Claude-specific notes, and `.claude/settings.json` adds a command allowlist.
+
+### Changed
+
+- `just release` fetches remote tags before checking the tag. It accepts
+  `summary=` (the commit becomes `chore(release): vX.Y.Z - <summary>`) and
+  `trailer=` for commit attribution.
+
+### Documentation
+
+- Full backlog review: new checklist items cover SAM scratch cleanup, excerpt
+  T5 revision pinning, skipped integration tests, CLI and benchmark test gaps,
+  benchmark provenance, CI, and GitHub release backfill. Completed foundation
+  work moves to a Completed section.
+
 ## [0.14.2] - 2026-11-26
 
 ### Documentation
@@ -476,7 +499,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.14.2...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.15.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -515,3 +538,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.14.0]: https://github.com/njhoffman/harmonic/tree/v0.14.0
 [0.14.1]: https://github.com/njhoffman/harmonic/tree/v0.14.1
 [0.14.2]: https://github.com/njhoffman/harmonic/tree/v0.14.2
+[0.15.0]: https://github.com/njhoffman/harmonic/tree/v0.15.0

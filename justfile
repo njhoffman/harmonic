@@ -139,12 +139,15 @@ bump level="patch":
     python3 scripts/version.py bump {{ quote(level) }}
 
 # Release an already bumped, documented, and staged approved update.
-release: check-version
+release summary="" trailer="": check-version
     #!/usr/bin/env bash
     set -euo pipefail
     release_version="$(python3 scripts/version.py show)"
     release_tag="v${release_version}"
     release_branch="$(git symbolic-ref --short HEAD)"
+    release_summary={{ quote(summary) }}
+    release_trailer={{ quote(trailer) }}
+    git fetch --tags --quiet origin
     git diff --quiet || { echo "Stage or resolve unstaged changes before releasing." >&2; exit 1; }
     test -z "$(git ls-files --others --exclude-standard)" || { echo "Stage approved new files before releasing." >&2; exit 1; }
     if git diff --cached --quiet; then
@@ -156,7 +159,23 @@ release: check-version
         exit 1
     fi
     just test
-    git commit -m "chore(release): ${release_tag}"
+    commit_args=(-m "chore(release): ${release_tag}${release_summary:+ - ${release_summary}}")
+    if [[ -n "${release_trailer}" ]]; then commit_args+=(--trailer "${release_trailer}"); fi
+    git commit "${commit_args[@]}"
     git tag --annotate "${release_tag}" --message "Harmonic ${release_tag}"
     git push --atomic --set-upstream origin "HEAD:refs/heads/${release_branch}" "refs/tags/${release_tag}"
     just build
+    just publish-release "${release_version}"
+
+# Create the GitHub release for an already pushed tag from its CHANGELOG.md entry.
+publish-release version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{ quote(version) }}
+    tag="v${version}"
+    if ! command -v gh >/dev/null; then echo "gh not installed; create the ${tag} release manually." >&2; exit 1; fi
+    if gh release view "${tag}" >/dev/null 2>&1; then echo "GitHub release ${tag} already exists."; exit 0; fi
+    notes="$(mktemp)"
+    trap 'rm -f "${notes}"' EXIT
+    python3 scripts/version.py notes "${version}" > "${notes}"
+    gh release create "${tag}" --verify-tag --title "Harmonic ${version}" --notes-file "${notes}"

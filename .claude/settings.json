@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(just --list)",
+      "Bash(just)",
+      "Bash(just test)",
+      "Bash(just build)",
+      "Bash(just build *)",
+      "Bash(just configure)",
+      "Bash(just sync)",
+      "Bash(just version)",
+      "Bash(just check-version)",
+      "Bash(just todo)",
+      "Bash(just inspect *)",
+      "Bash(just render-check *)",
+      "Bash(just audio-check *)",
+      "Bash(just compositor-check *)",
+      "Bash(just projectm-check *)",
+      "Bash(just sam-doctor)",
+      "Bash(just sam-validate *)",
+      "Bash(just sam-validate-song *)",
+      "Bash(python3 scripts/version.py show)",
+      "Bash(python3 scripts/version.py check)",
+      "Bash(python3 scripts/version.py notes *)",
+      "Bash(.venv/bin/python -m unittest *)",
+      "Bash(~/.shell/scripts/test-progress *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git tag)",
+      "Bash(git ls-remote --tags origin)"
+    ],
+    "ask": [
+      "Bash(just sam-sync)",
+      "Bash(just sam-auth)",
+      "Bash(just sam-run *)",
+      "Bash(just sam-run-song *)",
+      "Bash(just install-codex-todo)"
+    ]
+  }
+}

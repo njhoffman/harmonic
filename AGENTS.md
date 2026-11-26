@@ -15,9 +15,11 @@
   documentation, and build maintenance. During 0.x development, incompatible
   interface changes also require a minor bump and an explicit changelog note.
   After 1.0, incompatible public interface changes require a major bump.
-- Stage only the approved update, including new files, and use `just release`.
-  It checks version consistency, builds/tests before committing, commits and
-  creates the annotated tag, atomically pushes the branch/tag, then builds again.
+- Stage only the approved update, including new files, and use
+  `just release summary="<one line>"` (plus `trailer="..."` for attribution).
+  It checks version consistency, fetches tags, builds/tests before committing,
+  commits and creates the annotated tag, atomically pushes the branch/tag,
+  builds again, then creates the GitHub release from the changelog entry.
 - Never move or overwrite a published tag, force-push, or include unrelated work.
   If publishing fails after the local commit/tag, retry that push rather than
   creating another version or moving the tag. Report any failed stage precisely.

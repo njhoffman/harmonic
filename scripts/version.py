@@ -37,15 +37,37 @@ def check_versions() -> str:
     return version
 
 
+SECTION = r"(?m)^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$"
+LINK_LINE = r"(?m)^\[[^\]]+\]: \S+\n?"
+
+
+def changelog_sections(content: str) -> list[tuple[str, str, str]]:
+    """Return (version, date, body) for each dated section, newest first."""
+    matches = list(re.finditer(SECTION, content))
+    sections = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        body = re.sub(LINK_LINE, "", content[match.end():end]).strip()
+        sections.append((match.group(1), match.group(2), body))
+    return sections
+
+
+def release_notes(version: str, content: str | None = None) -> str:
+    content = (ROOT / "CHANGELOG.md").read_text() if content is None else content
+    for number, _, body in changelog_sections(content):
+        if number == version:
+            if not re.search(r"(?m)^- \S", body):
+                raise ValueError(f"CHANGELOG.md entry {version} has no items")
+            return body + "\n"
+    raise ValueError(f"CHANGELOG.md has no dated entry for {version}")
+
+
 def check_changelog(version: str) -> None:
-    content = (ROOT / "CHANGELOG.md").read_text()
-    sections = list(re.finditer(r"(?m)^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$", content))
-    if not sections or sections[0].group(1) != version:
+    sections = changelog_sections((ROOT / "CHANGELOG.md").read_text())
+    if not sections or sections[0][0] != version:
         raise ValueError(f"The newest dated CHANGELOG.md entry must be {version}")
-    date.fromisoformat(sections[0].group(2))
-    end = sections[1].start() if len(sections) > 1 else len(content)
-    body = content[sections[0].end():end]
-    if not re.search(r"(?m)^- \S", body):
+    date.fromisoformat(sections[0][1])
+    if not re.search(r"(?m)^- \S", sections[0][2]):
         raise ValueError("Complete the new changelog entry before releasing")
 
 
@@ -81,6 +103,8 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("show")
     commands.add_parser("check")
+    notes_parser = commands.add_parser("notes", help="print one version's CHANGELOG.md section")
+    notes_parser.add_argument("version", nargs="?", help="defaults to the current version")
     bump_parser = commands.add_parser("bump")
     bump_parser.add_argument("level", choices=("patch", "minor", "major"))
     arguments = parser.parse_args()
@@ -91,6 +115,8 @@ def main() -> int:
             version = check_versions()
             check_changelog(version)
             print(f"Version {version}: source files, lockfile, and changelog agree")
+        elif arguments.command == "notes":
+            sys.stdout.write(release_notes(arguments.version or current_version()))
         else:
             print(current_version())
     except (OSError, ValueError, KeyError, StopIteration, subprocess.CalledProcessError) as error:
