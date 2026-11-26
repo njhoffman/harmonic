@@ -514,6 +514,45 @@ mpv --no-config --replaygain=no --volume=95 \
   --playlist=data/aws-gpu/vocal-followup/listening/instrumental-review.m3u
 ```
 
+### Automated vocal benchmark
+
+Prepare three 48 kHz jobs from equally long reference stems with a common
+start. The mixed input is their sample-by-sample sum. Use one prompt for
+all three cases. Run each generated job through the regular SAM worker.
+
+```sh
+.venv/bin/harmonic-sam prepare-vocal-benchmark vocal.wav backing.wav \
+  --duration 12 --output data/vocal-benchmark/jobs
+.venv/bin/harmonic-sam benchmark-vocals data/vocal-benchmark/jobs/mix \
+  data/vocal-benchmark/results/mix --case mix \
+  --vocal-stem vocal.wav --accompaniment-stem backing.wav
+just sam-vocal-control data/aws-gpu/vocal-followup/jobs/guitar-005-025 \
+  data/aws-gpu/vocal-followup/output/results/guitar-005-025
+```
+
+For a saved isolated case, select `--case vocal-only` or
+`--case accompaniment-only`. The job PCM supplies its reference.
+Mixed cases verify that the supplied stems reproduce the prepared job on
+its original sample grid. The JSON report includes signed least-squares
+reference gains, RMS errors against the ideal target and residual, and
+vocal gains in active 100 ms windows. A gain near one indicates a strong
+match on the original sample grid. The report uses null for gains when
+the active references cannot be separated reliably by the fit.
+
+The absence check compares target RMS with input RMS. The default reporting
+limit is 5%, adjustable with `--absent-limit`. The JSON
+`absence_check.pass` field records the check outcome. The command exits
+successfully when it produces a valid report, including failing checks.
+The two saved full guitar windows measured 60.6% and 52.2% for 10 and 20
+seconds respectively. Both failed. The report uses the full prepared
+windows, while the earlier listening clips use the common six-second span.
+
+The local reference jobs and saved guitar reports are under
+`data/aws-gpu/vocal-benchmark/`. The reference set combines isolated
+singing by kku with RyGuy's guitar recording. Attribution and source
+licenses are retained with the local assets. The positive reference jobs
+are ready for inference. [Isolated singing source](https://commons.wikimedia.org/wiki/File%3AOvertone_singing_sample.oga) · [Guitar source](https://commons.wikimedia.org/wiki/File%3AAcousticGuitarSample.ogg)
+
 ## License observations
 
 The [SAM License](https://github.com/facebookresearch/sam-audio/blob/bb4c6999d2677c7402360e426afc01ddfad6dce0/LICENSE)

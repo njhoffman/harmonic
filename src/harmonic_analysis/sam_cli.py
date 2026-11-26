@@ -78,6 +78,21 @@ def main() -> int:
     song_check = commands.add_parser("validate-song", help="Validate stitched full-song WAVs and chunk provenance")
     song_check.add_argument("plan", type=Path)
     song_check.add_argument("result", type=Path)
+    from .sam_benchmark import CASES
+    benchmark_prepare = commands.add_parser("prepare-vocal-benchmark", help="Prepare mixed, vocal-only, and accompaniment-only jobs from aligned stems")
+    benchmark_prepare.add_argument("vocal_stem", type=Path)
+    benchmark_prepare.add_argument("accompaniment_stem", type=Path)
+    benchmark_prepare.add_argument("--output", required=True, type=Path)
+    benchmark_prepare.add_argument("--start", type=float, default=0)
+    benchmark_prepare.add_argument("--duration", type=float, required=True)
+    benchmark_prepare.add_argument("--prompt", default=DEFAULT_TARGETS["vocals"])
+    benchmark = commands.add_parser("benchmark-vocals", help="Score a validated vocal result against known sources")
+    benchmark.add_argument("job", type=Path)
+    benchmark.add_argument("result", type=Path)
+    benchmark.add_argument("--case", choices=CASES, required=True)
+    benchmark.add_argument("--vocal-stem", type=Path)
+    benchmark.add_argument("--accompaniment-stem", type=Path)
+    benchmark.add_argument("--absent-limit", type=float, default=0.05)
     arguments = parser.parse_args()
     try:
         if arguments.command in ("prepare", "prepare-song"):
@@ -96,6 +111,17 @@ def main() -> int:
                 path = prepare(arguments.audio, arguments.output, start=arguments.start,
                                duration=arguments.duration, targets=targets, seed=arguments.seed)
             print(f"🟢 Saved GPU-worker job: {path}")
+        elif arguments.command == "prepare-vocal-benchmark":
+            from .sam_benchmark import prepare_cases
+            path = prepare_cases(arguments.vocal_stem, arguments.accompaniment_stem, arguments.output,
+                                 start=arguments.start, duration=arguments.duration, prompt=arguments.prompt)
+            print(f"🟢 Saved vocal benchmark jobs: {path}")
+        elif arguments.command == "benchmark-vocals":
+            from .sam_benchmark import score_case
+            report = score_case(arguments.job, arguments.result, arguments.case,
+                                vocal=arguments.vocal_stem, accompaniment=arguments.accompaniment_stem,
+                                absent_limit=arguments.absent_limit)
+            print(json.dumps(report, indent=2, allow_nan=False))
         elif arguments.command == "inspect-song":
             from .sam_chunks import validate_plan
             plan = validate_plan(arguments.plan)

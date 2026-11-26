@@ -70,6 +70,10 @@ sam-run job="data/sam-jobs/billie-jean" output="data/sam-results/billie-jean":
 sam-validate job="data/sam-jobs/billie-jean" result="data/sam-results/billie-jean": sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli validate {{ quote(job) }} {{ quote(result) }}
 
+# Score a saved accompaniment-only SAM result for false vocal extraction.
+sam-vocal-control job result: sync
+    {{ quote(python) }} -m harmonic_analysis.sam_cli benchmark-vocals {{ quote(job) }} {{ quote(result) }} --case accompaniment-only
+
 # Prepare a complete recording as <=30s chunks with sample-based overlap.
 sam-prepare-song audio=default_audio output="data/sam-jobs/billie-jean-song" chunk="10" overlap="2": sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli prepare-song {{ quote(audio) }} --output {{ quote(output) }} --chunk-duration {{ quote(chunk) }} --overlap {{ quote(overlap) }}

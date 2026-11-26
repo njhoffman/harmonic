@@ -62,16 +62,23 @@ check; full-song approval remains open.
   Vocal level still faded at the left join. Bass leaked into the target and
   the early residual retained some vocal. The owner’s focused full-song
   review favors 20s/2s as the experimental vocal setting. The final shifted
-  windows at 116–124 seconds are ready in
-  `data/aws-gpu/vocal-followup/listening/billie-review.m3u`. Record whether
-  either shift recovers the phrase and any remaining dropout.
+  windows confirmed a known dropout at 116–124 seconds. The earlier shift
+  exposed a faint target vocal with a clear vocal in the residual, and the
+  later shift extracted bass. Billie Jean tuning is complete.
+- [x] **Build a reference-based vocal benchmark** (p1) [test]
+  Prepare mixture, vocal-only, and accompaniment-only jobs from aligned
+  stems. Validate job and result identity, score reference contributions,
+  and localize missed vocals on the sample grid. Both saved guitar controls
+  failed the absence check. A three-case reference set is ready locally.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
   The owner heard only singing in the target and only piano in the residual
   at both window lengths in Leon Lishner and Roger Nelson's 26–32 second
   voice-and-piano excerpt. The acoustic-guitar control has substantial
-  vocal-target output at both window lengths. Its aligned clips are in
+  vocal-target output at both window lengths, which the owner identified
+  as guitar in both targets. Its aligned clips are in
   `data/aws-gpu/vocal-followup/listening/instrumental-review.m3u`.
-  A cappella, quiet passages, and other absent-target cases remain open.
+  GPU evaluation of the new positive reference cases, quiet passages, and
+  broader absent-target coverage remain open.
 - [ ] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero
