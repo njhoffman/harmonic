@@ -5,6 +5,17 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-11-26
+
+### Validation
+
+- Profiled the ~100 ms picture freeze on preset seeks (GTX 960):
+  - Recreating the projectM engine takes 70-80 ms of it.
+  - Reloading into the same engine would take only 6-17 ms, but it carries the
+    old feedback image into the new history.
+  - The options and their trade-offs are recorded in the checklist for an
+    owner decision.
+
 ## [0.22.0] - 2026-11-26
 
 ### Added
@@ -786,7 +797,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -839,3 +850,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.21.0]: https://github.com/njhoffman/harmonic/tree/v0.21.0
 [0.21.1]: https://github.com/njhoffman/harmonic/tree/v0.21.1
 [0.22.0]: https://github.com/njhoffman/harmonic/tree/v0.22.0
+[0.22.1]: https://github.com/njhoffman/harmonic/tree/v0.22.1

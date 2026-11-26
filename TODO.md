@@ -203,6 +203,20 @@ Local evidence is ignored by Git. See the
   frame (preset reset and first draw while the clock is held; graphs-only seeks
   settle in about 33 ms). Keep showing the last frame or the graphs while the
   preset resets, or reset without recompiling shaders.
+  **Profiled 2026-11-26 (GTX 960, warm driver shader cache):** every seek runs
+  `restart()`, which destroys and recreates the projectM engine.
+  `projectm_create()` alone takes 70-80 ms. Loading the preset adds 3-11 ms
+  (light/median presets) or 54-61 ms (heaviest), and the first frame 4-7 ms
+  or about 55 ms. Reloading into the same engine plus one frame costs only
+  6-17 ms for light and median presets, but it is not a fresh history: the old
+  feedback image carries over (a reloaded engine differs from a fresh one
+  10-60 times more than two fresh engines do). **Owner decision needed:**
+  (a) reuse the engine and accept carried-over feedback (about 10-17 ms
+  freeze); (b) keep fresh history and show the last frame or graphs during the
+  ~80 ms reset (the frame is still blocked, so playback hitches either way);
+  (c) keep a pre-created spare engine (moves the 75 ms creation to an idle
+  frame, which hitches later instead). A cold shader cache made the heaviest
+  preset's first load take 4.2 s.
 - [ ] **Set a preset GPU budget for the GTX 960** (p2) [perf]
   The heaviest library preset needs GPU p99 59 ms at 1080p and 94 ms at 1440p.
   Use per-preset GPU time from frame reports to filter or rank presets before
@@ -338,6 +352,11 @@ Local evidence is ignored by Git. See the
 - [x] **Honor `HARMONIC_PLAYER` in the chunk tests** (p3) [test]
   `tests/test_sam_chunks.py:28` hard-codes `build/harmonic-player`, while the
   other test files accept the override.
+- [ ] **Shorten the MUSDB scoring tests** (p3) [test]
+  `tests/test_sam_musdb.py` takes about 75-90 s of the 134 s suite: scoring a
+  fixed 20 s case costs about 3.5 s (window lstsq and 2M-point FFTs). Allow a
+  shorter core for synthetic tests (a module-level length the tests override)
+  or score fewer targets per job, keeping one full-length case.
 - [x] **Add CI for the Python tests and native build** (p3) [chore]
   No `.github/` workflows exist; only a local `just release` runs the suite.
   A minimal workflow with ffmpeg installed and projectM optional would catch
