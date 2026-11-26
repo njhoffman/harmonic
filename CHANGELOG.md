@@ -5,6 +5,19 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.3] - 2026-11-26
+
+### Validation
+
+- Re-measured desktop frame pacing with glava paused. The animated backdrop's
+  supervisor restarted the backdrop video before the run, so it kept playing.
+  - At 1920x1080, missed vsyncs fell from 10-20 to 2 a minute and interval p99
+    from about 20.5 to 18.7 ms, while fps held at 59.3-59.8.
+  - One swap-blocked stall a minute (45-56 ms) remains, as do 14-15 missed
+    vsyncs and 3 stalls a minute at 2560x1440 fullscreen.
+  - The heaviest preset is unchanged at 15 and 10 fps.
+  - Runs with the backdrop stopped and without picom remain open.
+
 ## [0.22.2] - 2026-11-26
 
 ### Changed
@@ -807,7 +820,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.2...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.3...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -862,3 +875,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.22.0]: https://github.com/njhoffman/harmonic/tree/v0.22.0
 [0.22.1]: https://github.com/njhoffman/harmonic/tree/v0.22.1
 [0.22.2]: https://github.com/njhoffman/harmonic/tree/v0.22.2
+[0.22.3]: https://github.com/njhoffman/harmonic/tree/v0.22.3

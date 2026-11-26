@@ -235,6 +235,15 @@ Local evidence is ignored by Git. See the
   call blocked while CPU and GPU time stay small. picom, Chrome, glava, and four
   mpv clients shared the GPU. Repeat `just perf-desktop` with them closed, and
   once without picom, to separate desktop load from the player.
+  **Partial (2026-11-26, `data/perf/v0.22.2-20261126-164659/`):** glava was
+  paused for the run. The animated backdrop (xwinwrap + mpv) was also paused,
+  but its node supervisor restarted it within 5 s, before the first scenario,
+  so the backdrop video kept playing. With only glava paused, the 1080p window
+  went from 10-20 to 2 missed vsyncs a minute (interval p99 about 20.5 to
+  18.7 ms), but one swap-blocked stall a minute (45-56 ms) remains.
+  Fullscreen 1440p still has 14-15 missed vsyncs and 3 stalls a minute.
+  Remaining: stop the backdrop through its supervisor (pausing mpv makes it
+  restart the backdrop) and measure once without picom.
 
 ## Processing reliability and scale (P2)
 
