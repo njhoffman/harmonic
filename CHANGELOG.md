@@ -5,6 +5,21 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-26
+
+### Validation
+
+- Evaluated SAM Audio's span predictor as a source-presence signal on the
+  MUSDB18 jobs.
+  - Per-second presence AUC is 0.95 for vocals, 0.93 for drums, and 0.91 for
+    bass. It correctly rejected every vocal window of an electronic
+    instrumental that the hand-built cues misclassified.
+  - Bass absence remains weak.
+  - Anchoring separation on the predicted spans did not reduce fill-in on
+    absent targets.
+  - Details and a proposed integration design are in the worker guide and
+    the checklist.
+
 ## [0.17.0] - 2026-11-26
 
 ### Added
@@ -602,7 +617,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.17.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -647,3 +662,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.16.0]: https://github.com/njhoffman/harmonic/tree/v0.16.0
 [0.16.1]: https://github.com/njhoffman/harmonic/tree/v0.16.1
 [0.17.0]: https://github.com/njhoffman/harmonic/tree/v0.17.0
+[0.17.1]: https://github.com/njhoffman/harmonic/tree/v0.17.1

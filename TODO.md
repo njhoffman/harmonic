@@ -152,8 +152,17 @@ Local evidence is ignored by Git. See the
   sung tracks, but classified the electronic instrumental (vocal target
   filled by a synth line) as vocal in 100% of windows, and drums on reggae
   reached only 0.65. Hand-built cues catch the bass fill-in, not melodic
-  fill-ins. Next candidate: SAM's own span predictor (`predict_spans`, disabled
-  in the pinned settings). That needs a worker setting change and a GPU run.
+  fill-ins.
+  **Span predictor (2026-11-26, `data/aws-gpu/musdb-spans-run/`):** zero-shot
+  per-window AUC is 0.95 for vocals, 0.93 for drums, and 0.91 for bass. It
+  rejected all 30 electronic-instrumental vocal windows. Vocals at threshold 0.2
+  keep 88% of present windows and reject 92% of absent ones. Bass absence stays
+  weak (at most 64% rejected). Anchored separation (`predict_spans=True`) does
+  not reduce fill-in, so keep separation unanchored. Proposed design (needs
+  owner decision): run the predictor in the worker for every prompt; store
+  per-frame probabilities with the predictor commit in results; carry a
+  presence stream in source-feature bundles (schema change); apply per-source
+  thresholds in the player or scene layer, not in the bundle.
 - [ ] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
   Measure target-GPU frame times, stutters, and physical-output timing after
   seeks. Investigate the known GLX search-path warning involving `~/.local/lib`.

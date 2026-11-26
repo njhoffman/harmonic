@@ -624,6 +624,34 @@ detect the bass fill-in: the target's energy fraction below 150 Hz (vocal AUC
 melodic instrument fills the vocal target. The electronic instrumental was
 called vocal in every window under leave-one-song-out testing.
 
+#### SAM span predictor as a presence signal (2026-11-26)
+
+A second Blackwell session re-ran the same 27 jobs with SAM Audio's span
+predictor (`facebook/pe-a-frame-large`, pinned commit
+`40187271298f84e2966d4518c88dde698540c9ad`, 40 ms frames). Everything else
+matched the earlier run: checkpoint, settings, seed, and T5 revision. For each
+prompt the run recorded per-frame presence probabilities and also repeated
+the separation with `predict_spans=True`. It took 620.6 seconds of inference
+and about 20 instance-minutes. Files are in `data/aws-gpu/musdb-spans-run/`
+(`run_jobs.py`, `score_spans.py`, and `scores/`).
+
+| Source | Window AUC | Upstream threshold 0.3 (present / absent recall) | Best observed threshold |
+| --- | --- | --- | --- |
+| Vocals | 0.952 | 0.80 / 0.93 | 0.2: 0.88 / 0.92 |
+| Drums | 0.925 | 0.96 / 0.84 | 0.2–0.3: about 0.96 / 0.84 |
+| Bass | 0.907 | 0.99 / 0.60 | none better than about 0.79 balanced |
+
+Without training on this data, the predictor rejected all 30 vocal windows of
+the electronic instrumental, which the hand-built cues all misclassified.
+Weak spots: present vocals on Al James (AUC 0.82), reggae drums (0.73), and
+bass absence. The thresholds above were chosen on the evaluation data
+itself. Anchoring separation on the predicted spans did not reduce fill-in:
+the median absent-target ratio went from 0.606 to 0.607, and still 1 of 31
+passed. Present-source gain fell slightly, from 0.906 to 0.893. The span
+probabilities are useful as a separate presence signal; anchoring is not a
+fix for fill-in.
+
+
 ## License observations
 
 The [SAM License](https://github.com/facebookresearch/sam-audio/blob/bb4c6999d2677c7402360e426afc01ddfad6dce0/LICENSE)
