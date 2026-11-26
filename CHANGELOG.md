@@ -5,6 +5,42 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-26
+
+### Added
+
+- Player options for desktop measurement: `--size WxH`, `--fullscreen`,
+  `--frame-report FILE` (requires `--exit-after`), and `--seek-every SECONDS`.
+  A frame report records, for every presented frame, CPU draw time, swap time,
+  GPU time (`GL_TIMESTAMP` query pairs, which cannot conflict with projectM's
+  own queries), the audio clock, and the SDL queue depth. It also records each
+  seek's call time, the time until the audio clock advances past the target,
+  and the time until the next presented frame, plus GL, display, and audio
+  provenance.
+- `just perf-desktop` (`python -m harmonic_analysis.frame_perf run`) plays
+  graphs-only and three projectM presets, both in a 1920x1080 window and
+  fullscreen at the native resolution. It samples the ALSA hardware queue
+  while each scenario plays, records the compositor and GPU load, and writes
+  per-scenario reports, logs, exit statuses, and a `summary.json` under
+  `data/perf/`. `frame_perf summarize REPORT` summarizes one report.
+  Under i3 it floats only the player's own window, found by PID, at exactly
+  1920x1080. A scenario whose report shows another size fails.
+
+### Validation
+
+- Desktop measurement on the GTX 960 (driver 580.178.04, i3 with picom,
+  2560x1440 at 59.95 Hz, other GPU clients running):
+  - Graphs and the light and median presets hold 59.1-59.7 fps at 1920x1080
+    and 2560x1440, with GPU p99 of 6-11 ms.
+  - The heaviest library preset falls to 14.9 and 9.9 fps.
+  - Steady playback has 1-4 swap-blocked stalls a minute.
+  - Graphs-only seeks settle in about 33 ms. Preset seeks freeze the picture
+    for about 100 ms.
+  - The ALSA queue holds a median 28-29 ms that the audio clock does not
+    compensate, so audio trails its frame by at least about 12 ms.
+  - The README has the full table. Follow-ups are in the checklist.
+- The `~/.local/lib` GLX runtime-path warning no longer appears at configure.
+
 ## [0.18.0] - 2026-11-26
 
 ### Added
@@ -653,7 +689,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.19.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -700,3 +736,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.17.0]: https://github.com/njhoffman/harmonic/tree/v0.17.0
 [0.17.1]: https://github.com/njhoffman/harmonic/tree/v0.17.1
 [0.18.0]: https://github.com/njhoffman/harmonic/tree/v0.18.0
+[0.19.0]: https://github.com/njhoffman/harmonic/tree/v0.19.0

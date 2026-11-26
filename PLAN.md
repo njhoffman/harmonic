@@ -385,12 +385,18 @@ visually reviewed at `data/compositor-v0.5.0-combined.png`.
 
 These checks establish the rendering/playback integration on the offscreen Mesa
 software renderer. They do not measure target-GPU frame times, physical output
-latency, or desktop input handling. The local CMake package also emits a GLX
-runtime-path warning because `~/.local/lib` can shadow system GLX libraries;
-offscreen checks pass, and the desktop loader needs checking during hardware
-validation and packaging. Shader-fallback detection remains unavailable through
-the C API. Test display presentation, controls, and frame times on the actual GPU
-before choosing a wider preset set or promising a frame-rate target.
+latency, or desktop input handling. Shader-fallback detection remains
+unavailable through the C API.
+
+Desktop measurement (v0.19.0, `just perf-desktop`) on the GTX 960 under i3 and
+picom: graphs and light-to-median presets hold about 59 fps at 1920x1080 and
+2560x1440, and the heaviest library preset falls to 15 and 10 fps. Steady
+playback has 1-4 swap-blocked stalls a minute on the shared desktop. Preset
+seeks freeze the picture for about 100 ms. The ALSA queue (28-29 ms) is not
+compensated by the audio clock. The README records the full table. The earlier
+GLX runtime-path warning is gone, because `~/.local/lib` no longer holds GL
+libraries. Set a preset GPU budget from these reports before promising a
+frame-rate target.
 
 ## 9. Roadmap with concrete completion gates
 

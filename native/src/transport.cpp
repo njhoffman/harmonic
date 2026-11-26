@@ -113,6 +113,13 @@ void Transport::seek(double seconds) {
     if (was_playing) check(SDL_ResumeAudioStreamDevice(stream_), "Resume after seek");
 }
 
+std::int64_t Transport::queued_frames() {
+    Lock lock(stream_);
+    const int queued = SDL_GetAudioStreamQueued(stream_);
+    check(queued >= 0, "Read audio queue");
+    return static_cast<std::int64_t>(queued) / static_cast<std::int64_t>(sizeof(float) * channels);
+}
+
 std::string Transport::error() {
     Lock lock(stream_);
     return callback_error_;

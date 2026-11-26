@@ -169,10 +169,42 @@ Local evidence is ignored by Git. See the
   The bundle stores raw probabilities. Pick scene thresholds (vocals about 0.2
   on MUSDB18) and decide how scenes treat `low_confidence` bass and
   `unbenchmarked` prompts. Validate on Billie Jean by listening.
-- [ ] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
+- [x] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
   Measure target-GPU frame times, stutters, and physical-output timing after
   seeks. Investigate the known GLX search-path warning involving `~/.local/lib`.
   Existing software-renderer and dummy-audio checks are separate evidence.
+  **Done (v0.19.0):** `just perf-desktop` on the GTX 960 (580.178.04, i3 +
+  picom, 2560x1440 at 59.95 Hz, other GPU clients running), evidence in
+  `data/perf/v0.18.0-20261126-110817/`. Graphs and the light and median presets
+  hold 59.1-59.7 fps in a floated 1920x1080 window and at 1440p fullscreen (GPU
+  p99 6-11 ms); the heaviest preset runs at 14.9 fps (1080p) and 9.9 fps
+  (1440p). Output latency is a software-chain estimate only (see the loopback
+  item). The GLX runtime-path warning no longer appears: `~/.local/lib` holds no
+  GL libraries.
+- [ ] **Compensate the uncompensated output queue in the audio clock** (p1) [bug]
+  The clock subtracts only SDL's 16 ms device buffer. The ALSA hardware queue
+  behind PipeWire holds a median 28-29 ms, so sound reaches the DAC at least
+  about 12 ms after the frame showing its position (after one 16.7 ms refresh
+  for the picture). Options: a measured default `--offset-ms`, or reading the
+  sink latency at runtime. Confirm the direction with the loopback measurement.
+- [ ] **Measure physical audio/picture offset with a loopback** (p2) [test]
+  The frame report adds up reported queues only; DAC, sound-server buffering
+  beyond ALSA, and panel latency are unmeasured. Add a flash-and-click
+  calibration view and record it with a camera or microphone at the desk.
+- [ ] **Hide the ~100 ms picture freeze on preset seeks** (p2) [perf]
+  Every seek with a preset leaves a 93-110 ms gap before the next presented
+  frame (preset reset and first draw while the clock is held; graphs-only seeks
+  settle in about 33 ms). Keep showing the last frame or the graphs while the
+  preset resets, or reset without recompiling shaders.
+- [ ] **Set a preset GPU budget for the GTX 960** (p2) [perf]
+  The heaviest library preset needs GPU p99 59 ms at 1080p and 94 ms at 1440p.
+  Use per-preset GPU time from frame reports to filter or rank presets before
+  the scene controller picks them.
+- [ ] **Re-measure frame pacing on a quiet desktop** (p3) [test]
+  Steady playback still shows 1-4 stalls a minute (47-121 ms) with the swap
+  call blocked while CPU and GPU time stay small. picom, Chrome, glava, and four
+  mpv clients shared the GPU. Repeat `just perf-desktop` with them closed, and
+  once without picom, to separate desktop load from the player.
 
 ## Processing reliability and scale (P2)
 
@@ -301,6 +333,11 @@ Local evidence is ignored by Git. See the
   Tags v0.2.0 through v0.14.2 have no GitHub releases. `just publish-release
   X.Y.Z` creates one from CHANGELOG.md. This is outward-facing, so it waits for
   owner approval.
+- [ ] **Update stale schema references in README** (p3) [docs]
+  The heading at `README.md:560` still reads "schema versions 1 and 2" though
+  the section documents schema 3, and `README.md:655` says validated SAM
+  outputs adapt into schema-2 bundles; the adapter writes schema 3 since
+  v0.18.0. Retitle the section and update the sentence.
 
 ## Completed
 

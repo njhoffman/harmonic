@@ -325,8 +325,9 @@ PPMs and a JSON report with source, preset, and preview hashes. This mode uses a
 controlled timeline and opens no audio device. The test suite also exercises the
 real playback path with SDL's dummy audio driver. The owner has confirmed
 Billie Jean listening checks on the actual output and desktop controls, including
-end-of-track behavior. Quantitative physical-output latency and target-GPU
-performance remain unmeasured.
+end-of-track behavior. Target-GPU frame times are measured with
+`just perf-desktop` (see below); physical output latency is still estimated
+from reported queues, not measured.
 `--render-frames` renders at a 60 Hz timeline from `--start`; the screenshot shows
 the last frame. Its default remains a single frame.
 
@@ -360,6 +361,68 @@ recover internally from shader failures without exposing them through its C API;
 the report marks shader-fallback detection as unavailable. Visually review output
 before claiming preset fidelity. See [PLAN.md](PLAN.md) for
 the recorded results and software-rendering performance limits.
+
+## Desktop frame times and output latency
+
+Measure the player on a real display. This plays audio and takes over the
+screen for about 10 minutes:
+
+```sh
+just perf-desktop                       # :0, 60 s per scenario
+just perf-desktop data/analysis/billie-jean :0 30
+.venv/bin/python -m harmonic_analysis.frame_perf run data/analysis/billie-jean \
+  --display :0 --preset '/path/to/a.milk' --preset '/path/to/b.milk'
+.venv/bin/python -m harmonic_analysis.frame_perf summarize data/perf/RUN/1080p-window-graphs.json
+```
+
+The runner plays graphs-only and each preset (by default three presets of
+increasing shader cost under `~/.projectM/presets`), first in a 1920x1080
+window, then fullscreen at the desktop resolution. Each scenario starts at 30 s
+and seeks every 10 s. Under i3, the runner floats only the player's own window
+(found by PID) at exactly 1920x1080. A scenario fails if the report's pixel
+size differs from the requested size.
+
+The player's `--frame-report FILE` (with `--exit-after`, optionally
+`--seek-every`, `--size WxH`, `--fullscreen`) records, for every presented frame:
+
+- CPU time from frame start to the swap call, and time spent in the swap call.
+- GPU time from `GL_TIMESTAMP` query pairs.
+- The audio clock and the SDL queue depth.
+
+For each seek it records the call time, the time until the audio clock moves
+5 ms past the target, and the time until the next presented frame.
+The summary excludes the first second and 0.25 s after each settled seek from
+steady statistics. It counts intervals over 1.5 refresh periods as missed
+vsyncs and intervals over 2.5 periods as stalls.
+
+The runner samples the ALSA hardware queue (`/proc/asound/.../status`) while
+each scenario plays. It records the compositor, GPU clients and load, the
+PipeWire quantum, and `xrandr`, and writes reports, logs, exit statuses, and
+`summary.json` under `data/perf/`. The latency figure is a software-chain
+estimate: the player's clock subtracts SDL's device buffer, while the ALSA
+queue behind the sound server is not compensated. The DAC and panel latency are
+unmeasured.
+
+Results on 2026-11-26 (GTX 960, driver 580.178.04, i3 with picom, one
+2560x1440 monitor at 59.95 Hz, with Chrome, glava, and four mpv clients also on
+the GPU):
+
+| Scenario | 1920x1080 window | 2560x1440 fullscreen |
+| --- | --- | --- |
+| Graphs only | 59.7 fps, GPU p99 6.0 ms | 59.5 fps, GPU p99 5.9 ms |
+| Preset, no shaders | 59.3 fps, GPU p99 8.1 ms | 59.1 fps, GPU p99 9.1 ms |
+| Preset, median shaders | 59.4 fps, GPU p99 7.9 ms | 59.1 fps, GPU p99 11.0 ms |
+| Preset, heaviest shaders | 14.9 fps, GPU p99 59.5 ms | 9.9 fps, GPU p99 94.0 ms |
+
+- Steady playback missed 10-28 vsyncs and had 1-4 stalls (47-121 ms) per
+  minute. In those stalls the swap call blocks while CPU and GPU time stay
+  small, which points at presentation and desktop load rather than drawing.
+- Graphs-only seeks settle in about 33 ms. With a preset, each seek shows no
+  new frame for about 100 ms while the preset resets, and settles in
+  117-133 ms.
+- The ALSA queue held a median 28-29 ms against a compensated 16 ms SDL
+  buffer. Audio therefore reaches the DAC at least about 12 ms after its frame
+  is presented.
 
 ## SAM source features and graphs
 

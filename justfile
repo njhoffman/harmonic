@@ -106,6 +106,10 @@ sam-validate-song plan result: sync
 sam-features mix job result output: sync
     {{ quote(python) }} -m harmonic_analysis.sam_cli features {{ quote(mix) }} {{ quote(job) }} {{ quote(result) }} --output {{ quote(output) }}
 
+# Measure frame times, seeks, and the output queue on a real display (plays audio, ~10 min).
+perf-desktop bundle=default_bundle display=":0" duration="60": build
+    {{ quote(python) }} -m harmonic_analysis.frame_perf run {{ quote(bundle) }} --player {{ quote(player) }} --display {{ quote(display) }} --duration {{ quote(duration) }}
+
 # Build and play a previously analyzed recording.
 play bundle=default_bundle: build
     {{ quote(player) }} {{ quote(bundle) }}

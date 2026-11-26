@@ -73,6 +73,8 @@ public:
     double position();
     double duration() const { return static_cast<double>(audio_.size() / channels) / sample_rate; }
     double buffer_seconds() const { return buffer_seconds_; }
+    // Frames written to the SDL stream that the device has not consumed yet.
+    std::int64_t queued_frames();
     std::string error();
 
 private:
@@ -134,6 +136,36 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
+};
+
+// Records per-frame CPU, swap, and GPU timing plus scripted seeks for a
+// --frame-report. GPU time uses GL_TIMESTAMP pairs, which cannot conflict with
+// queries projectM issues; results are read a few frames later to avoid stalls.
+class FrameTimer {
+public:
+    FrameTimer();
+    ~FrameTimer();
+    FrameTimer(const FrameTimer&) = delete;
+    FrameTimer& operator=(const FrameTimer&) = delete;
+    void begin(Uint64 now, double position, std::int64_t queued_frames);
+    void drawn(Uint64 now);
+    void swapped(Uint64 now);
+    void seek(Uint64 requested, Uint64 returned, double from, double to);
+    // Writes the report; context supplies display, audio, and scenario details.
+    void write(const std::filesystem::path& path, Json::Value context);
+private:
+    static constexpr int ring = 8;
+    void collect(bool wait);
+    struct Pending { std::size_t frame; bool active; };
+    unsigned int queries_[ring * 2] = {};
+    Pending pending_[ring] = {};
+    std::size_t next_query_ = 0;
+    std::vector<Uint64> begin_ns_, draw_ns_, swap_ns_;
+    std::vector<double> position_, gpu_ns_;
+    std::vector<std::int64_t> queued_;
+    Json::Value seeks_{Json::arrayValue};
+    int settling_ = -1, presenting_ = -1;
+    Uint64 origin_ = 0;
 };
 
 void compositor_check(Renderer& renderer, PresetRenderer& preset, const Bundle& bundle,

@@ -35,8 +35,10 @@ class NativeIntegrationTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.manifest_path = analyze(self.audio, self.root / "bundle")
 
-    def invoke(self, *arguments):
+    def invoke(self, *arguments, interactive=False):
         environment = dict(os.environ, SDL_AUDIODRIVER="dummy")
+        if interactive:
+            environment["SDL_VIDEODRIVER"] = "offscreen"
         return subprocess.run([str(PLAYER), str(self.manifest_path), *arguments],
                               text=True, capture_output=True, env=environment, timeout=20)
 
@@ -70,6 +72,55 @@ class NativeIntegrationTests(unittest.TestCase):
         result = self.invoke("--inspect")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("frame count does not match", result.stderr)
+
+    def test_frame_report_records_frames_and_scripted_seeks(self):
+        report_path = self.root / "frames.json"
+        result = self.invoke("--size", "960x720", "--exit-after", "0.8", "--seek-every", "0.3",
+                             "--frame-report", str(report_path), interactive=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(report_path.read_text())
+        self.assertEqual(report["kind"], "harmonic.frame-report.v1")
+        self.assertEqual(report["view"], "graphs")
+        self.assertIsNone(report["preset"])
+        self.assertEqual(report["display"]["pixel_width"], 960)
+        self.assertEqual(report["audio"]["sample_rate"], 48000)
+        count = report["frame_count"]
+        self.assertGreater(count, 2)
+        frames = report["frames"]
+        for column in ("begin_ns", "draw_ns", "swap_ns", "gpu_ns", "position", "queued_frames"):
+            self.assertEqual(len(frames[column]), count, column)
+        for begin, drawn, swapped in zip(frames["begin_ns"], frames["draw_ns"], frames["swap_ns"]):
+            self.assertLessEqual(begin, drawn)
+            self.assertLessEqual(drawn, swapped)
+        self.assertEqual(frames["swap_ns"], sorted(frames["swap_ns"]))
+        # The start-up seek plus two scripted seeks at 0.3 s and 0.6 s.
+        seeks = report["seeks"]
+        self.assertEqual(len(seeks), 3)
+        self.assertEqual(seeks[0]["frame"], 0)
+        for seek in seeks:
+            self.assertGreaterEqual(seek["call_ns"], 0)
+            self.assertGreaterEqual(seek["to"], 0)
+        self.assertFalse(report_path.with_name("frames.json.tmp").exists())
+
+    def test_frame_report_options_are_validated(self):
+        report = str(self.root / "frames.json")
+        cases = [
+            (("--frame-report", report), "requires --exit-after"),
+            (("--exit-after", "1", "--seek-every", "1"), "requires --frame-report"),
+            (("--frame-report", report, "--exit-after", "1", "--seek-every", "-1"), "nonnegative"),
+            (("--size", "1920"), "WxH"),
+            (("--size", "100x720"), "320..7680"),
+            (("--size", "1920x1080x2"), "WxH"),
+            (("--size", "+920x720"), "WxH"),
+            (("--fullscreen", "--inspect"), "interactive playback only"),
+            (("--frame-report", report, "--exit-after", "1", "--audio-check"), "interactive playback only"),
+        ]
+        for arguments, message in cases:
+            with self.subTest(arguments=arguments):
+                result = self.invoke(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+        self.assertFalse(Path(report).exists())
 
 
 if __name__ == "__main__":
