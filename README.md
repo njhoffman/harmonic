@@ -649,7 +649,7 @@ so internal chunk seams do not become new zero-padded analysis-window edges.
 Playback remains the original stereo mix; its final source readouts hold at the
 last source sample. Job inputs and benchmark WAVs are retained for review.
 
-## Bundle contract: schema versions 1 and 2
+## Bundle contract: schema versions 1, 2, and 3
 
 A schema-1 mix bundle contains `manifest.json` and `mix.arrow`. The manifest records the
 original audio path, source-file and canonical-PCM SHA-256 checksums, embedded
@@ -744,7 +744,7 @@ artifacts passed checksum/sample-count validation. The owner confirmed clear
 extraction and clean residuals for all three prompts in the 30–40 second excerpt.
 The subsequent full-song run has not received listening approval. Instrument-level transient
 alignment and observed reconstruction/gain differences remain validation work. No checkpoint
-weights were downloaded on this laptop. Validated SAM outputs can be adapted into schema-2 source-feature bundles.
+weights were downloaded on this laptop. Validated SAM outputs are adapted into schema-3 source-feature bundles; results from workers that predate presence measurement get `presence: null`.
 Demucs remains an optional comparison/fallback.
 
 On 2026-11-19, the applied AWS GPU quota and local authenticated access to the

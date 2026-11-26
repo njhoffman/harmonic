@@ -5,6 +5,13 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-11-26
+
+### Fixed
+
+- The README's bundle-contract heading now covers schema 3, and the scope
+  section no longer says validated SAM outputs become schema-2 bundles.
+
 ## [0.20.0] - 2026-11-26
 
 ### Added
@@ -721,7 +728,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.20.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -770,3 +777,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.18.0]: https://github.com/njhoffman/harmonic/tree/v0.18.0
 [0.19.0]: https://github.com/njhoffman/harmonic/tree/v0.19.0
 [0.20.0]: https://github.com/njhoffman/harmonic/tree/v0.20.0
+[0.20.1]: https://github.com/njhoffman/harmonic/tree/v0.20.1

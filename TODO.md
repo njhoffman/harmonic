@@ -340,11 +340,12 @@ Local evidence is ignored by Git. See the
   Tags v0.2.0 through v0.14.2 have no GitHub releases. `just publish-release
   X.Y.Z` creates one from CHANGELOG.md. This is outward-facing, so it waits for
   owner approval.
-- [ ] **Update stale schema references in README** (p3) [docs]
+- [x] **Update stale schema references in README** (p3) [docs]
   The heading at `README.md:560` still reads "schema versions 1 and 2" though
   the section documents schema 3, and `README.md:655` says validated SAM
   outputs adapt into schema-2 bundles; the adapter writes schema 3 since
   v0.18.0. Retitle the section and update the sentence.
+  **Done (v0.20.1).**
 
 ## Completed
 
