@@ -5,6 +5,21 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-26
+
+### Added
+
+- Vocal benchmark jobs record their stems under `source.stems`: resolved path,
+  file sha256, and decoded-PCM sha256 for the vocal and accompaniment
+  references. Results and scores carry the record, and mixed-case scores add
+  `reference_stems` for the stems actually supplied.
+
+### Changed
+
+- Scoring a mixed case refuses reference stems whose file hash differs from the
+  stem recorded in the job. Jobs prepared before this release have no stem
+  record and still score.
+
 ## [0.20.1] - 2026-11-26
 
 ### Fixed
@@ -728,7 +743,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.20.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.21.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -778,3 +793,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.19.0]: https://github.com/njhoffman/harmonic/tree/v0.19.0
 [0.20.0]: https://github.com/njhoffman/harmonic/tree/v0.20.0
 [0.20.1]: https://github.com/njhoffman/harmonic/tree/v0.20.1
+[0.21.0]: https://github.com/njhoffman/harmonic/tree/v0.21.0

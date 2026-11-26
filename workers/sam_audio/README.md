@@ -550,8 +550,14 @@ just sam-vocal-control data/aws-gpu/vocal-followup/jobs/guitar-005-025 \
 
 For accompaniment-only cases use `just sam-vocal-control`; both isolated
 recipes use the job PCM as the reference.
-Mixed cases verify that the supplied stems reproduce the prepared job on
-its original sample grid. Scoring removes each stream's mean over the whole
+Each prepared case records its stems under `source.stems`: resolved path,
+file sha256, and decoded-PCM sha256 for `vocal` and `accompaniment`. Results
+and scores carry the job source unchanged, so an archived score traces back to
+its assets. Scoring a mixed case first refuses stems whose file hash differs
+from the recorded one, then verifies that the supplied stems reproduce the
+prepared job on its original sample grid. The report's `reference_stems`
+records the stems actually supplied. Jobs prepared before v0.21.0 have no
+`stems` and still score. Scoring removes each stream's mean over the whole
 excerpt (input, references, target, residual) so constant sample offsets
 cannot decide the outcome. Positions are unchanged. The report
 (`harmonic.sam-vocal-benchmark.v2`) keeps the removed values under `means`

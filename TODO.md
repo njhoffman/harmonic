@@ -321,10 +321,12 @@ Local evidence is ignored by Git. See the
   `sam_benchmark.py:92-93` reads the target/residual again after validation
   without comparing them to the report sha256 (stitching does), and a
   `struct.error` from `read_wave` reaches the user as a traceback.
-- [ ] **Record stem provenance in benchmark jobs and scores** (p3) [feature]
+- [x] **Record stem provenance in benchmark jobs and scores** (p3) [feature]
   `sam_benchmark.py:43-44` stores a placeholder source path and only the PCM
   hash. Store each stem's path, sha256, and PCM sha256 so archived scores trace
   back to their source assets.
+  **Done (v0.21.0):** cases record `source.stems` (path, sha256, PCM sha256);
+  mixed scoring refuses unrecorded stems and reports `reference_stems`.
 - [x] **Add just recipes for the vocal benchmark** (p3) [docs]
   Only `sam-vocal-control` exists. `workers/sam_audio/README.md:524-527` calls
   `harmonic-sam prepare-vocal-benchmark` and `benchmark-vocals --case mix`

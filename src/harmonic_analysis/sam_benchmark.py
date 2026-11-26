@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .analysis import decode_audio
+from .analysis import decode_audio, sha256_file
 from .sam_jobs import (DEFAULT_TARGETS, SAMPLE_RATE, digest, load_job, new_directory, read_wave,
                        save_job, validate_result)
 
@@ -23,6 +23,14 @@ def _stems(vocal: Path, accompaniment: Path) -> tuple[np.ndarray, np.ndarray]:
     return vocals, backing
 
 
+def _pcm_sha256(pcm: np.ndarray) -> str:
+    return hashlib.sha256(memoryview(np.ascontiguousarray(pcm)).cast("B")).hexdigest()
+
+
+def _stem_identity(path: Path, pcm: np.ndarray) -> dict:
+    return {"path": str(path.resolve()), "sha256": sha256_file(path), "pcm_sha256": _pcm_sha256(pcm)}
+
+
 def prepare_cases(vocal: Path, accompaniment: Path, output: Path, *, start: float, duration: float,
                   prompt: str = DEFAULT_TARGETS["vocals"]) -> Path:
     if not math.isfinite(start) or not math.isfinite(duration) or start < 0 or not 0 < duration <= 30:
@@ -35,13 +43,16 @@ def prepare_cases(vocal: Path, accompaniment: Path, output: Path, *, start: floa
         mix = vocals + backing
     if not np.isfinite(mix).all():
         raise ValueError("The summed reference PCM exceeds float32 range")
+    # Every case records the stems it came from, so archived scores trace back
+    # to the source assets.
+    stems = {"vocal": _stem_identity(vocal, vocals), "accompaniment": _stem_identity(accompaniment, backing)}
     with new_directory(output) as destination:
         for name, pcm in zip(CASES, (mix, vocals, backing), strict=True):
             # These cases are generated recordings. Their identity derives from
             # canonical PCM, including the uncut reference timeline.
-            checksum = hashlib.sha256(memoryview(pcm).cast("B")).hexdigest()
+            checksum = _pcm_sha256(pcm)
             source = {"path": f"<vocal benchmark {name}>", "sha256": checksum,
-                      "pcm_sha256": checksum, "sample_count": len(pcm)}
+                      "pcm_sha256": checksum, "sample_count": len(pcm), "stems": stems}
             save_job(pcm[first:first + count], destination / name, source=source, start_sample=first,
                      targets={"vocals": prompt})
     return output.resolve()
@@ -101,6 +112,13 @@ def score_case(job_path: Path, result_path: Path, case: str, *, vocal: Path | No
     if case == "mix":
         if vocal is None or accompaniment is None:
             raise ValueError("Both reference stems are required for a mixed case")
+        recorded = job["source"].get("stems")
+        if recorded is not None:
+            # Jobs prepared before stem provenance carry none; they still score.
+            for role, path in (("vocal", vocal), ("accompaniment", accompaniment)):
+                if sha256_file(path) != recorded[role]["sha256"]:
+                    raise ValueError(f"The {role} stem {path} does not match the stem recorded in the job "
+                                     f"({recorded[role]['path']})")
         vocals, backing = _stems(vocal, accompaniment)
         start = job["start_sample"]
         vocals, backing = vocals[start:start + len(pcm)], backing[start:start + len(pcm)]
@@ -144,6 +162,8 @@ def score_case(job_path: Path, result_path: Path, case: str, *, vocal: Path | No
         "residual_sha256": report["pairs"]["vocals"]["residual"]["sha256"],
         "reference_mono_pcm_sha256": {name: hashlib.sha256(samples.tobytes()).hexdigest()
                                       for name, samples in refs.items()},
+        "reference_stems": ({"vocal": _stem_identity(vocal, vocals), "accompaniment": _stem_identity(accompaniment, backing)}
+                            if case == "mix" else None),
         "centering": "excerpt_mean",
         "means": {"input": input_mean, "target": float(estimate_means[0]),
                   "residual": float(estimate_means[1]), "references": ref_means},

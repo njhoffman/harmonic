@@ -1,3 +1,4 @@
+import hashlib
 import json
 import shutil
 import subprocess
@@ -14,6 +15,17 @@ import numpy as np
 
 from harmonic_analysis.sam_benchmark import prepare_cases, score_case
 from harmonic_analysis.sam_jobs import digest, load_job, save_pair, write_json
+
+
+def fake_file_hash(path):
+    """Most tests mock decoding with placeholder paths; hash the path instead."""
+    return hashlib.sha256(str(path).encode()).hexdigest()
+
+
+def setUpModule():
+    patcher = patch("harmonic_analysis.sam_benchmark.sha256_file", side_effect=fake_file_hash)
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
 
 
 class VocalBenchmarkTests(unittest.TestCase):
@@ -53,6 +65,17 @@ class VocalBenchmarkTests(unittest.TestCase):
             with patch("harmonic_analysis.sam_benchmark.decode_audio", side_effect=[vocal, -backing]):
                 with self.assertRaisesRegex(ValueError, "reproduce the job PCM"):
                     score_case(path, output, "mix", vocal=Path("vocal.wav"), accompaniment=Path("backing.wav"))
+            # Stems other than the recorded ones are refused before decoding.
+            with patch("harmonic_analysis.sam_benchmark.decode_audio") as decode:
+                with self.assertRaisesRegex(ValueError, "does not match the stem recorded"):
+                    score_case(path, output, "mix", vocal=Path("other.wav"), accompaniment=Path("backing.wav"))
+                decode.assert_not_called()
+            stems = load_job(path)[0]["source"]["stems"]
+            self.assertEqual(stems["vocal"], {"path": str(Path("vocal.wav").resolve()),
+                                              "sha256": fake_file_hash(Path("vocal.wav")),
+                                              "pcm_sha256": hashlib.sha256(vocal.tobytes()).hexdigest()})
+            self.assertEqual(mixed["reference_stems"], stems)
+            self.assertEqual(mixed["source"]["stems"], stems)
 
             path, output = result("vocal-only", voice, np.zeros_like(voice))
             self.assertEqual(score_case(path, output, "vocal-only")["target_error_rms"], 0)
@@ -173,6 +196,18 @@ class CenteredScoringTests(unittest.TestCase):
                     prepare_cases(Path("v.wav"), Path("a.wav"), self.root / "window", start=start, duration=duration)
         self.assertFalse((self.root / "unequal").exists() or (self.root / "window").exists())
 
+    def test_jobs_without_stem_provenance_still_score(self):
+        backing = np.where(np.arange(9600) % 4 < 2, 0.125, -0.125).astype("<f4")
+        self.prepare(self.voice, backing)
+        for case in ("mix", "vocal-only"):
+            job_path = self.jobs / case / "job.json"
+            job = json.loads(job_path.read_text())
+            del job["source"]["stems"]
+            write_json(job_path, job)
+        report = self.score("mix", self.voice, backing)
+        self.assertNotIn("stems", report["source"])
+        self.assertIsNotNone(report["reference_stems"])
+
     def test_argument_checks_and_collinear_references(self):
         self.prepare(self.voice, self.voice)
         path, output = self.result("vocal-only", self.voice, np.zeros(9600))
@@ -214,6 +249,13 @@ class CenteredScoringTests(unittest.TestCase):
         report = json.loads(scored.stdout)
         self.assertEqual(report["kind"], "harmonic.sam-vocal-benchmark.v2")
         self.assertAlmostEqual(report["reference_gains"]["vocal"]["target"], 1, places=5)
+        self.assertIsNone(report["reference_stems"])
+        # The subprocess hashes the real stem files.
+        stems = job["source"]["stems"]
+        for role, name in (("vocal", "vocal.wav"), ("accompaniment", "backing.wav")):
+            self.assertEqual(stems[role]["path"], str((self.root / name).resolve()))
+            self.assertEqual(stems[role]["sha256"], hashlib.sha256((self.root / name).read_bytes()).hexdigest())
+            self.assertRegex(stems[role]["pcm_sha256"], "^[0-9a-f]{64}$")
         missing = subprocess.run([*cli, "benchmark-vocals", path, output, "--case", "mix"],
                                  capture_output=True, text=True, timeout=60)
         self.assertEqual(missing.returncode, 1)
