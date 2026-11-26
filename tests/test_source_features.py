@@ -16,7 +16,8 @@ import pyarrow.ipc as ipc
 from harmonic_analysis.analysis import analyze, decode_audio, sha256_file
 from harmonic_analysis.bundle import read_bundle
 from harmonic_analysis.catalog import import_track
-from harmonic_analysis.sam_jobs import load_job, save_job, save_pair, write_json
+from harmonic_analysis.sam_jobs import (PRESENCE_MODEL, PRESENCE_REVISION, load_job, presence_record, save_job,
+                                        save_pair, write_json)
 from harmonic_analysis.source_features import build_source_bundle
 
 PLAYER = Path(os.environ.get("HARMONIC_PLAYER", "build/harmonic-player")).resolve()
@@ -58,8 +59,31 @@ class SourceFeatureTests(unittest.TestCase):
                       auxiliary_text_model={"id": "google-t5/t5-base", "revision": "f" * 40},
                       pairs={"drums": {**pair, "description": "drums playing"}})
         write_json(self.result / "report.json", report)
+        self.report = report
         self.output = build_source_bundle(self.mix, self.job, self.result, self.root / "sources")
         self.manifest = json.loads(self.output.read_text())
+
+    def presence_bundle(self, prompt="drums playing"):
+        """The same result with presence measured: 14 raw frames, one of them codec padding."""
+        result = self.root / f"presence-{prompt.replace(' ', '-')}"
+        shutil.copytree(self.result, result)
+        job = json.loads(self.job.read_text())
+        job["targets"] = {"drums": prompt}
+        report = json.loads(json.dumps(self.report))
+        report["pairs"]["drums"]["description"] = prompt
+        if prompt != "drums playing":
+            job_dir = result.parent / f"{result.name}-job"
+            shutil.copytree(self.job.parent, job_dir)
+            write_json(job_dir / "job.json", job)
+            job_path = job_dir / "job.json"
+            report["job_sha256"] = sha256_file(job_path)
+        else:
+            job_path = self.job
+        report["presence_model"] = {"id": PRESENCE_MODEL, "revision": PRESENCE_REVISION, "frame_samples": 1920,
+                                    "files_sha256": {"config.json": "1" * 64, "model.safetensors": "2" * 64}}
+        report["pairs"]["drums"]["presence"] = presence_record(np.linspace(0, 1, 14), self.count)
+        write_json(result / "report.json", report)
+        return build_source_bundle(self.mix, job_path, result, self.root / f"{result.name}-bundle")
 
     def native(self, *args):
         return subprocess.run([str(PLAYER), str(self.output), *args], text=True, capture_output=True,
@@ -67,7 +91,9 @@ class SourceFeatureTests(unittest.TestCase):
 
     def test_offset_impulse_gain_and_portability_without_separated_audio(self):
         manifest = read_bundle(self.output, sha256_file(self.audio))
-        self.assertEqual(manifest["schema_version"], 2)
+        self.assertEqual(manifest["schema_version"], 3)
+        self.assertIsNone(manifest["presence"])  # The result predates presence: unknown, not absent.
+        self.assertEqual([s["role"] for s in manifest["streams"][1:]], ["target", "residual"])
         self.assertEqual(sha256_file(self.mix.parent / "mix.arrow"), sha256_file(self.output.parent / "mix.arrow"))
         stream = manifest["streams"][1]
         with ipc.open_file(str(self.output.parent / stream["artifact"])) as handle:
@@ -164,3 +190,89 @@ class SourceFeatureTests(unittest.TestCase):
         with artifact.open("ab") as handle:
             handle.write(b"corrupt")
         self.assertIn("feature checksum mismatch", self.native("--inspect").stderr)
+
+    def test_presence_streams_keep_raw_probabilities_on_the_source_timeline(self):
+        bundle = self.presence_bundle()
+        manifest = read_bundle(bundle, sha256_file(self.audio))
+        self.assertEqual(manifest["pipeline"], "harmonic.sam.features.v2")
+        self.assertEqual(manifest["presence"]["model"], {"id": PRESENCE_MODEL, "revision": PRESENCE_REVISION})
+        stream = manifest["streams"][3]
+        self.assertEqual((stream["role"], stream["frames"], stream["reliability"]), ("presence", 13, "benchmarked"))
+        with ipc.open_file(str(bundle.parent / stream["artifact"])) as handle:
+            table = handle.read_all()
+        np.testing.assert_array_equal(table["sample_index"].to_numpy(), self.start + np.arange(13) * 1920)
+        np.testing.assert_array_equal(table["probability"].to_numpy(),
+                                      np.linspace(0, 1, 14)[:13].astype(np.float32))
+        report = json.loads((bundle.parent / "sam-report.json").read_text())
+        for prompt, reliability in (("bass guitar playing", "low_confidence"), ("cowbell", "unbenchmarked")):
+            other = read_bundle(self.presence_bundle(prompt), sha256_file(self.audio))
+            self.assertEqual(other["streams"][3]["reliability"], reliability)
+
+        # Changing the Arrow values and their file hash cannot disguise a report mismatch.
+        artifact = bundle.parent / stream["artifact"]
+        changed = table.set_column(1, table.schema.field(1),
+                                   pa.array(np.roll(table["probability"].to_numpy(), 1), pa.float32()))
+        with pa.OSFile(str(artifact), "wb") as handle:
+            with ipc.new_file(handle, changed.schema) as writer:
+                writer.write_table(changed)
+        mutated = json.loads(bundle.read_text())
+        mutated["streams"][3]["sha256"] = sha256_file(artifact)
+        write_json(bundle, mutated)
+        with self.assertRaisesRegex(ValueError, "differ from the separation report"):
+            read_bundle(bundle, sha256_file(self.audio))
+        for key, value in (("reliability", "low_confidence"), ("frame_samples", 960)):
+            changed_manifest = json.loads(json.dumps(manifest))
+            changed_manifest["streams"][3][key] = value
+            write_json(bundle, changed_manifest)
+            with self.assertRaisesRegex(ValueError, "presence stream provenance"):
+                read_bundle(bundle, sha256_file(self.audio))
+        downgraded = json.loads(json.dumps(manifest))
+        downgraded.update(schema_version=2, pipeline="harmonic.sam.features.v1")
+        write_json(bundle, downgraded)
+        with self.assertRaisesRegex(ValueError, "cannot carry presence"):
+            read_bundle(bundle, sha256_file(self.audio))
+        self.assertTrue(report["pairs"]["drums"]["presence"]["raw_frames"] == 14)
+
+    @requires(PLAYER.is_file(), "Build the native player")
+    def test_native_presence_lookup_reliability_and_tamper_rejection(self):
+        self.output = self.presence_bundle()
+        manifest = json.loads(self.output.read_text())
+        values = np.linspace(0, 1, 14).astype(np.float32)
+        for sample, frame in ((self.start, 0), (self.start + 1919, 0), (self.start + 1920, 1),
+                              (self.start + self.count - 1, 12), (self.start + self.count, None)):
+            result = self.native("--inspect", "--start", repr(sample / 48000))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            item = json.loads(next(s for s in result.stdout.splitlines() if s.startswith("{")))["source_features"]
+            target = next(entry for entry in item if entry["name"] == "sam.drums.target")
+            if frame is None:
+                self.assertNotIn("presence", target)
+            else:
+                self.assertAlmostEqual(target["presence"], float(values[frame]), places=6)
+                self.assertEqual(target["presence_reliability"], "benchmarked")
+        frame = self.root / "presence.ppm"
+        render = self.native("--start", repr((self.start + 4000) / 48000), "--render-check", str(frame))
+        self.assertEqual(render.returncode, 0, render.stderr)
+        for field, value, message in (("probabilities_sha256", "0" * 64, "presence stream provenance"),
+                                      ("reliability", "certain", "presence stream provenance"),
+                                      ("frames", 12, "presence frame count")):
+            changed = json.loads(json.dumps(manifest))
+            changed["streams"][3][field] = value
+            write_json(self.output, changed)
+            self.assertIn(message, self.native("--inspect").stderr)
+        changed = json.loads(json.dumps(manifest))
+        changed["presence"] = None
+        write_json(self.output, changed)
+        self.assertIn("presence provenance", self.native("--inspect").stderr)
+
+    @requires(PLAYER.is_file(), "Build the native player")
+    def test_schema_two_bundles_remain_readable_with_presence_unknown(self):
+        legacy = json.loads(self.output.read_text())
+        del legacy["presence"]
+        legacy.update(schema_version=2, pipeline="harmonic.sam.features.v1")
+        write_json(self.output, legacy)
+        read_bundle(self.output, sha256_file(self.audio))
+        result = self.native("--inspect", "--start", repr((self.start + 100) / 48000))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        item = json.loads(next(s for s in result.stdout.splitlines() if s.startswith("{")))["source_features"][0]
+        self.assertTrue(item["covered"])
+        self.assertNotIn("presence", item)

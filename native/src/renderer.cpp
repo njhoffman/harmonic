@@ -246,10 +246,22 @@ void Renderer::draw(const Bundle& bundle, double seconds, bool paused, double of
                 const float y = top + (index / cols) * card_height;
                 const float w = card_width - 12, h = card_height - 8;
                 rect(x, y, w, h, 0.035f, 0.055f, 0.08f, view == View::combined ? 0.8f : 1);
-                const auto max_label = static_cast<std::size_t>((w - 16) / 7.2f);
+                // Presence belongs to the prompt, so only target cards show it. No stream: unknown.
+                const auto* presence = residuals_ ? nullptr : bundle.presence_for(source.target);
+                const auto max_label = static_cast<std::size_t>((w - (presence ? 140 : 16)) / 7.2f);
                 std::string label = source.target + (residuals_ ? " / RESIDUAL" : " / TARGET");
                 if (label.size() > max_label) label = label.substr(0, max_label - 3) + "...";
                 text(x + 8, y + 5, label, 1.2f, color[0], color[1], color[2]);
+                if (presence && presence->covers(feature_time)) {
+                    const bool benchmarked = presence->reliability == "benchmarked";
+                    const float dim = benchmarked ? 1.0f : 0.6f;
+                    text(x + w - 118, y + 6, benchmarked ? "PRESENCE" : presence->reliability == "low_confidence" ?
+                         "PRES LOW" : "PRES UNV", 1.0f, 0.51f * dim, 0.65f * dim, 0.73f * dim);
+                    rect(x + w - 65, y + 6, 55, 7, 0.09f, 0.15f, 0.2f);
+                    rect(x + w - 65, y + 6, std::clamp(presence->at(feature_time), 0.0f, 1.0f) * 55, 7,
+                         color[0] * dim, color[1] * dim, color[2] * dim);
+                    rect(x + w - 65 + 0.3f * 55, y + 4, 1, 11, 0.65f, 0.77f, 0.83f);  // Upstream default threshold.
+                }
                 if (!source.covers(feature_time)) {
                     text(x + 8, y + 22, "NO DATA / " + time_text(static_cast<double>(source.start_sample) / sample_rate) +
                         "-" + time_text(static_cast<double>(source.start_sample + source.sample_count) / sample_rate),

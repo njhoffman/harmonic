@@ -112,8 +112,51 @@ def model_session(job: dict, state: dict, text_revision: str | None):
             processor = SAMAudioProcessor.from_pretrained(str(local_model))
         if processor.audio_sampling_rate != 48_000 or model.sample_rate != 48_000:
             raise ValueError("Expected native 48 kHz model audio; refusing an implicit timebase conversion")
+        presence = load_presence_model()
         yield {"model": model, "processor": processor, "state": state, "model_hashes": model_hashes,
-               "info": info, "config_hash": digest(local_model / "config.json")}
+               "info": info, "config_hash": digest(local_model / "config.json"), "presence": presence}
+
+
+def load_presence_model() -> dict:
+    """Load the pinned frame-level span predictor that SAM Audio ships, for measurement only."""
+    import torch
+    from huggingface_hub import snapshot_download
+    from core.audio_visual_encoder import PEAudioFrame, PEAudioFrameTransform
+    from harmonic_analysis.sam_jobs import (PRESENCE_FILES, PRESENCE_FRAME_SAMPLES, PRESENCE_MODEL,
+                                            PRESENCE_REVISION, digest)
+
+    with Progress("Loading pinned presence model on CUDA"):
+        directory = Path(snapshot_download(PRESENCE_MODEL, revision=PRESENCE_REVISION))
+        predictor = PEAudioFrame.from_config(str(directory), pretrained=True).eval().to("cuda", torch.float32)
+        transform = PEAudioFrameTransform.from_config(str(directory))
+    codec = predictor.config.audio_model.dac_vae_encoder
+    if codec.hop_length * 48_000 != PRESENCE_FRAME_SAMPLES * codec.sampling_rate:
+        raise ValueError(f"Presence frames are {codec.hop_length}/{codec.sampling_rate} s; "
+                         f"expected {PRESENCE_FRAME_SAMPLES} samples at 48 kHz")
+    return {"predictor": predictor, "transform": transform,
+            "provenance": {"id": PRESENCE_MODEL, "revision": PRESENCE_REVISION,
+                           "frame_samples": PRESENCE_FRAME_SAMPLES,
+                           "files_sha256": {name: digest(directory / name) for name in PRESENCE_FILES}}}
+
+
+def measure_presence(model, processor, presence: dict, tensor, description: str, seed: int, count: int) -> dict:
+    """Per-frame prompt presence probabilities, computed as upstream does before span anchoring."""
+    import torch
+    from harmonic_analysis.sam_jobs import presence_record
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    batch = processor(audios=[tensor], descriptions=[description]).to("cuda")
+    predictor = presence["predictor"]
+    with torch.inference_mode():
+        args = model._get_forward_args(batch, candidates=1)
+        text = presence["transform"](text=batch.descriptions).to("cuda")
+        output = predictor(input_features=args["audio_features"][:, :, :128],
+                           padding_mask=args["audio_pad_mask"], return_spans=True, threshold=0.3, **text)
+        logits = (output.audio_embeds @ output.text_embeds.unsqueeze(1).transpose(-1, -2)).squeeze(-1)
+        probabilities = (logits * predictor.logit_scale + predictor.logit_bias).sigmoid()[0].float().cpu().numpy()
+    del batch, args, text, output, logits
+    return presence_record(probabilities, count)
 
 
 def separate_job(job_path: Path, output: Path, session: dict, *, began: float) -> Path:
@@ -134,6 +177,9 @@ def separate_job(job_path: Path, output: Path, session: dict, *, began: float) -
     pairs = {}
 
     def separate_prompt(name: str, description: str, destination: Path) -> dict:
+        with Progress(f"Measuring {name} presence"):
+            presence = measure_presence(model, processor, session["presence"], tensor, description,
+                                        job["seed"], len(mono))
         with Progress(f"Separating {name}"):
             torch.manual_seed(job["seed"])
             torch.cuda.manual_seed_all(job["seed"])
@@ -150,7 +196,7 @@ def separate_job(job_path: Path, output: Path, session: dict, *, began: float) -
             elapsed = time.monotonic() - started
             pair = save_pair(destination, name, target, residual, mono,
                              padding_limit=processor.audio_hop_length - 1)
-            pair.update(description=description, elapsed_seconds=elapsed,
+            pair.update(description=description, presence=presence, elapsed_seconds=elapsed,
                         real_time_factor=elapsed / (len(mono) / 48_000),
                         peak_cuda_allocated_bytes=torch.cuda.max_memory_allocated(),
                         peak_cuda_reserved_bytes=torch.cuda.max_memory_reserved())
@@ -178,6 +224,7 @@ def separate_job(job_path: Path, output: Path, session: dict, *, began: float) -
             "codec_hop_samples": processor.audio_hop_length,
             "model": {**job["model"], "files_sha256": model_hashes},
             "auxiliary_text_model": {"id": info.id, "revision": info.sha},
+            "presence_model": session["presence"]["provenance"],
             "normalized_config_sha256": session["config_hash"],
             "settings": job["settings"], "seed": job["seed"], "bitwise_determinism_guaranteed": False,
             "semantics": job["semantics"], "channel_reduction": job["channel_reduction"], "anchors": None,

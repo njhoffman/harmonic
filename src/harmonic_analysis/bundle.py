@@ -11,9 +11,32 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 
 from .analysis import BAND_COUNT, HOP_SIZE, PIPELINE, SAMPLE_RATE, SCHEMA_VERSION, WINDOW_SIZE, sha256_file
-from .sam_jobs import MODEL, MODEL_REVISION, SOURCE_REVISION, SETTINGS, check_targets
+from .sam_jobs import (MODEL, MODEL_REVISION, PRESENCE_FRAME_SAMPLES, SOURCE_REVISION, SETTINGS, check_targets,
+                       presence_frames, presence_values, validate_presence)
 
 SAM_PIPELINE = "harmonic.sam.features.v1"
+SAM_PIPELINE_V2 = "harmonic.sam.features.v2"  # Schema 3: adds per-target presence streams.
+SOURCE_VERSIONS = {2: SAM_PIPELINE, 3: SAM_PIPELINE_V2}
+# Presence reliability by prompt, from the MUSDB18 span-predictor study (worker
+# README). Window AUC: vocal prompts 0.95, drums 0.93, bass 0.91 but at most
+# 0.64 absent recall. Other prompts were not measured. Thresholds belong to
+# the player/scene layer; the bundle stores raw probabilities.
+PRESENCE_RELIABILITY = {"man singing": "benchmarked", "woman singing": "benchmarked",
+                        "singing voice": "benchmarked", "drums playing": "benchmarked",
+                        "bass guitar playing": "low_confidence"}
+
+
+def presence_reliability(prompt: str) -> str:
+    return PRESENCE_RELIABILITY.get(prompt, "unbenchmarked")
+
+
+def presence_manifest(report: dict) -> dict | None:
+    model = report.get("presence_model")
+    if model is None:
+        return None
+    return {"model": {"id": model["id"], "revision": model["revision"]},
+            "frame_samples": PRESENCE_FRAME_SAMPLES, "frame_alignment": "frame_start_half_open",
+            "values": "probability_no_threshold"}
 
 
 def separation_report(path: Path, manifest: dict) -> dict:
@@ -58,6 +81,7 @@ def separation_report(path: Path, manifest: dict) -> dict:
         raise ValueError("invalid separation seed")
     if set(report["model"]["files_sha256"]) != {"config.json", "checkpoint.pt", "LICENSE"}:
         raise ValueError("missing separation model hashes")
+    validate_presence(report, count)
     for name, pair in report["pairs"].items():
         for role in ("target", "residual"):
             wave = pair[role]
@@ -118,6 +142,30 @@ def read_stream(path: Path, stream: dict, *, start: int, count: int, version: in
                     raise ValueError(f"mismatched {name} statistics")
 
 
+def read_presence_stream(path: Path, stream: dict, expected: np.ndarray, *, start: int, count: int) -> None:
+    artifact = path.parent / stream["artifact"]
+    if sha256_file(artifact) != stream["sha256"]:
+        raise ValueError("presence checksum mismatch")
+    with ipc.open_file(str(artifact)) as reader:
+        table = reader.read_all()
+    table.validate(full=True)
+    metadata = table.schema.metadata or {}
+    if (metadata.get(b"harmonic.schema_version") != b"3"
+            or metadata.get(b"harmonic.stream") != stream["name"].encode()):
+        raise ValueError("presence metadata mismatch")
+    frames = presence_frames(count)
+    if (table.column_names != ["sample_index", "probability"] or table.num_rows != frames
+            or table.schema.field("sample_index").type != pa.int64()
+            or table.schema.field("probability").type != pa.float32()
+            or table["sample_index"].null_count or table["probability"].null_count):
+        raise ValueError("invalid presence columns")
+    if not np.array_equal(table["sample_index"].to_numpy(),
+                          start + np.arange(frames, dtype=np.int64) * PRESENCE_FRAME_SAMPLES):
+        raise ValueError("invalid presence sample indices")
+    if not np.array_equal(table["probability"].to_numpy(), expected):
+        raise ValueError("presence values differ from the separation report")
+
+
 def read_bundle(path: Path, source_hash: str, *, manifest_hash: str | None = None) -> dict:
     """Check identity/configuration/Arrow; the caller verifies source bytes/PCM."""
     try:
@@ -125,7 +173,8 @@ def read_bundle(path: Path, source_hash: str, *, manifest_hash: str | None = Non
             raise ValueError("manifest checksum mismatch")
         manifest = json.loads(path.read_text())
         version = manifest["schema_version"]
-        if type(version) is not int or (version, manifest["pipeline"]) not in ((SCHEMA_VERSION, PIPELINE), (2, SAM_PIPELINE)):
+        if type(version) is not int or (version, manifest["pipeline"]) not in (
+                (SCHEMA_VERSION, PIPELINE), *SOURCE_VERSIONS.items()):
             raise ValueError("unsupported schema or pipeline")
         source, audio, settings = (manifest[key] for key in ("source", "audio", "analysis"))
         if (not isinstance(source["path"], str) or not source["path"]
@@ -167,13 +216,32 @@ def read_bundle(path: Path, source_hash: str, *, manifest_hash: str | None = Non
                            for k in ("code_sha256", "mix_manifest_sha256"))):
                 raise ValueError("invalid feature extraction provenance")
             report = separation_report(path, manifest)
-            expected_streams = {f"sam.{name}.{role}": (name, role)
-                                for name in report["pairs"] for role in ("target", "residual")}
+            measured = report.get("presence_model") is not None
+            if version == 2 and measured:
+                raise ValueError("schema-2 bundles cannot carry presence")
+            if version == 3 and manifest["presence"] != presence_manifest(report):
+                raise ValueError("presence provenance mismatch")
+            roles = ("target", "residual", "presence") if version == 3 and measured else ("target", "residual")
+            expected_streams = {f"sam.{name}.{role}": (name, role) for name in report["pairs"] for role in roles}
             if len(streams) != 1 + len(expected_streams) or {s["name"] for s in streams[1:]} != set(expected_streams):
                 raise ValueError("separation stream set mismatch")
             for stream in streams[1:]:
                 name, role = expected_streams[stream["name"]]
                 pair = report["pairs"][name]
+                if role == "presence":
+                    record = pair["presence"]
+                    expected = {"artifact": f"sam-{name}-presence.arrow", "target": name, "role": role,
+                                "start_sample": report["start_sample"], "sample_count": report["sample_count"],
+                                "frames": record["frames"], "frame_samples": PRESENCE_FRAME_SAMPLES,
+                                "prompt": pair["description"], "probabilities_sha256": record["sha256"],
+                                "reliability": presence_reliability(pair["description"])}
+                    if set(stream) != {"name", "sha256", *expected} or any(
+                            stream[key] != value or type(stream[key]) is not type(value)
+                            for key, value in expected.items()):
+                        raise ValueError("presence stream provenance mismatch")
+                    read_presence_stream(path, stream, presence_values(record, report["sample_count"]),
+                                         start=report["start_sample"], count=report["sample_count"])
+                    continue
                 expected = {"artifact": f"sam-{name}-{role}.arrow", "target": name, "role": role,
                             "start_sample": report["start_sample"], "sample_count": report["sample_count"],
                             "channels": 1, "channel_reduction": "mono_no_gain_normalization",

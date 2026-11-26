@@ -5,6 +5,42 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-26
+
+### Added
+
+- Source-presence signal. For every prompt, the SAM worker measures per-frame
+  presence probabilities (40 ms frames) with SAM Audio's pinned span predictor
+  (`facebook/pe-a-frame-large`). It records them with model provenance and a
+  float32 checksum in the result report. Separation itself is unchanged and
+  stays unanchored.
+- Full-song stitching blends chunk presence onto the song's 40 ms grid with
+  the audio crossfade weights. Validation recomputes the blend from the
+  retained chunk reports.
+- Source-feature bundle schema 3 (`harmonic.sam.features.v2`) with one
+  `sam-NAME-presence.arrow` stream per target. Each stream holds raw
+  probabilities, no threshold, and a `reliability` label from the MUSDB18
+  study: `benchmarked` for the vocal and drum prompts, `low_confidence` for
+  bass, and `unbenchmarked` for other prompts.
+- The source inspector draws each target's presence probability with a tick
+  at the upstream default of 0.3. `--inspect` reports `presence` and
+  `presence_reliability`.
+
+### Changed
+
+- **Incompatible bundle change:** the adapter now writes schema 3, and older
+  players reject it. Schema-2 bundles remain readable.
+- Results from older workers stay valid, with presence unknown (not absent):
+  their bundles carry `presence: null` and no presence streams. Songs that
+  mix measured and unmeasured chunks are rejected.
+
+### Validation
+
+- End-to-end Blackwell run of a 12.345 s excerpt and a 4-chunk 27.77 s song,
+  neither length a multiple of 40 ms. The predictor returned exactly
+  `ceil(samples / 1920)` frames, and the stitch, schema-3 bundles, and native
+  loading all validated.
+
 ## [0.17.1] - 2026-11-26
 
 ### Validation
@@ -617,7 +653,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.17.1...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.18.0...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -663,3 +699,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.16.1]: https://github.com/njhoffman/harmonic/tree/v0.16.1
 [0.17.0]: https://github.com/njhoffman/harmonic/tree/v0.17.0
 [0.17.1]: https://github.com/njhoffman/harmonic/tree/v0.17.1
+[0.18.0]: https://github.com/njhoffman/harmonic/tree/v0.18.0

@@ -90,6 +90,41 @@ FeatureStream read_features(const std::filesystem::path& artifact, const Json::V
     features.spectrum_top_db = std::max(-80.0f, 20 * std::log10(scale("spectrum")));
     return features;
 }
+constexpr int presence_frame_samples = 1920;
+
+PresenceStream read_presence(const std::filesystem::path& artifact, const Json::Value& stream,
+                             std::int64_t start, std::int64_t count) {
+    PresenceStream presence;
+    presence.target = stream["target"].asString();
+    presence.prompt = stream["prompt"].asString();
+    presence.reliability = stream["reliability"].asString();
+    presence.start_sample = start;
+    presence.sample_count = count;
+    presence.frame_samples = presence_frame_samples;
+    auto file = unwrap(arrow::io::ReadableFile::Open(artifact.string()));
+    auto reader = unwrap(arrow::ipc::RecordBatchFileReader::Open(file));
+    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+    for (int i = 0; i < reader->num_record_batches(); ++i) batches.push_back(unwrap(reader->ReadRecordBatch(i)));
+    auto table = unwrap(arrow::Table::FromRecordBatches(batches));
+    auto metadata = table->schema()->metadata();
+    require(metadata && unwrap(metadata->Get("harmonic.schema_version")) == "3" &&
+            unwrap(metadata->Get("harmonic.stream")) == stream["name"].asString(), "presence metadata mismatch");
+    require(table->num_columns() == 2 && table->ValidateFull().ok(), "invalid presence columns");
+    table = unwrap(table->CombineChunks());
+    const auto frames = (count + presence_frame_samples - 1) / presence_frame_samples;
+    require(table->num_rows() == frames && stream["frames"].isInt64() && stream["frames"].asInt64() == frames,
+            "presence frame count does not match coverage");
+    auto indices = std::static_pointer_cast<arrow::Int64Array>(column(table, "sample_index", arrow::Type::INT64));
+    for (std::int64_t i = 0; i < frames; ++i)
+        require(indices->Value(i) == start + i * presence_frame_samples, "invalid presence sample indices");
+    auto values = std::static_pointer_cast<arrow::FloatArray>(column(table, "probability", arrow::Type::FLOAT));
+    presence.probability.assign(values->raw_values(), values->raw_values() + values->length());
+    for (float value : presence.probability)
+        require(std::isfinite(value) && value >= 0 && value <= 1, "invalid presence probability");
+    require(sha256(presence.probability.data(), presence.probability.size() * sizeof(float)) ==
+            stream["probabilities_sha256"].asString(), "presence values differ from the separation report");
+    return presence;
+}
 } // namespace
 
 Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::path& audio_override) {
@@ -102,7 +137,8 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
     require(m["schema_version"].isInt(), "unsupported schema version");
     const int version = m["schema_version"].asInt();
     require((version == 1 && m["pipeline"].asString() == "harmonic.mix.v1") ||
-            (version == 2 && m["pipeline"].asString() == "harmonic.sam.features.v1"), "unsupported schema or pipeline");
+            (version == 2 && m["pipeline"].asString() == "harmonic.sam.features.v1") ||
+            (version == 3 && m["pipeline"].asString() == "harmonic.sam.features.v2"), "unsupported schema or pipeline");
     require(m["audio"]["sample_rate"].asInt() == sample_rate && m["audio"]["channels"].asInt() == channels,
             "expected 48 kHz stereo");
     require(m["audio"]["sample_count"].isInt64(), "missing sample count");
@@ -111,7 +147,7 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
     bundle.hop = m["analysis"]["hop_size"].asInt();
     require(bundle.hop > 0 && m["analysis"]["frame_offset_samples"].asInt64() == 0, "invalid timebase");
     require(m["streams"].isArray() && !m["streams"].empty() &&
-            (version == 2 || m["streams"].size() == 1), "expected a single mix stream");
+            (version >= 2 || m["streams"].size() == 1), "expected a single mix stream");
     const auto& stream = m["streams"][0];
     require(stream["name"].asString() == "mix", "expected mix stream");
     bundle.bands = stream["bands"].asInt();
@@ -131,7 +167,7 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
         require(std::isfinite(value) && value > 0 && (bundle.band_edges.empty() || value > bundle.band_edges.back()), "invalid band edges");
         bundle.band_edges.push_back(value);
     }
-    if (version == 2) {
+    if (version >= 2) {
         require(bundle.hop == 960 && bundle.bands == 64 && m["analysis"]["window_size"].asInt() == 4096 &&
                 m["analysis"]["window"].asString() == "hann_symmetric" &&
                 m["analysis"]["padding"].asString() == "zeros_centered" &&
@@ -167,8 +203,25 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                 settings["ode_step_size"].asDouble() == 0.0625 && settings["predict_spans"].isBool() &&
                 !settings["predict_spans"].asBool() && settings["reranking_candidates"].asInt() == 1,
                 "unsupported separation settings");
+        const auto& presence_model = report["presence_model"];
+        const bool measured = !presence_model.isNull();
+        require(version == 3 || !measured, "schema-2 bundles cannot carry presence");
+        if (version == 3) {
+            const auto& presence = m["presence"];
+            require(m.isMember("presence") && presence.isNull() == !measured, "presence provenance mismatch");
+            if (measured)
+                require(presence_model["id"].asString() == "facebook/pe-a-frame-large" &&
+                        presence_model["revision"].asString() == "40187271298f84e2966d4518c88dde698540c9ad" &&
+                        presence_model["frame_samples"].isInt() &&
+                        presence_model["frame_samples"].asInt() == presence_frame_samples &&
+                        presence["model"]["id"] == presence_model["id"] &&
+                        presence["model"]["revision"] == presence_model["revision"] &&
+                        presence["frame_samples"] == presence_model["frame_samples"] &&
+                        presence["frame_alignment"].asString() == "frame_start_half_open" &&
+                        presence["values"].asString() == "probability_no_threshold", "unsupported presence provenance");
+        }
         require(report["pairs"].isObject() && report["pairs"].size() >= 1 && report["pairs"].size() <= 8 &&
-                m["streams"].size() == 1 + report["pairs"].size() * 2, "separation stream set mismatch");
+                m["streams"].size() == 1 + report["pairs"].size() * (measured ? 3 : 2), "separation stream set mismatch");
         for (int i = 0; i <= bundle.bands; ++i) {
             const double expected = 20.0 * std::pow(1200.0, static_cast<double>(i) / bundle.bands);
             require(std::abs(edges[i].asDouble() - expected) <= expected * 1e-9, "unsupported frequency bands");
@@ -231,6 +284,7 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
                                        "seed", "semantics", "channel_reduction", "anchors", "codec_hop_samples",
                                        "worker_code_sha256", "worker_lock_sha256"})
                     require(child[key] == report[key], "inconsistent retained chunk provenance");
+                require(child["presence_model"] == presence_model, "inconsistent retained chunk presence model");
                 require(child.isMember("run_binding_sha256") == report.isMember("run_binding_sha256") &&
                         child["run_binding_sha256"] == run_binding, "inconsistent retained chunk run binding");
                 for (const auto& target : report["pairs"].getMemberNames()) {
@@ -262,8 +316,28 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
             const auto& item = m["streams"][i];
             const auto target = item["target"].asString(), role = item["role"].asString();
             require(std::regex_match(target, std::regex("[a-z][a-z0-9_-]{0,31}")) &&
-                    (role == "target" || role == "residual") && report["pairs"].isMember(target), "invalid source role/target");
+                    (role == "target" || role == "residual" || (measured && role == "presence")) &&
+                    report["pairs"].isMember(target), "invalid source role/target");
             const auto name = "sam." + target + "." + role;
+            if (role == "presence") {
+                const auto filename = "sam-" + target + "-presence.arrow";
+                const auto& pair = report["pairs"][target];
+                const auto reliability = item["reliability"].asString();
+                require(item["name"].asString() == name && item["artifact"].asString() == filename &&
+                        seen.insert(name).second, "invalid or duplicate presence artifact");
+                require(item["start_sample"].isInt64() && item["sample_count"].isInt64() &&
+                        item["start_sample"].asInt64() == start && item["sample_count"].asInt64() == count &&
+                        item["frame_samples"].isInt() && item["frame_samples"].asInt() == presence_frame_samples &&
+                        item["prompt"] == pair["description"] &&
+                        item["probabilities_sha256"] == pair["presence"]["sha256"] &&
+                        std::regex_match(item["probabilities_sha256"].asString(), hash_pattern) &&
+                        (reliability == "benchmarked" || reliability == "low_confidence" || reliability == "unbenchmarked"),
+                        "presence stream provenance mismatch");
+                const auto artifact_path = manifest_path.parent_path() / filename;
+                require(sha256_file(artifact_path) == item["sha256"].asString(), "presence checksum mismatch");
+                bundle.presence.push_back(read_presence(artifact_path, item, start, count));
+                continue;
+            }
             const auto filename = "sam-" + target + "-" + role + ".arrow";
             const auto& pair = report["pairs"][target];
             require(item["name"].asString() == name && item["artifact"].asString() == filename && seen.insert(name).second,
@@ -291,6 +365,23 @@ Bundle load_bundle(const std::filesystem::path& path, const std::filesystem::pat
         }
     }
     return bundle;
+}
+
+bool PresenceStream::covers(double seconds) const {
+    const double frame = seconds * sample_rate;
+    return frame >= start_sample && frame < start_sample + sample_count;
+}
+
+float PresenceStream::at(double seconds) const {
+    const auto offset = static_cast<std::int64_t>(std::floor(seconds * sample_rate)) - start_sample;
+    const auto index = std::clamp<std::int64_t>(offset / frame_samples, 0, static_cast<std::int64_t>(probability.size()) - 1);
+    return probability[static_cast<std::size_t>(index)];
+}
+
+const PresenceStream* Bundle::presence_for(const std::string& target) const {
+    for (const auto& stream : presence)
+        if (stream.target == target) return &stream;
+    return nullptr;
 }
 
 bool FeatureStream::covers(double seconds) const {

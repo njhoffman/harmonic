@@ -13,9 +13,10 @@ import sys
 import numpy as np
 
 from . import __version__
-from .sam_jobs import (DEFAULT_TARGETS, MODEL, MODEL_REVISION, SOURCE_REVISION, SAMPLE_RATE, SETTINGS,
-                       check_targets, digest, load_job, new_directory, read_wave, save_job, save_pair,
-                       validate_pairs, validate_result, write_json)
+from .sam_jobs import (DEFAULT_TARGETS, MODEL, MODEL_REVISION, PRESENCE_FRAME_SAMPLES, SOURCE_REVISION,
+                       SAMPLE_RATE, SETTINGS, check_targets, digest, load_job, new_directory, presence_frames,
+                       presence_record, presence_values, read_wave, save_job, save_pair, validate_pairs,
+                       validate_presence, validate_result, write_json)
 from .terminal import Progress
 
 PLAN_KIND = "harmonic.sam-audio-song-job.v1"
@@ -189,6 +190,35 @@ def overlap_metrics(left: np.ndarray, right: np.ndarray) -> dict:
             "midpoint_hard_splice_step": float(abs(b[middle] - a[max(0, middle - 1)]))}
 
 
+def stitch_presence(children: list[dict], points: list[tuple[int, int]], overlap: int, name: str,
+                    count: int) -> dict | None:
+    """Blend chunk presence onto the song's 40 ms grid with the waveform crossfade weights.
+
+    Each song frame takes the chunk-local frames containing its center sample, so
+    chunk starts need not align to the presence grid. Returns None when no chunk
+    measured presence; a mixture of measured and unmeasured chunks is rejected.
+    """
+    measured = [child.get("presence_model") is not None for child in children]
+    if not any(measured):
+        return None
+    if not all(measured):
+        raise ValueError("some chunks lack presence measurements")
+    frames = presence_frames(count)
+    centers = np.minimum(np.arange(frames, dtype=np.int64) * PRESENCE_FRAME_SAMPLES + PRESENCE_FRAME_SAMPLES // 2,
+                         count - 1)
+    total, weight = np.zeros(frames), np.zeros(frames)
+    for index, ((start, n), child) in enumerate(zip(points, children, strict=True)):
+        values = presence_values(child["pairs"][name]["presence"], n).astype(np.float64)
+        fade = weights(n, overlap, index == 0, index == len(points) - 1)
+        inside = (centers >= start) & (centers < start + n)
+        local = centers[inside] - start
+        total[inside] += fade[local] * values[local // PRESENCE_FRAME_SAMPLES]
+        weight[inside] += fade[local]
+    if not np.allclose(weight, 1, rtol=0, atol=1e-12):
+        raise ValueError("presence crossfade weights do not sum to one")
+    return presence_record(np.clip(total, 0, 1), count)
+
+
 def run_binding_hash(report: dict) -> str | None:
     if "run_binding_sha256" not in report:
         return None  # Legacy reports predate the binding fingerprint.
@@ -233,8 +263,10 @@ def validate_song_metadata(report: dict) -> list[dict]:
                     or child["job_sha256"] != item["job_sha256"]
                     or run_binding_hash(child) != binding_hash
                     or any(child[k] != report[k] for k in COMMON)
+                    or child.get("presence_model") != report.get("presence_model")
                     or set(child["pairs"]) != set(report["pairs"])):
                 raise ValueError("inconsistent chunk report provenance/coordinates")
+            validate_presence(child, count)
             for name, pair in child["pairs"].items():
                 if pair["description"] != report["pairs"][name]["description"]:
                     raise ValueError("inconsistent prompts between chunks")
@@ -251,6 +283,13 @@ def validate_song_metadata(report: dict) -> list[dict]:
                             or not all(valid_level(record.get(key)) for key in ("rms", "peak"))):
                         raise ValueError("invalid retained chunk waveform provenance")
             reports.append(child)
+        if validate_presence(report, report["sample_count"]):
+            for name, pair in report["pairs"].items():
+                expected = stitch_presence(reports, points, chunking["overlap_samples"], name, report["sample_count"])
+                if expected is None or expected["sha256"] != pair["presence"]["sha256"]:
+                    raise ValueError("merged presence differs from the retained chunk measurements")
+        elif any(child.get("presence_model") is not None for child in reports):
+            raise ValueError("merged report dropped chunk presence measurements")
         return reports
     except (KeyError, TypeError, AttributeError, ValueError) as error:
         raise ValueError(f"Invalid SAM song provenance: {error}") from error
@@ -274,6 +313,7 @@ def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
             binding_hash = run_binding_hash(child)
             if (child["auxiliary_text_model"]["revision"] != plan["text_model_revision"]
                     or (reports and (binding_hash != run_binding_hash(reports[0])
+                                     or child.get("presence_model") != reports[0].get("presence_model")
                                      or any(child[k] != reports[0][k] for k in COMMON)))):
                 raise ValueError("Chunks use different models/settings/worker revisions")
             reports.append(child)
@@ -342,6 +382,10 @@ def stitch_song(plan_file: Path, results: Path, output: Path) -> Path:
                     done += 1
                     progress.update(done)
                 pair = save_pair(temporary, name, *pair_arrays, mono, padding_limit=0)
+                points = [(entry["start_sample"], entry["sample_count"]) for entry in plan["chunks"]]
+                presence = stitch_presence(reports, points, plan["overlap_samples"], name, count)
+                if presence is not None:
+                    pair["presence"] = presence
                 pair.update(description=description,
                             elapsed_seconds=sum(r["pairs"][name].get("elapsed_seconds", 0) for r in reports),
                             peak_cuda_allocated_bytes=max(r["pairs"][name].get("peak_cuda_allocated_bytes", 0) for r in reports),

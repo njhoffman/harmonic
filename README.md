@@ -598,6 +598,23 @@ mono channel layout, prompt, role, original WAV hash, feature hash, and statisti
 Windows use zeros beyond the stream edges. Full-song streams cover the entire
 recording, with analysis windows spanning internal seams in the stitched audio.
 
+Schema 3 (`harmonic.sam.features.v2`) is what the adapter now writes. It adds
+a top-level `presence` record. When the separation report measured presence,
+there is also one `sam-NAME-presence.arrow` stream per target (role
+`presence`, Arrow metadata version 3), with two non-null fields:
+`sample_index` (int64, `start_sample + row * 1920`, the start of each 40 ms
+frame) and `probability` (float32 in [0, 1], the raw span-predictor output for
+the target's prompt, with no threshold). The stream entry records frame count,
+frame size, prompt, the report's float32 checksum, and a `reliability` from
+the MUSDB18 study: `benchmarked` for the vocal and `drums playing` prompts,
+`low_confidence` for `bass guitar playing` (absence is often missed), and
+`unbenchmarked` for any other prompt. `presence: null` with no presence
+streams means the result predates presence measurement: presence is unknown,
+not absent. Thresholds belong to the player or scene layer. The source
+inspector draws the probability beside each target with a tick at the
+upstream default of 0.3. Schema-2 bundles remain readable, with presence
+unknown; older players reject schema 3.
+
 The retained report preserves source/job/model/code/lock hashes, checkpoint and
 auxiliary revisions, seed/settings, mono conversion, padding, and measurements.
 `feature_extraction` records the adapter version/code hash, input mix manifest

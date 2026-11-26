@@ -18,8 +18,9 @@ options. `just todo` retains the complete Markdown checklist.
 
 **Current gate:** absent targets are never silent. The MUSDB18 benchmark
 (2026-11-26) found that a missing vocal or drum part is filled mainly with
-bass, so a source-presence signal is needed before vocal features can be
-trusted on instrumental passages. Timing is verified, and instrument gains are
+bass. Schema-3 bundles now carry a per-frame presence probability for each
+prompt, so scenes can tell an absent vocal from bass fill-in; scene
+thresholds remain open. Timing is verified, and instrument gains are
 below one without a consistent correction. The benchmark scorer now removes each
 stream's excerpt mean (report v2) and reproduces the archived diagnostic: the
 first reference run put guitar in the vocal target (96.4% of input) and left
@@ -137,7 +138,7 @@ Local evidence is ignored by Git. See the
   and the maximum is 4 samples (0.08 ms), so no latency correction is needed.
   Mix gains are vocals 0.77–0.97, drums 0.74–0.91, and bass 0.93–0.97. The
   under-extraction varies by song, so no gain correction is applied.
-- [ ] **Add a source-presence signal for absent targets** (p1) [feature]
+- [x] **Add a source-presence signal for absent targets** (p1) [feature]
   SAM always returns content for a prompt; the absent-target MUSDB18 cases
   measured 38–77% of input RMS, mostly bass. Target RMS cannot show whether a
   source is present. Evaluate cues such as similarity between the vocal and
@@ -158,11 +159,16 @@ Local evidence is ignored by Git. See the
   rejected all 30 electronic-instrumental vocal windows. Vocals at threshold 0.2
   keep 88% of present windows and reject 92% of absent ones. Bass absence stays
   weak (at most 64% rejected). Anchored separation (`predict_spans=True`) does
-  not reduce fill-in, so keep separation unanchored. Proposed design (needs
-  owner decision): run the predictor in the worker for every prompt; store
-  per-frame probabilities with the predictor commit in results; carry a
-  presence stream in source-feature bundles (schema change); apply per-source
-  thresholds in the player or scene layer, not in the bundle.
+  not reduce fill-in, so keep separation unanchored.
+  **Done (2026-11-26, v0.18.0):** the worker measures per-frame presence for
+  every prompt with the pinned predictor; reports, song stitching, and schema-3
+  bundles carry raw probabilities with provenance; older results read as
+  presence unknown; bass is flagged `low_confidence`; the source inspector
+  shows the probability. Verified end to end on a Blackwell GPU.
+- [ ] **Choose per-source presence thresholds for scenes** (p2) [feature]
+  The bundle stores raw probabilities. Pick scene thresholds (vocals about 0.2
+  on MUSDB18) and decide how scenes treat `low_confidence` bass and
+  `unbenchmarked` prompts. Validate on Billie Jean by listening.
 - [ ] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
   Measure target-GPU frame times, stutters, and physical-output timing after
   seeks. Investigate the known GLX search-path warning involving `~/.local/lib`.

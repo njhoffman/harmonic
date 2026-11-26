@@ -23,7 +23,11 @@ from harmonic_analysis import sam_chunks, sam_jobs
 from harmonic_analysis.bundle import read_bundle
 from harmonic_analysis.sam_chunks import (TEXT_REVISION, coordinates, load_plan, make_plan, overlap_metrics,
                                            stitch_song, validate_plan, validate_song_metadata, validate_song_result, weights)
-from harmonic_analysis.sam_jobs import digest, load_job, new_directory, read_wave, save_pair, write_json
+from harmonic_analysis.sam_jobs import (PRESENCE_MODEL, PRESENCE_REVISION, digest, load_job, new_directory,
+                                        presence_record, presence_values, read_wave, save_pair, write_json)
+
+PRESENCE = {'id': PRESENCE_MODEL, 'revision': PRESENCE_REVISION, 'frame_samples': 1920,
+            'files_sha256': {'config.json': '1'*64, 'model.safetensors': '2'*64}}
 from harmonic_analysis.source_features import build_source_bundle
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,7 +59,7 @@ class SongChunkTests(unittest.TestCase):
         self.session_loads += 1
         yield {'simulated': True}
 
-    def fake_separate(self, job_path, destination, session, *, began, level=None):
+    def fake_separate(self, job_path, destination, session, *, began, level=None, presence=None):
         job, samples = load_job(job_path)
         mono = samples.mean(axis=1)
         target = mono * 0.75 if level is None else np.full(len(mono), level, dtype=np.float32)
@@ -75,6 +79,11 @@ class SongChunkTests(unittest.TestCase):
                           worker_lock_sha256=digest(WORKER.with_name('uv.lock')),pairs=pairs,
                           elapsed_seconds=0.01,peak_host_rss_bytes=0,runtime={'simulated':True})
             report['run_binding_sha256'] = session['run_binding_sha256']
+            if presence is not None:
+                report['presence_model'] = PRESENCE
+                for pair in pairs.values():
+                    pair['presence'] = presence_record(np.full(-(-len(mono)//1920), presence(job['start_sample'])),
+                                                       len(mono))
             write_json(temporary/'report.json',report)
         return destination/'report.json'
 
@@ -533,6 +542,94 @@ with lock(Path(sys.argv[2])):
                     read_bundle(bundle,digest(audio))
                 rejected=subprocess.run([str(PLAYER),str(bundle),'--inspect'],capture_output=True,text=True,timeout=20)
                 self.assertNotEqual(rejected.returncode,0)
+
+
+    # Presence: chunks of 2000 samples start off the 1920-sample grid (0, 1600, 3200, 4800, 6400).
+    def level(self, start):
+        return np.float32(start / 8000)
+
+    def separate(self, *args, **kwargs):
+        return self.fake_separate(*args, presence=self.level, **kwargs)
+
+    def test_presence_crossfades_on_the_song_grid_and_is_rechecked_from_chunks(self):
+        self.run_fake(self.separate)
+        merged = stitch_song(self.plan_path, self.results, self.root/'merged')
+        report = validate_song_result(self.plan_path, merged)
+        values = presence_values(report['pairs']['vocals']['presence'], 7001)
+        self.assertEqual(len(values), 4)  # ceil(7001 / 1920); centers 960, 2880, 4800, 6720
+        self.assertEqual(values[0], self.level(0))
+        self.assertEqual(values[1], self.level(1600))
+        fade = weights(2000, 400, False, False)[0]  # chunk 3 fades in at its first sample
+        self.assertAlmostEqual(float(values[2]), (1 - fade) * self.level(3200) + fade * self.level(4800), places=6)
+        tail = weights(601, 400, False, True)[320]
+        self.assertAlmostEqual(float(values[3]), (1 - tail) * self.level(4800) + tail * self.level(6400), places=6)
+
+        changed = json.loads(merged.read_text())
+        changed['pairs']['vocals']['presence'] = presence_record(np.zeros(4), 7001)
+        write_json(merged, changed)
+        with self.assertRaisesRegex(ValueError, 'merged presence differs'):
+            validate_song_result(self.plan_path, merged)
+        del changed['pairs']['vocals']['presence']
+        del changed['presence_model']
+        write_json(merged, changed)
+        with self.assertRaisesRegex(ValueError, 'dropped chunk presence|inconsistent chunk report'):
+            validate_song_result(self.plan_path, merged)
+
+    @requires(shutil.which('ffmpeg') and PLAYER.is_file(),'Build the native player and install FFmpeg')
+    def test_full_song_presence_bundle_and_retained_chunk_presence_provenance(self):
+        audio=self.root/'source.wav'
+        signal=(np.sin(np.arange(96000)*2*np.pi*220/48000)*12000).astype('<i2')
+        with wave.open(str(audio),'wb') as handle:
+            handle.setnchannels(2);handle.setsampwidth(2);handle.setframerate(48000)
+            handle.writeframes(np.column_stack([signal,signal]).tobytes())
+        mix=analyze(audio,self.root/'mix')
+        full=decode_audio(audio)
+        self.plan_path=make_plan(full,{**json.loads(mix.read_text())['source'],'sample_count':len(full)},
+                                 self.root/'full-plan',chunk=24000,overlap=4800,targets={'vocals':'man singing'})
+        self.plan,_=load_plan(self.plan_path)
+        self.level=lambda start: np.float32(start/96000)
+        self.run_fake(self.separate)
+        merged=stitch_song(self.plan_path,self.results,self.root/'merged')
+        bundle=build_source_bundle(mix,self.plan_path,merged,self.root/'features')
+        manifest=read_bundle(bundle,digest(audio))
+        self.assertEqual([s['role'] for s in manifest['streams'][1:]],['target','residual','presence'])
+        inspect=subprocess.run([str(PLAYER),str(bundle),'--inspect','--start','1.0'],capture_output=True,text=True,timeout=20)
+        self.assertEqual(inspect.returncode,0,inspect.stderr)
+        data=json.loads(next(line for line in inspect.stdout.splitlines() if line.startswith('{')))
+        # Sample 48000 lies in frame 25 (center 48960), inside chunk 2's body (starts at 38400).
+        self.assertAlmostEqual(data['source_features'][0]['presence'],38400/96000,places=6)
+        retained=bundle.parent/'sam-report.json'
+        report=json.loads(retained.read_text())
+        item=report['chunking']['chunks'][1]
+        child=json.loads(item['report_json'])
+        child['presence_model']['files_sha256']['config.json']='3'*64
+        item['report_json']=json.dumps(child)
+        item['report_sha256']=hashlib.sha256(item['report_json'].encode()).hexdigest()
+        write_json(retained,report)
+        bundle_manifest=json.loads(bundle.read_text())
+        bundle_manifest['separation']['sha256']=digest(retained)
+        write_json(bundle,bundle_manifest)
+        with self.assertRaises(ValueError):
+            read_bundle(bundle,digest(audio))
+        rejected=subprocess.run([str(PLAYER),str(bundle),'--inspect'],capture_output=True,text=True,timeout=20)
+        self.assertIn('retained chunk presence model',rejected.stderr)
+
+    def test_mixed_measured_and_unmeasured_chunks_are_rejected(self):
+        self.run_fake(self.separate)
+        child = self.results/'chunks/000002/report.json'
+        report = json.loads(child.read_text())
+        del report['presence_model']
+        del report['pairs']['vocals']['presence']
+        write_json(child, report)
+        with self.assertRaisesRegex(ValueError, 'different models'):
+            stitch_song(self.plan_path, self.results, self.root/'bad')
+        self.assertFalse((self.root/'bad').exists())
+
+    def test_unmeasured_song_stitches_with_presence_unknown(self):
+        self.run_fake()
+        report = json.loads(stitch_song(self.plan_path, self.results, self.root/'merged').read_text())
+        self.assertNotIn('presence_model', report)
+        self.assertNotIn('presence', report['pairs']['vocals'])
 
 
 class ExcerptRunRevisionTests(unittest.TestCase):

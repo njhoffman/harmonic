@@ -33,11 +33,26 @@ struct FeatureStream {
     std::vector<float> spectrum_at(double seconds) const;
 };
 
+// Per-frame prompt presence probabilities (schema 3). Frame i covers the half-open
+// interval [start + i*frame_samples, start + (i+1)*frame_samples). No threshold
+// is applied in the bundle; reliability records how the prompt was benchmarked.
+struct PresenceStream {
+    std::string target, prompt, reliability;
+    std::int64_t start_sample = 0;
+    std::int64_t sample_count = 0;
+    int frame_samples = 0;
+    std::vector<float> probability;
+    bool covers(double seconds) const;
+    float at(double seconds) const;
+};
+
 struct Bundle : FeatureStream {
     Json::Value manifest;
     std::filesystem::path audio_path;
     std::vector<float> band_edges;
     std::vector<FeatureStream> sources;
+    std::vector<PresenceStream> presence;  // Empty: presence unknown (older results), not absent.
+    const PresenceStream* presence_for(const std::string& target) const;
     double duration() const { return static_cast<double>(sample_count) / sample_rate; }
 };
 

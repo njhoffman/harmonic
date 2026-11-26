@@ -188,6 +188,14 @@ int main(int argc, char** argv) {
                         item["peak"] = source.interpolate(source.peak, options.start);
                         item["onset"] = source.interpolate(source.onset, options.start);
                     }
+                    if (source.role == "target") {
+                        const auto* presence = bundle.presence_for(source.target);
+                        // Missing presence is unknown, not a zero probability.
+                        if (presence && presence->covers(options.start)) {
+                            item["presence"] = presence->at(options.start);
+                            item["presence_reliability"] = presence->reliability;
+                        }
+                    }
                     diagnostics["source_features"].append(item);
                 }
                 Json::StreamWriterBuilder writer;

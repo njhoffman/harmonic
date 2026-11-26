@@ -25,6 +25,12 @@ SOURCE_REVISION = "bb4c6999d2677c7402360e426afc01ddfad6dce0"
 DEFAULT_TARGETS = {"vocals": "man singing", "drums": "drums playing", "bass": "bass guitar playing"}
 SETTINGS = {"predict_spans": False, "reranking_candidates": 1,
             "ode_method": "midpoint", "ode_step_size": 0.0625, "dtype": "float32"}
+# Presence is measured beside separation, never used to anchor it (predict_spans
+# stays False): anchoring did not reduce absent-target fill-in in the MUSDB study.
+PRESENCE_MODEL = "facebook/pe-a-frame-large"
+PRESENCE_REVISION = "40187271298f84e2966d4518c88dde698540c9ad"
+PRESENCE_FILES = ("config.json", "model.safetensors")
+PRESENCE_FRAME_SAMPLES = 1920  # 40 ms at 48 kHz; frame i covers [start + i*F, start + (i+1)*F).
 
 
 def digest(path: Path) -> str:
@@ -240,6 +246,64 @@ def validate_pairs(report: dict, directory: Path, mono: np.ndarray, hop: int) ->
             raise ValueError("sum-error statistics mismatch")
 
 
+def presence_frames(count: int) -> int:
+    return -(-count // PRESENCE_FRAME_SAMPLES)
+
+
+def presence_record(probabilities, count: int) -> dict:
+    """Trim the model's frame padding (at most one frame) and fingerprint the float32 values."""
+    raw = np.asarray(probabilities, dtype=np.float64)
+    frames = presence_frames(count)
+    if raw.ndim != 1 or not frames <= len(raw) <= frames + 1:
+        raise ValueError(f"Presence has {raw.shape} frames; expected {frames} for {count} samples")
+    values = raw[:frames].astype("<f4")
+    if not np.isfinite(values).all() or (values < 0).any() or (values > 1).any():
+        raise ValueError("Presence probabilities must be finite and within [0, 1]")
+    return {"frame_samples": PRESENCE_FRAME_SAMPLES, "frames": frames, "raw_frames": len(raw),
+            "sha256": hashlib.sha256(values.tobytes()).hexdigest(), "probabilities": values.tolist()}
+
+
+def presence_values(record: dict, count: int) -> np.ndarray:
+    """Return a validated presence record's float32 probabilities."""
+    frames = presence_frames(count)
+    if (record["frame_samples"] != PRESENCE_FRAME_SAMPLES or type(record["frames"]) is not int
+            or record["frames"] != frames or type(record["raw_frames"]) is not int
+            or not frames <= record["raw_frames"] <= frames + 1
+            or not isinstance(record["probabilities"], list) or len(record["probabilities"]) != frames
+            or any(type(v) not in (int, float) for v in record["probabilities"])):
+        raise ValueError("invalid presence frames")
+    exact = np.asarray(record["probabilities"], dtype=np.float64)
+    values = exact.astype("<f4")
+    if (not np.isfinite(exact).all() or not np.array_equal(values.astype(np.float64), exact)
+            or (values < 0).any() or (values > 1).any()):
+        raise ValueError("invalid presence probabilities")
+    if hashlib.sha256(values.tobytes()).hexdigest() != record["sha256"]:
+        raise ValueError("presence checksum mismatch")
+    return values
+
+
+def check_presence_model(model: dict) -> None:
+    if (set(model) != {"id", "revision", "files_sha256", "frame_samples"} or model["id"] != PRESENCE_MODEL
+            or model["revision"] != PRESENCE_REVISION or model["frame_samples"] != PRESENCE_FRAME_SAMPLES
+            or set(model["files_sha256"]) != set(PRESENCE_FILES)
+            or not all(isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v)
+                       for v in model["files_sha256"].values())):
+        raise ValueError("unsupported presence model provenance")
+
+
+def validate_presence(report: dict, count: int) -> bool:
+    """Presence is all-or-nothing per report. Older reports without it mean presence unknown."""
+    model = report.get("presence_model")
+    if model is None:
+        if "presence_model" in report or any("presence" in pair for pair in report["pairs"].values()):
+            raise ValueError("presence data without presence model provenance")
+        return False
+    check_presence_model(model)
+    for pair in report["pairs"].values():
+        presence_values(pair["presence"], count)
+    return True
+
+
 def validate_result(job_path: Path, result_path: Path) -> dict:
     job_path = job_path.resolve()
     if job_path.is_dir():
@@ -271,6 +335,7 @@ def validate_result(job_path: Path, result_path: Path) -> dict:
             if report["pairs"][name]["description"] != description:
                 raise ValueError("mismatched target prompt")
         validate_pairs(report, result_path.parent, mono, hop)
+        validate_presence(report, job["sample_count"])
         return report
     except (KeyError, TypeError, AttributeError, OSError, ValueError, struct.error) as error:
         raise ValueError(f"Invalid SAM result {result_path}: {error}") from error

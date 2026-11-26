@@ -12,9 +12,10 @@ import pyarrow.ipc as ipc
 
 from . import __version__
 from .analysis import BAND_COUNT, HOP_SIZE, extract_features, feature_table, sha256_file, stats
-from .bundle import SAM_PIPELINE, read_bundle
+from .bundle import SAM_PIPELINE_V2, presence_manifest, presence_reliability, read_bundle
 from .sam_chunks import PLAN_KIND, load_plan, validate_song_result
-from .sam_jobs import JOB_KIND, load_job, new_directory, read_wave, validate_result, write_json
+from .sam_jobs import (JOB_KIND, PRESENCE_FRAME_SAMPLES, load_job, new_directory, presence_values, read_wave,
+                       validate_result, write_json)
 from .terminal import Progress
 
 
@@ -59,8 +60,10 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
     with new_directory(output) as temporary:
         shutil.copyfile(mix.parent / "mix.arrow", temporary / "mix.arrow")
         shutil.copyfile(result, temporary / "sam-report.json")
-        manifest["schema_version"] = 2
-        manifest["pipeline"] = SAM_PIPELINE
+        manifest["schema_version"] = 3
+        manifest["pipeline"] = SAM_PIPELINE_V2
+        # None: the result predates presence measurement, so presence is unknown (not absent).
+        manifest["presence"] = presence_manifest(report)
         manifest["source"]["path"] = str(source)
         manifest["feature_extraction"] = {"app_version": __version__, "numpy_version": np.__version__,
                                           "pyarrow_version": pa.__version__,
@@ -93,6 +96,8 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
                         "channels": 1, "channel_reduction": "mono_no_gain_normalization",
                         "stats": {key: stats(features[key]) for key in ("rms", "peak", "onset", "spectrum")}})
                     done += frames
+                if manifest["presence"] is not None:
+                    manifest["streams"].append(write_presence(temporary, name, pair, report))
         write_json(temporary / "manifest.json", manifest)
         # Recheck the actual published artifacts and their provenance, including the mix copy.
         read_bundle(temporary / "manifest.json", source_hash)
@@ -100,3 +105,21 @@ def build_source_bundle(mix: Path, job: Path, result: Path, output: Path, *, aud
         if any(sha256_file(p) != h for p, h in ((mix, mix_hash), (job, job_hash), (result, report_hash), (source, source_hash))):
             raise ValueError("Inputs changed during source feature extraction")
     return output / "manifest.json"
+
+
+def write_presence(directory: Path, name: str, pair: dict, report: dict) -> dict:
+    record = pair["presence"]
+    values = presence_values(record, report["sample_count"])
+    stream_name = f"sam.{name}.presence"
+    artifact = f"sam-{name}-presence.arrow"
+    indices = report["start_sample"] + np.arange(len(values), dtype=np.int64) * PRESENCE_FRAME_SAMPLES
+    table = pa.table({"sample_index": pa.array(indices, pa.int64()), "probability": pa.array(values, pa.float32())},
+                     metadata={b"harmonic.schema_version": b"3", b"harmonic.stream": stream_name.encode()})
+    with pa.OSFile(str(directory / artifact), "wb") as handle:
+        with ipc.new_file(handle, table.schema) as writer:
+            writer.write_table(table)
+    return {"name": stream_name, "target": name, "role": "presence", "prompt": pair["description"],
+            "artifact": artifact, "sha256": sha256_file(directory / artifact),
+            "start_sample": report["start_sample"], "sample_count": report["sample_count"],
+            "frames": record["frames"], "frame_samples": PRESENCE_FRAME_SAMPLES,
+            "probabilities_sha256": record["sha256"], "reliability": presence_reliability(pair["description"])}

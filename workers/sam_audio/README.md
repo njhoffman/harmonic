@@ -185,6 +185,24 @@ RMS, peaks, and target-plus-residual error. The latter is a reconstruction
 diagnostic, not a ground-truth separation-quality score. A seed does not guarantee
 bitwise reproducibility across devices or dependency builds.
 
+### Presence measurement
+
+Before separating each prompt, the worker runs SAM Audio's frame-level span
+predictor (`facebook/pe-a-frame-large`, pinned commit
+`40187271298f84e2966d4518c88dde698540c9ad`) and stores its raw per-frame
+probabilities as `pairs.NAME.presence`. Frames are 1920 samples (40 ms) and
+frame `i` covers `[start + i*1920, start + (i+1)*1920)`. At most one trailing
+padding frame is trimmed, and a SHA-256 of the float32 values is recorded. The
+report's `presence_model` carries the ID, revision, frame size, and file
+hashes. The probabilities only measure presence: separation stays unanchored
+(`predict_spans` is false), because anchoring did not reduce fill-in (see the
+span-predictor study below). No threshold is applied. Full-song stitching
+blends chunk probabilities onto the song's 40 ms grid with the same
+complementary crossfade used for the audio. Validation recomputes that blend
+from the retained chunk reports. Results from older workers carry no presence
+data. They stay valid, with presence unknown rather than absent. A song whose
+chunks mix measured and unmeasured reports is rejected.
+
 Only trailing codec padding within one hop is trimmed; short/nonfinite output is
 rejected. Preserving the start and exact frame count does not prove perceptual
 alignment. Copy results back, then validate them against the unchanged job:
@@ -194,7 +212,7 @@ just sam-validate data/sam-jobs/billie-jean-v0.7.0 data/sam-results/billie-jean-
 ```
 
 The owner approved listening to the experiment's target/residual files. They can
-now be adapted into a schema-2 bundle with `just sam-features MIX JOB RESULT NEW`;
+now be adapted into a schema-3 bundle with `just sam-features MIX JOB RESULT NEW`;
 see [source features and graphs](../../README.md#sam-source-features-and-graphs).
 The adapter validates WAVs, preserves mono levels and sample positions, and
 retains the report and features without embedding separated audio. The original
@@ -651,6 +669,18 @@ passed. Present-source gain fell slightly, from 0.906 to 0.893. The span
 probabilities are useful as a separate presence signal; anchoring is not a
 fix for fill-in.
 
+
+#### Presence end-to-end check (2026-11-26, v0.18.0)
+
+A Blackwell session (about 23 instance-minutes) ran the updated worker CLI on
+two jobs. The first was a 12.345 s Billie Jean excerpt through `run`. The
+second was a 27.77 s clip through `run-song`, as 10 s chunks with 2 s overlap
+and a 3.77 s final chunk. Neither length is a multiple of 40 ms. The predictor
+returned exactly `ceil(samples / 1920)` frames (309, and 95 for the final
+chunk), with no padding frame. All results passed `validate_result`. The song
+stitched and validated, including the recomputed presence blend. Both results
+built schema-3 bundles, which the native player loads and inspects. Files are
+in `data/aws-gpu/presence-e2e/` (jobs, `output/`, and `local/` bundles).
 
 ## License observations
 

@@ -15,8 +15,10 @@ import numpy as np
 from harmonic_analysis import __version__
 from harmonic_analysis import sam_jobs
 from harmonic_analysis.sam_cli import prepare
-from harmonic_analysis.sam_jobs import (DEFAULT_TARGETS, digest, load_job, new_directory, read_wave,
-                                        save_job, save_pair, save_wave, validate_pairs, validate_result, write_json)
+from harmonic_analysis.sam_jobs import (DEFAULT_TARGETS, PRESENCE_MODEL, PRESENCE_REVISION, digest, load_job,
+                                        new_directory, presence_record, presence_values, read_wave, save_job,
+                                        save_pair, save_wave, validate_pairs, validate_presence, validate_result,
+                                        write_json)
 
 WORKER = Path(__file__).resolve().parent.parent / "workers" / "sam_audio" / "worker.py"
 
@@ -190,6 +192,63 @@ class SAMWorkerTests(unittest.TestCase):
         artifact.write_bytes(artifact.read_bytes() + b"corrupt")
         with self.assertRaisesRegex(ValueError, "output checksum"):
             validate_result(path, output)
+
+    def test_presence_records_trim_one_padding_frame_and_reject_invalid_measurements(self):
+        record = presence_record(np.linspace(0, 1, 14), 24000)  # ceil(24000 / 1920) = 13
+        self.assertEqual((record["frames"], record["raw_frames"], record["frame_samples"]), (13, 14, 1920))
+        np.testing.assert_array_equal(presence_values(record, 24000), np.linspace(0, 1, 14)[:13].astype("<f4"))
+        self.assertEqual(presence_record(np.zeros(13), 24000)["raw_frames"], 13)
+        for values in (np.zeros(12), np.zeros(15), np.zeros((1, 13)), np.full(13, 1.5),
+                       np.full(13, -0.1), np.full(13, np.nan)):
+            with self.assertRaises(ValueError):
+                presence_record(values, 24000)
+        for key, value in (("frames", 12), ("frame_samples", 960), ("raw_frames", 15), ("sha256", "0" * 64)):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                presence_values({**record, key: value}, 24000)
+        changed = dict(record, probabilities=list(record["probabilities"]))
+        changed["probabilities"][3] = 0.1  # Not a float32 value: the report must hold exact float32 data.
+        with self.assertRaisesRegex(ValueError, "probabilities"):
+            presence_values(changed, 24000)
+        with self.assertRaises(ValueError):
+            presence_values(record, 24001 + 1920)
+
+    def test_returned_presence_is_all_or_nothing_with_pinned_provenance(self):
+        path = self.job()
+        job, samples = load_job(path)
+        output = self.root / "result"
+        output.mkdir()
+        mono = samples.mean(axis=1)
+        model = {"id": PRESENCE_MODEL, "revision": PRESENCE_REVISION, "frame_samples": 1920,
+                 "files_sha256": {"config.json": "1" * 64, "model.safetensors": "2" * 64}}
+        pairs = {name: {**save_pair(output, name, mono * 0.5, mono * 0.5, mono, padding_limit=1),
+                        "description": description, "presence": presence_record([0.25], len(mono))}
+                 for name, description in job["targets"].items()}
+        report = {key: job[key] for key in ("source", "start_sample", "sample_count", "settings", "seed",
+                                           "semantics", "channel_reduction", "anchors", "model")}
+        report.update(schema_version=1, kind="harmonic.sam-audio-result.v1", job_sha256=digest(path),
+                      sample_rate=48000, channels=1, codec_hop_samples=2, pairs=pairs, presence_model=model)
+        write_json(output / "report.json", report)
+        self.assertTrue(validate_presence(validate_result(path, output), len(mono)))
+        for change in ("missing pair", "revision", "file hash", "no model", "null model"):
+            changed = json.loads(json.dumps(report))
+            if change == "missing pair":
+                del changed["pairs"]["drums"]["presence"]
+            elif change == "revision":
+                changed["presence_model"]["revision"] = "0" * 40
+            elif change == "file hash":
+                changed["presence_model"]["files_sha256"]["model.safetensors"] = "short"
+            elif change == "no model":
+                del changed["presence_model"]
+            else:
+                changed["presence_model"] = None
+            write_json(output / "report.json", changed)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                validate_result(path, output)
+        for pair in report["pairs"].values():
+            del pair["presence"]
+        del report["presence_model"]
+        write_json(output / "report.json", report)
+        self.assertFalse(validate_presence(validate_result(path, output), len(mono)))  # Older result: unknown.
 
     def test_help_version_and_dependency_free_doctor_do_not_download(self):
         for command in ([sys.executable, "-m", "harmonic_analysis.sam_cli"], [sys.executable, str(WORKER)]):
