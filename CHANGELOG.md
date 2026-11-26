@@ -5,6 +5,16 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-25
+
+### Documentation
+
+- Record the Billie Jean context comparison and the owner's finding that a
+  20-second window partially restores the vocal while leaving bass bleed and
+  some vocal in the residual.
+- Document the controlled Blackwell prompt comparison and its aligned review
+  playlist, with each target followed by its residual.
+
 ## [0.13.0] - 2026-11-20
 
 ### Added
@@ -415,7 +425,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.13.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -447,3 +457,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.12.13]: https://github.com/njhoffman/harmonic/tree/v0.12.13
 [0.12.14]: https://github.com/njhoffman/harmonic/tree/v0.12.14
 [0.13.0]: https://github.com/njhoffman/harmonic/tree/v0.13.0
+[0.13.1]: https://github.com/njhoffman/harmonic/tree/v0.13.1

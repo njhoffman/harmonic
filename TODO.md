@@ -43,23 +43,17 @@ check; full-song approval remains open.
   72–98 and 82–88 second mix/target/residual comparisons is available on both
   computers at `data/recovery-minerva-20261120/listening/review-order.m3u`.
 - [ ] **Establish a consistent context and prompt policy** (p1) [test]
-  First repeat the raw 80–90 second job at the same settings, then compare
-  shifted 10-second windows and a 20-second window over their shared 82–88
-  second interval. Hold the checkpoint, prompt, and seed constant to isolate
-  input context. Compare targets and residuals at their original levels and
-  sample positions. Profile memory and evaluate anchors/span settings separately
-  if context changes leave the dropout unresolved.
-  Verified comparison inputs are ready in `data/sam-jobs/billie-jean-vocal-context/`.
-  Use the original pinned auxiliary text revision on the GPU host.
-  **Blocked (2026-11-19):** AWS Organizations policy `p-kkr52ast` explicitly
-  denied `ec2:RunInstances` through `DenyCompute`. The comparison produced
-  no inference results. An organization administrator must authorize the EC2
-  launch, or the comparison needs another approved GPU host. Temporary AWS
-  resources were removed. Run details are in `data/aws-gpu/vocal-context/`.
-  AWS account-support case `179521358600649` was submitted on 2026-11-20;
-  administrator authorization remains pending. All four prepared comparison
-  jobs are restored and validated on Minerva, including the byte-identical
-  80–90 second repeat and shared 82–88 second source samples.
+  The 80–90 second repeat reproduced the dropout. The owner heard the phrase
+  in the 75–95 second target with bass bleed and quieter vocals in its residual.
+  The 78–88 second target mostly contained drums despite its higher RMS.
+  The original and two lead-vocal prompts ran on Blackwell with the same
+  75–95 second input, checkpoint, seed, and auxiliary text revision. The
+  checksum-verified playlist at
+  `data/aws-gpu/vocal-prompts/listening/prompt-review.m3u` is present on
+  Minerva and Charon. Audition 82–88 seconds for vocal clarity, bass/drum
+  bleed, and how much of the phrase remains in each residual.
+  Check the neighboring seams and a contrasting recording before adopting a
+  context or prompt policy. Evaluate anchors/span settings separately if needed.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
   Billie Jean is the only supplied real recording. Include a cappella,
   instrumental, quiet passages, and absent requested instruments to expose

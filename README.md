@@ -517,8 +517,12 @@ for sample, outside both fades. Compare the aligned 72–98 second mix, vocal
 target, and residual clips in `data/source-check-v0.12.0/vocal-review/`.
 On 2026-11-20, the owner confirmed that vocals drop out of the reviewed target
 and remain in the residual. Together with the sample-exact raw/stitch checks,
-this establishes an audible separation failure in the baseline. The context
-comparison is still needed to identify a remedy; full-song quality is not approved.
+this establishes an audible separation failure in the baseline. In the
+follow-up comparison, the 20-second window partially recovered the vocal, with
+bass still audible in its target and singing still present in the residual.
+The focused prompt comparison and remaining seam review address the open
+full-song quality gate. See the [worker guide](workers/sam_audio/README.md) for
+the comparison evidence.
 
 The benchmark artifacts were recovered from Charon to Minerva on 2026-11-20:
 all 422 selected files matched their source SHA-256 hashes, and the raw chunks,

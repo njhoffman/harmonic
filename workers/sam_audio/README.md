@@ -354,7 +354,7 @@ under `data/aws-gpu/song-v0.12.0/`. Full-length WAVs are in
 authentication parameter were removed after verified retrieval. Final checks
 found no active test instance or tagged test volume.
 
-### Minerva recovery and context comparison status (2026-11-20)
+### Minerva recovery and vocal context comparison
 
 The retained jobs, raw excerpt/chunk outputs, merged WAVs, and review evidence
 were copied from Charon to Minerva. All 422 selected files (1,001,872,094 bytes)
@@ -371,17 +371,49 @@ or longer jobs request vocals only. All share exactly the same 82–88 second
 input samples. The original auxiliary text revision is
 `a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1`.
 
-AWS Organizations policy `p-kkr52ast` still blocks the launch. Account-support
-case `179521358600649` requests a scoped approved launch path; the comparison
-has no new inference results. The recovered comparison scripts remain under
-`data/aws-gpu/vocal-context/`, and their original launch-attempt summary records
-the policy denial and cleanup.
+The original launch attempt was denied by AWS Organizations policy
+`p-kkr52ast`; account-support case `179521358600649` tracked the request for
+scoped launch access. Four GPU result reports and their validated comparison
+clips are now retained under `data/aws-gpu/vocal-context/`. The 80–90 second
+repeat reproduced the weak target. At 82–88 seconds, target RMS relative to mix
+RMS was 2.3% for the repeat, 34.5% for 78–88 seconds, 6.9% for 82–92 seconds,
+and 49.4% for 75–95 seconds. The owner heard drums in the 78–88 second target
+and no vocal phrase. The 75–95 second target contained the phrase and bass;
+the phrase receded but remained audible in the residual. Listening therefore
+favors the 20-second context as the input for the controlled prompt comparison.
 
 Recovery and revalidation reports, a diagnostic plot, and a six-clip listening
 packet are in `data/recovery-minerva-20261120/`. The packet and reports were
 also copied to Charon and checked there by SHA-256, so listening can use that
 laptop's audio while development runs on Minerva. See the README playback
 command. Recovery and numerical checks do not establish listening approval.
+
+### Controlled lead-vocal prompt comparison (2026-11-25)
+
+One Blackwell model session ran the same 75–95 second stereo PCM, seed,
+solver settings, checkpoint, and auxiliary text revision as the longer
+context run. The original prompt, `man singing`, reproduced the previous
+target and residual within 0.0000021 and 0.0000025 RMS sample difference,
+respectively, over 82–88 seconds. Over the same six seconds, target RMS
+relative to mix RMS was 49.4% for `man singing`, 71.6% for
+`male lead singing voice`, and 61.6% for
+`a man singing the lead melody and lyrics`. Listen for vocal clarity,
+instrument bleed, and the phrase's prominence in each residual.
+
+The validated report, aligned clips, measurements, and logs are retained in
+`data/aws-gpu/vocal-prompts/`. The review playlist is available on Minerva
+and Charon. Play it from a terminal on the machine whose audio output you use.
+
+```sh
+mpv --no-config --replaygain=no --volume=95 \
+  --playlist=data/aws-gpu/vocal-prompts/listening/prompt-review.m3u
+```
+
+The playlist starts with the mono mix, then each prompt's target followed
+immediately by its residual. All seven clips preserve their source sample
+positions and original relative levels. The shared playback volume leaves
+headroom for float peaks above 1.0. Listening approval, a prompt policy,
+and full-song seam validation remain open.
 
 ## License observations
 

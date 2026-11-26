@@ -446,7 +446,7 @@ Dependency licenses need a similarly concrete review before distribution. libpro
 
 ## 12. Most valuable next step
 
-Review the full-song vocal estimates before extending the library. Audition the unnormalized left/right/blended/mix clips at 24, 72, 80, 88, and 264 seconds, especially the near-silent estimate at 80–82 seconds. Establish whether context, prompting, or another model behavior causes the disagreement; compare longer contexts or anchors in controlled experiments before changing the 10s/2s baseline. Preserve raw levels and sample coordinates so comparisons remain interpretable.
+Evaluate the controlled lead-vocal prompt comparison before extending the library. The 80–90 second repeat reproduced the vocal dropout, and a 75–95 second input partially recovered the phrase with audible bass bleed. Compare the lead-vocal prompts over the same source samples at their original levels. If the review identifies a cleaner target and residual, check the neighboring seams and a contrasting recording before changing the 10s/2s baseline. The full-song seam clips are available at 24, 72, 80, 88, and 264 seconds.
 
 The playback → prompted features → synchronized graphs → reloadable bundle slice is implemented. Its next completion gate is consistent full-song separation on contrasting recordings, including absent-instrument controls. Follow with complete cache provenance, interruption recovery, and measured target-GPU performance. Lyrics and semantic styling remain independent later additions.
 
