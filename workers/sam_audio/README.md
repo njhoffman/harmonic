@@ -550,8 +550,28 @@ windows, while the earlier listening clips use the common six-second span.
 The local reference jobs and saved guitar reports are under
 `data/aws-gpu/vocal-benchmark/`. The reference set combines isolated
 singing by kku with RyGuy's guitar recording. Attribution and source
-licenses are retained with the local assets. The positive reference jobs
-are ready for inference. [Isolated singing source](https://commons.wikimedia.org/wiki/File%3AOvertone_singing_sample.oga) · [Guitar source](https://commons.wikimedia.org/wiki/File%3AAcousticGuitarSample.ogg)
+licenses are retained with the local assets. [Isolated singing source](https://commons.wikimedia.org/wiki/File%3AOvertone_singing_sample.oga) · [Guitar source](https://commons.wikimedia.org/wiki/File%3AAcousticGuitarSample.ogg)
+
+#### First three-case Blackwell run
+
+One pinned session ran all three 12-second cases with `man singing`. The
+validated JSON reports and a supplementary mean-centered diagnostic are in
+`data/aws-gpu/vocal-benchmark-run/scores/`. Both stems have a constant sample
+offset, approximately −0.036 for voice and −0.099 for guitar. The diagnostic
+subtracts each stream's mean for scoring and retains the original sample grid.
+Raw scores and returned WAVs are preserved.
+
+| Case | Reference gain in target | Reference gain in residual |
+| --- | --- | --- |
+| Mixed | Vocal 0.006, guitar 0.949 | Vocal 0.958, guitar 0.038 |
+| Vocal only | Vocal 0.001 | Vocal 0.980 |
+| Accompaniment only | Guitar 0.935 | Guitar 0.051 |
+
+These are signed waveform gains after mean removal. In the accompaniment-only
+case the raw target measured 59.0% of input RMS and failed the 5% absence limit.
+After mean removal the ratio was 96.4%. The isolated vocal's raw target was
+73.1% of input RMS, versus 5.0% after mean removal. Future configuration
+comparisons should account for the offset and include broader vocal material.
 
 ## License observations
 

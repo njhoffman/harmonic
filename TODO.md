@@ -69,7 +69,8 @@ check; full-song approval remains open.
   Prepare mixture, vocal-only, and accompaniment-only jobs from aligned
   stems. Validate job and result identity, score reference contributions,
   and localize missed vocals on the sample grid. Both saved guitar controls
-  failed the absence check. A three-case reference set is ready locally.
+  failed the absence check. All three prepared reference jobs completed on
+  Blackwell and were scored locally.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
   The owner heard only singing in the target and only piano in the residual
   at both window lengths in Leon Lishner and Roger Nelson's 26–32 second
@@ -77,8 +78,11 @@ check; full-song approval remains open.
   vocal-target output at both window lengths, which the owner identified
   as guitar in both targets. Its aligned clips are in
   `data/aws-gpu/vocal-followup/listening/instrumental-review.m3u`.
-  GPU evaluation of the new positive reference cases, quiet passages, and
-  broader absent-target coverage remain open.
+  The three-case benchmark reproduced guitar leakage and found that the
+  overtone vocal stayed mainly in the residual, even on its own. Mean-centered
+  diagnostics are recorded under `data/aws-gpu/vocal-benchmark-run/scores/`.
+  Account for DC offsets in benchmark preparation or scoring before comparing
+  model configurations. Quiet passages and broader source coverage remain open.
 - [ ] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero
