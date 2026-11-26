@@ -479,7 +479,40 @@ mpv --no-config --replaygain=no --volume=81 \
 ```
 
 Use `full-track-review.m3u` in the same directory for the complete tracks.
-Listening approval is pending.
+The owner heard a cleaner vocal entry at 24–36 seconds, better recovery at
+78–96 seconds, and a mostly vocal target at 258–270 seconds with the longer
+windows. At 116–124 seconds the 10-second target contained bass and drums,
+the 20-second target was nearly quiet, and both residuals contained singing.
+This leaves 20s/2s as the preferred experimental vocal setting and leaves
+the focused 116–124 second dropout unresolved. Full-track listening approval
+remains open.
+
+### Focused shifted-window and no-vocal control (2026-11-25)
+
+The same Blackwell session ran Billie Jean at 106–126 and 114–134 seconds
+using the original `man singing` prompt and pinned inference settings. The
+three target/residual pairs use identical 116–124 second source samples.
+Target RMS relative to mix was 10.4% with the original 108–128 second window,
+51.5% at 106–126 seconds, and 52.9% at 114–134 seconds. Listen for the phrase
+in both the target and residual to determine whether either shift recovered it.
+
+RyGuy's public-domain acoustic guitar recording provided the no-vocal
+control. The shared 12–18 second excerpt produced vocal targets at 64.8%
+and 63.8% of mix RMS in the 10- and 20-second windows. Both settings produced
+substantial target output on the instrumental input.
+[Recording and attribution](https://commons.wikimedia.org/wiki/File%3AAcousticGuitarSample.ogg)
+
+Both playlists are under `data/aws-gpu/vocal-followup/listening/` on Minerva
+and Charon. Each plays the mix followed by a target and residual for each
+window. The Billie Jean review is 56 seconds. The instrumental review is
+30 seconds.
+
+```sh
+mpv --no-config --replaygain=no --volume=93 \
+  --playlist=data/aws-gpu/vocal-followup/listening/billie-review.m3u
+mpv --no-config --replaygain=no --volume=95 \
+  --playlist=data/aws-gpu/vocal-followup/listening/instrumental-review.m3u
+```
 
 ## License observations
 

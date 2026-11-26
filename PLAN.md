@@ -450,9 +450,11 @@ Review the full-song 20s/2s `man singing` candidate before extending the
 library. In the shorter seam review, it kept the Billie Jean vocal audible
 through the main dropout and left join, with some bass bleed and a vocal
 fade at the left join. Both window lengths separated the reviewed Dibdin
-voice-and-piano excerpt cleanly. The 17-chunk full-song candidate is ready
-for focused and full-track listening. Check the 116–124 second passage,
-where the candidate has a weaker target, before choosing the default.
+voice-and-piano excerpt cleanly. The focused full-song review favors 20s/2s
+for vocals. Both window lengths missed the phrase at 116–124 seconds. The
+two shifted windows are ready for a final focused listen. The separate solo
+guitar control produced substantial vocal-target output at both lengths,
+leaving 20s/2s an experimental vocal setting.
 
 The playback → prompted features → synchronized graphs → reloadable bundle slice is implemented. Its next completion gate is consistent full-song separation on contrasting recordings, including absent-instrument controls. Follow with complete cache provenance, interruption recovery, and measured target-GPU performance. Lyrics and semantic styling remain independent later additions.
 

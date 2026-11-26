@@ -44,9 +44,11 @@ check; full-song approval remains open.
   computers at `data/recovery-minerva-20261120/listening/review-order.m3u`.
   The full-song vocal-only 20s/2s candidate completed on Blackwell across
   17 chunks. The checksum-verified focused and full-track playlists are under
-  `data/aws-gpu/vocal-full-song/listening/` on Minerva and Charon. Review
-  the restored 82–88 second passage and the weaker candidate target at
-  116–124 seconds. Full-song listening approval remains open.
+  `data/aws-gpu/vocal-full-song/listening/` on Minerva and Charon. The owner
+  reviewed five focused sections. The 20s candidate had clearer vocal entry
+  at 24–36 seconds, improved the main dropout at 78–96 seconds, and stayed
+  mostly vocal at 258–270 seconds. Both window lengths left singing in the
+  residual at 116–124 seconds. Full-song listening approval remains open.
 - [ ] **Establish a consistent context and prompt policy** (p1) [test]
   The 80–90 second repeat reproduced the dropout. The owner heard the phrase
   in the 75–95 second target with bass bleed and quieter vocals in its residual.
@@ -58,14 +60,18 @@ check; full-song approval remains open.
   residual. In the subsequent 20s/2s seam comparison, the owner heard vocals
   remain audible through the left join and return through the main dropout.
   Vocal level still faded at the left join. Bass leaked into the target and
-  the early residual retained some vocal. Review the completed full-song
-  20s/2s vocal-only candidate against the 10s/2s baseline before choosing a default.
-  Evaluate anchors/span settings separately if needed.
+  the early residual retained some vocal. The owner’s focused full-song
+  review favors 20s/2s as the experimental vocal setting. The final shifted
+  windows at 116–124 seconds are ready in
+  `data/aws-gpu/vocal-followup/listening/billie-review.m3u`. Record whether
+  either shift recovers the phrase and any remaining dropout.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
   The owner heard only singing in the target and only piano in the residual
   at both window lengths in Leon Lishner and Roger Nelson's 26–32 second
-  voice-and-piano excerpt. A cappella, instrumental, quiet passages, and
-  absent requested instruments still need coverage.
+  voice-and-piano excerpt. The acoustic-guitar control has substantial
+  vocal-target output at both window lengths. Its aligned clips are in
+  `data/aws-gpu/vocal-followup/listening/instrumental-review.m3u`.
+  A cappella, quiet passages, and other absent-target cases remain open.
 - [ ] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero

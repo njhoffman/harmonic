@@ -524,9 +524,10 @@ The original prompt won the owner's comparison of three vocal descriptions.
 A sample-aligned listening packet compares the 20s/2s seam candidate against
 the baseline and includes a voice-and-piano recording. The candidate also
 completed a full-song vocal pass with focused and full-track comparison
-playlists. See the
+playlists. Two shifted windows cover the remaining dropout, and a solo
+guitar control checks false extraction with the same vocal prompt. See the
 [worker guide](workers/sam_audio/README.md#full-song-vocal-comparison-2026-11-25)
-for the playback command and measured evidence.
+for playback commands and measured evidence.
 
 The benchmark artifacts were recovered from Charon to Minerva on 2026-11-20:
 all 422 selected files matched their source SHA-256 hashes, and the raw chunks,

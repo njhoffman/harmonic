@@ -5,6 +5,14 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.4] - 2026-11-25
+
+### Documentation
+
+- Record the focused full-song vocal review, the final shifted-window
+  comparison, and the acoustic-guitar control that exposed vocal-target
+  leakage at both window lengths.
+
 ## [0.13.3] - 2026-11-25
 
 ### Documentation
@@ -441,7 +449,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.13.3...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.13.4...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -476,3 +484,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.13.1]: https://github.com/njhoffman/harmonic/tree/v0.13.1
 [0.13.2]: https://github.com/njhoffman/harmonic/tree/v0.13.2
 [0.13.3]: https://github.com/njhoffman/harmonic/tree/v0.13.3
+[0.13.4]: https://github.com/njhoffman/harmonic/tree/v0.13.4
