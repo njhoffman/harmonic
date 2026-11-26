@@ -2,8 +2,8 @@
 
 Use this file for current progress, [README.md](README.md) for implemented behavior,
 and [PLAN.md](PLAN.md) for architecture. Check off only verified work and update
-this file with each approved change. Reassessed after publishing v0.12.0 on
-2026-11-19; historical release details are in [CHANGELOG.md](CHANGELOG.md).
+this file with each approved change. Historical release details are in
+[CHANGELOG.md](CHANGELOG.md).
 
 - **P1 `(p1)`**: next quality gates and validation that unblock the SAM milestone.
 - **P2 `(p2)`**: reliability, local improvements, and later integration work.
@@ -14,21 +14,36 @@ Categories are `[feature]`, `[test]`, `[perf]`, `[bug]`, `[docs]`, and `[chore]`
 show incomplete tasks by default; use `--all` for completed tasks or `--help` for
 options. `just todo` retains the complete Markdown checklist.
 
-**Current gate:** full-song processing is structurally validated, with listening
-and vocal consistency still open. The 295.892-second Billie Jean recording ran
-as 37 chunks (10 seconds, 2-second overlap) on AWS Blackwell; all 111 prompt calls,
-exact-length merged WAVs, source features, and native compositor checks passed.
-A second invocation reused all 37 chunks without inference. Neighboring vocal
-estimates disagree sharply around 80–90 seconds. The owner approved clear targets
-and clean residuals for the earlier 30–40 second excerpt only. All temporary AWS
-resources were removed after verified retrieval. Local evidence is ignored by
-Git; see the [worker guide](workers/sam_audio/README.md) for paths and limits.
-On 2026-11-20, the owner confirmed that singing drops out of the reviewed vocal
-target and remains in the residual. The baseline fails this vocal-consistency
-check; full-song approval remains open.
+**Current gate:** account for DC offset in the vocal benchmark and verify the
+scorer against saved results before running another model comparison. The
+first reference run put guitar in the vocal target and left overtone singing
+in the residual, even on its own. Full-song processing and resume are
+structurally validated. Billie Jean tuning is complete, 20s/2s remains the
+experimental vocal setting, and full-song listening approval remains open.
+Local evidence is ignored by Git. See the
+[worker guide](workers/sam_audio/README.md) for paths and limits.
 
 ## Separation quality and playback gates (P1)
 
+- [ ] **Make vocal benchmark scoring account for DC offset** (p1) [bug]
+  Use mean-centered waveforms for reference gains, RMS errors, active-window
+  vocal scores, and the absence check. Retain raw levels and the removed
+  means in the report. Preserve sample positions and the original WAVs.
+  Define the outcome for silent and DC-only references so their ratios are
+  handled explicitly.
+- [ ] **Re-score the three archived reference runs** (p1) [test]
+  Reuse the validated mix, vocal-only, and accompaniment-only outputs under
+  `data/aws-gpu/vocal-benchmark-run/output/results/`. Compare with the saved
+  `scores/dc-offset-diagnostics.json`. Verify that the regular scorer shows
+  the vocal mainly in the residual for the two positive cases and flags
+  false extraction on the guitar-only case. Its centered target-to-input RMS
+  ratio should be about 96.4%. This validation needs only local files.
+- [ ] **Add a conventional unaccompanied singing reference** (p1) [test]
+  Select a clearly licensed recording of conventional singing and pair it
+  with an aligned accompaniment reference. Prepare the mixed, vocal-only,
+  and accompaniment-only cases. After validating the scorer on archived
+  results, use the same prompt and model settings to check whether the
+  overtone fixture's failure also appears on this material.
 - [ ] **Review full-song vocal consistency and seams** (p1) [test]
   Compare the aligned 72–98 second source, vocal target, and residual clips
   in `data/source-check-v0.12.0/vocal-review/`. Check whether a vocal phrase
@@ -81,8 +96,7 @@ check; full-song approval remains open.
   The three-case benchmark reproduced guitar leakage and found that the
   overtone vocal stayed mainly in the residual, even on its own. Mean-centered
   diagnostics are recorded under `data/aws-gpu/vocal-benchmark-run/scores/`.
-  Account for DC offsets in benchmark preparation or scoring before comparing
-  model configurations. Quiet passages and broader source coverage remain open.
+  Quiet passages and broader absent-target coverage remain open.
 - [ ] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero
