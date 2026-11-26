@@ -522,8 +522,10 @@ follow-up comparison, the 20-second window partially recovered the vocal, with
 bass still audible in its target and singing still present in the residual.
 The original prompt won the owner's comparison of three vocal descriptions.
 A sample-aligned listening packet compares the 20s/2s seam candidate against
-the baseline and includes a voice-and-piano recording. See the
-[worker guide](workers/sam_audio/README.md#20-second-seam-and-voice-and-piano-comparison-2026-11-25)
+the baseline and includes a voice-and-piano recording. The candidate also
+completed a full-song vocal pass with focused and full-track comparison
+playlists. See the
+[worker guide](workers/sam_audio/README.md#full-song-vocal-comparison-2026-11-25)
 for the playback command and measured evidence.
 
 The benchmark artifacts were recovered from Charon to Minerva on 2026-11-20:

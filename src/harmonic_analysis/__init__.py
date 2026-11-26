@@ -1,3 +1,3 @@
 """Harmonic's offline audio analysis and portable feature bundles."""
 
-__version__ = "0.13.2"
+__version__ = "0.13.3"

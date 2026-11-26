@@ -42,6 +42,11 @@ check; full-song approval remains open.
   recovered from Charon and revalidated on Minerva. A six-clip playlist with
   72–98 and 82–88 second mix/target/residual comparisons is available on both
   computers at `data/recovery-minerva-20261120/listening/review-order.m3u`.
+  The full-song vocal-only 20s/2s candidate completed on Blackwell across
+  17 chunks. The checksum-verified focused and full-track playlists are under
+  `data/aws-gpu/vocal-full-song/listening/` on Minerva and Charon. Review
+  the restored 82–88 second passage and the weaker candidate target at
+  116–124 seconds. Full-song listening approval remains open.
 - [ ] **Establish a consistent context and prompt policy** (p1) [test]
   The 80–90 second repeat reproduced the dropout. The owner heard the phrase
   in the 75–95 second target with bass bleed and quieter vocals in its residual.
@@ -50,17 +55,17 @@ check; full-song approval remains open.
   `man singing`: the vocal phrase came through despite bass bleed and
   faded to a faint echo in its residual. The lead-singing variant isolated
   bass, and the melody/lyrics variant left a clearly audible vocal in the
-  residual. Five subsequent Blackwell jobs produced a validated 20s/2s
-  Billie Jean seam candidate and a 10s/20s voice-and-piano comparison. Review
-  the checksum-verified `data/aws-gpu/vocal-seams/listening/seam-review.m3u`
-  on Minerva or Charon. Check vocal recovery at 82–88 seconds and listen
-  through the 72–74 and 90–92 second overlaps. Evaluate anchors/span settings
-  separately if needed.
+  residual. In the subsequent 20s/2s seam comparison, the owner heard vocals
+  remain audible through the left join and return through the main dropout.
+  Vocal level still faded at the left join. Bass leaked into the target and
+  the early residual retained some vocal. Review the completed full-song
+  20s/2s vocal-only candidate against the 10s/2s baseline before choosing a default.
+  Evaluate anchors/span settings separately if needed.
 - [ ] **Check contrasting recordings and absent instruments** (p1) [test]
-  The contrast packet includes Leon Lishner and Roger Nelson's voice-and-piano
-  recording at 26–32 seconds. Listen to both window lengths for vocal clarity,
-  piano bleed, and singing in the residual. A cappella, instrumental, quiet
-  passages, and absent requested instruments still need coverage.
+  The owner heard only singing in the target and only piano in the residual
+  at both window lengths in Leon Lishner and Roger Nelson's 26–32 second
+  voice-and-piano excerpt. A cappella, instrumental, quiet passages, and
+  absent requested instruments still need coverage.
 - [ ] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero

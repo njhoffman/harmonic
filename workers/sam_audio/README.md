@@ -444,9 +444,42 @@ mpv --no-config --replaygain=no --volume=87 \
   --playlist=data/aws-gpu/vocal-seams/listening/seam-review.m3u
 ```
 
-Listening review of the 20-second candidate and the contrasting excerpt is
-pending. The full-song default remains 10-second windows with two-second
-overlaps.
+In listening, the 20-second windows kept singing audible through the left
+join and restored it through the main dropout. Some bass remained in the
+target, the vocal faded at the left join, and the earlier residual retained
+some singing. Both window lengths separated voice and piano cleanly in the
+reviewed Dibdin excerpt. The full-song default remains 10-second windows with
+two-second overlaps pending a full-song vocal comparison.
+
+### Full-song vocal comparison (2026-11-25)
+
+The original `man singing` prompt ran over all 295.892 seconds on Blackwell
+with the same checkpoint, auxiliary text revision, seed, and solver settings.
+The 17 candidate chunks used 20-second windows and two-second overlaps.
+All outputs validated, including the 14,202,811-sample stitched target and
+residual. Separation calls totaled 41.028 seconds with 21.06 GiB peak CUDA
+reserved memory. Two of the three repeated seam windows matched sample for
+sample. The third differed by less than 0.000002 RMS in both streams.
+
+At 82–88 seconds, the stitched target matched the prior 20-second seam test
+and measured 0.1248 RMS, compared with 0.0061 for the 10-second baseline.
+At 116–124 seconds, target RMS was 0.0211 in the candidate and 0.1256 in the
+baseline. The new 18–20 second overlap had the largest unreviewed disagreement
+between adjacent target estimates. Use the aligned clips to identify any
+audible movement of the vocal between target and residual.
+
+Both computers have the verified packet in
+`data/aws-gpu/vocal-full-song/listening/`. The focused playlist covers
+15–23, 24–36, 78–96, 116–124, and 258–270 seconds. Each section plays the mix
+followed by the baseline target/residual and the candidate target/residual.
+
+```sh
+mpv --no-config --replaygain=no --volume=81 \
+  --playlist=data/aws-gpu/vocal-full-song/listening/focused-review.m3u
+```
+
+Use `full-track-review.m3u` in the same directory for the complete tracks.
+Listening approval is pending.
 
 ## License observations
 

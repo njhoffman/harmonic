@@ -446,12 +446,13 @@ Dependency licenses need a similarly concrete review before distribution. libpro
 
 ## 12. Most valuable next step
 
-Review the 20-second `man singing` candidate before extending the library.
-The original prompt retained the clearest vocal of the three evaluated over
-82–88 seconds, with audible bass bleed. Compare the candidate across its
-neighboring overlaps and on a contrasting recording before changing the
-10s/2s baseline. The original full-song seam clips are available at 24, 72,
-80, 88, and 264 seconds.
+Review the full-song 20s/2s `man singing` candidate before extending the
+library. In the shorter seam review, it kept the Billie Jean vocal audible
+through the main dropout and left join, with some bass bleed and a vocal
+fade at the left join. Both window lengths separated the reviewed Dibdin
+voice-and-piano excerpt cleanly. The 17-chunk full-song candidate is ready
+for focused and full-track listening. Check the 116–124 second passage,
+where the candidate has a weaker target, before choosing the default.
 
 The playback → prompted features → synchronized graphs → reloadable bundle slice is implemented. Its next completion gate is consistent full-song separation on contrasting recordings, including absent-instrument controls. Follow with complete cache provenance, interruption recovery, and measured target-GPU performance. Lyrics and semantic styling remain independent later additions.
 
