@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python tests and native build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # FFmpeg and native-player tests must run, not skip. projectM, global
+      # todo tools, and fzf remain optional and skip here.
+      HARMONIC_REQUIRE_INTEGRATION: "1"
+      # SDL's offscreen video and dummy audio drivers need no display or device.
+      SDL_AUDIODRIVER: dummy
+      FORCE_COLOR: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libavformat-dev libavcodec-dev libavutil-dev libswresample-dev \
+            libjsoncpp-dev libgl-dev libegl-dev libgl1-mesa-dri libegl1 \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+            libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libdrm-dev libgbm-dev \
+            libudev-dev libdbus-1-dev \
+            ninja-build pkg-config cmake
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.8"
+
+      - uses: extractions/setup-just@v3
+        with:
+          just-version: "1.59.0"
+
+      - name: Check version consistency
+        run: python3 scripts/version.py check
+
+      - name: Build and test
+        run: just test
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
+            build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore

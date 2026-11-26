@@ -5,6 +5,16 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-11-26
+
+### Added
+
+- GitHub Actions CI (`.github/workflows/ci.yml`) runs on every push and pull
+  request. It builds SDL3 and the native tools on Ubuntu 24.04, checks version
+  consistency, and runs `just test` with `HARMONIC_REQUIRE_INTEGRATION=1`, so
+  the FFmpeg and native-player tests must run. It uses SDL's offscreen video
+  and dummy audio drivers. projectM and the global todo tools stay optional.
+
 ## [0.21.0] - 2026-11-26
 
 ### Added
@@ -743,7 +753,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.21.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -794,3 +804,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.20.0]: https://github.com/njhoffman/harmonic/tree/v0.20.0
 [0.20.1]: https://github.com/njhoffman/harmonic/tree/v0.20.1
 [0.21.0]: https://github.com/njhoffman/harmonic/tree/v0.21.0
+[0.21.1]: https://github.com/njhoffman/harmonic/tree/v0.21.1

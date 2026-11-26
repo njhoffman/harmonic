@@ -334,10 +334,13 @@ Local evidence is ignored by Git. See the
 - [x] **Honor `HARMONIC_PLAYER` in the chunk tests** (p3) [test]
   `tests/test_sam_chunks.py:28` hard-codes `build/harmonic-player`, while the
   other test files accept the override.
-- [ ] **Add CI for the Python tests and native build** (p3) [chore]
+- [x] **Add CI for the Python tests and native build** (p3) [chore]
   No `.github/` workflows exist; only a local `just release` runs the suite.
   A minimal workflow with ffmpeg installed and projectM optional would catch
   regressions between releases.
+  **Done (v0.21.1):** `.github/workflows/ci.yml` builds SDL3 and the player on
+  `ubuntu-24.04` and runs `just test` with `HARMONIC_REQUIRE_INTEGRATION=1`
+  (offscreen video, dummy audio). Verified on a temporary branch before release.
 - [ ] **Backfill GitHub releases for existing tags** (p3) [chore]
   Tags v0.2.0 through v0.14.2 have no GitHub releases. `just publish-release
   X.Y.Z` creates one from CHANGELOG.md. This is outward-facing, so it waits for
