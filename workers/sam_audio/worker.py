@@ -237,7 +237,11 @@ def run(job_path: Path, output: Path, *, text_revision: str | None = None) -> Pa
     if output.exists():
         raise ValueError(f"Output already exists: {output}; choose a new directory")
     state = ready_state()
+    from harmonic_analysis.sam_chunks import TEXT_REVISION
     from harmonic_analysis.sam_jobs import load_job
+    # Excerpt jobs carry no text revision; pin the same commit as song plans so
+    # repeated excerpt runs never silently follow the upstream T5 head.
+    text_revision = TEXT_REVISION if text_revision is None else text_revision
     job, _ = load_job(job_path)
     began = time.monotonic()
     with model_session(job, state, text_revision) as session:
@@ -290,7 +294,7 @@ def clean_song_scratch(output: Path, chunk_names: set[str], target_names: set[st
             if not prompt_root.is_dir():
                 continue
             for path in prompt_root.iterdir():
-                temporary = re.fullmatch(r"\.([a-z][a-z0-9_-]{0,31})-[a-z0-9]{8}", path.name)
+                temporary = re.fullmatch(r"\.([a-z][a-z0-9_-]{0,31})-[a-z0-9_]{8}", path.name)
                 if (temporary and temporary[1] in target_names and not path.is_symlink() and path.is_dir()
                         and all(file.name in {f"{temporary[1]}-target.wav", f"{temporary[1]}-residual.wav",
                                              "checkpoint.json"}
@@ -434,7 +438,7 @@ def main() -> int:
     runner = commands.add_parser("run", help="Separate a prepared excerpt on CUDA; output directory must be new")
     runner.add_argument("job", type=Path)
     runner.add_argument("--output", type=Path, required=True)
-    runner.add_argument("--text-revision", help="Pin the auxiliary text-model revision from a previous report")
+    runner.add_argument("--text-revision", help="Auxiliary text-model commit (default: the pinned revision song plans use)")
     song = commands.add_parser("run-song", help="Separate overlapping song chunks with one loaded model; validate and reuse completed chunks")
     song.add_argument("plan", type=Path)
     song.add_argument("--output", type=Path, required=True)

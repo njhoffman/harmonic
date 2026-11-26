@@ -160,8 +160,8 @@ SAM Audio source is `bb4c6999d2677c7402360e426afc01ddfad6dce0`. The worker downl
 that exact checkpoint snapshot and loads it through a local path: the pinned
 upstream loader otherwise ignores its public revision argument. The auxiliary
 text model is resolved to a commit and downloaded as an immutable snapshot; its
-ID/revision is saved in the report. For repeat runs, pass that report's revision
-using the worker's `--text-revision` option.
+ID/revision is saved in the report. Excerpt runs default to the same pinned
+commit as song plans (`sam_chunks.TEXT_REVISION`); `--text-revision` overrides it.
 
 ## Results and validation
 
@@ -265,8 +265,8 @@ The unchanged 10-second Billie Jean excerpt at source samples
 The worker's source and lock hashes match the local files. Pinned checkpoint
 SHA-256: `90e047269238c498c5abe0da6e6ba40859d152111d4a09f582a209027a33b72f`.
 The auxiliary text model resolved to `google-t5/t5-base` at
-`a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1`; use `--text-revision` with this commit
-for repeat runs. The initial checkpoint/auxiliary download took 182.1 seconds.
+`a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1`, which is now the default for
+excerpt runs as well as song plans. The initial checkpoint/auxiliary download took 182.1 seconds.
 
 | Target | Prompt | Separation time | Real-time factor | Peak allocated GPU | Peak reserved GPU |
 | --- | --- | ---: | ---: | ---: | ---: |

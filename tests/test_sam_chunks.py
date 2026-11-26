@@ -489,3 +489,48 @@ with lock(Path(sys.argv[2])):
                     read_bundle(bundle,digest(audio))
                 rejected=subprocess.run([str(PLAYER),str(bundle),'--inspect'],capture_output=True,text=True,timeout=20)
                 self.assertNotEqual(rejected.returncode,0)
+
+
+class ExcerptRunRevisionTests(unittest.TestCase):
+    def run_excerpt(self, **options):
+        captured = {}
+
+        @contextmanager
+        def session(job, state, text_revision):
+            captured['text_revision'] = text_revision
+            yield 'session'
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)/'result'
+            with patch.object(worker, 'ready_state', return_value={'simulated': True}), \
+                 patch.object(sam_jobs, 'load_job', return_value=({'model': {}}, 'a' * 64)), \
+                 patch.object(worker, 'model_session', side_effect=session), \
+                 patch.object(worker, 'separate_job', return_value=output/'separation.json'):
+                worker.run(Path(directory)/'job.json', output, **options)
+        return captured['text_revision']
+
+    def test_excerpt_run_pins_song_plan_text_revision_by_default(self):
+        self.assertEqual(self.run_excerpt(), TEXT_REVISION)
+
+    def test_excerpt_run_keeps_explicit_text_revision(self):
+        self.assertEqual(self.run_excerpt(text_revision='f' * 40), 'f' * 40)
+
+
+class PromptScratchCleanupTests(unittest.TestCase):
+    def test_pending_chunk_prompt_scratch_with_underscore_suffix_is_removed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            prompt_root = output/'chunks'/'.000001-prompts'
+            # mkdtemp suffixes use [a-z0-9_]; every form must be recognized.
+            scratch = [prompt_root/'.vocals-abcdefgh', prompt_root/'.vocals-ab_cd_ef',
+                       prompt_root/'.drums-________']
+            for path in scratch:
+                path.mkdir(parents=True)
+                (path/f"{path.name[1:].split('-')[0]}-target.wav").write_bytes(b'partial prompt')
+            finished = prompt_root/'vocals'
+            finished.mkdir()
+            (finished/'vocals-target.wav').write_bytes(b'kept checkpoint')
+            removed = worker.clean_song_scratch(output, {'000001'}, {'vocals', 'drums'}, {'000001'})
+            self.assertEqual(removed, len(scratch))
+            self.assertFalse(any(path.exists() for path in scratch))
+            self.assertTrue((finished/'vocals-target.wav').is_file())

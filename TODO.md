@@ -149,12 +149,12 @@ Local evidence is ignored by Git. See the
   ImageBind have noncommercial terms. Resolve dependency use, output reuse,
   binary/model redistribution, and service permissions before packaging.
 
-- [ ] **Clean prompt scratch directories whose suffix contains `_`** (p2) [bug]
+- [x] **Clean prompt scratch directories whose suffix contains `_`** (p2) [bug]
   `workers/sam_audio/worker.py:293` matches `-[a-z0-9]{8}`, but `tempfile.mkdtemp`
   suffixes also use `_`, so about 20% of abandoned prompt checkpoints survive
   resume. Use `[a-z0-9_]{8}` like the chunk regex at line 280 and add an
   underscore case to `tests/test_sam_chunks.py` (around line 352).
-- [ ] **Pin the auxiliary T5 revision for excerpt runs** (p2) [bug]
+- [x] **Pin the auxiliary T5 revision for excerpt runs** (p2) [bug]
   `worker.py run()` defaults `text_revision` to None and `just sam-run` passes
   none, so excerpt runs resolve the current T5 head. Song plans already pin
   `sam_chunks.TEXT_REVISION`. Store the revision in excerpt jobs or default it,
