@@ -585,6 +585,40 @@ the residual exceeds the target in all 120 active vocal windows. The earlier
 guitar-only controls also fail when centered: 94.0% and 97.1% of input RMS, versus
 52.2% and 60.6% raw (`data/aws-gpu/vocal-followup/scores-v2/`).
 
+#### MUSDB18 multi-target benchmark (2026-11-26)
+
+One pinned Blackwell session (g7e.4xlarge, v0.16.0 worker, default T5
+revision) ran 27 jobs in 544.6 seconds, about 20 instance-minutes in total.
+The jobs come from three MUSDB18 test songs with separate stems: Al James,
+"Schoolboy Facination" (male lead); Angels In Amplifiers, "I'm Alright"
+(female lead); and Arise, "Run Run Run" (reggae, male lead). A fourth song,
+Skelpolu, "Resurrection", supplies an instrumental excerpt. Every job has five
+independent prompts: `man singing`, `woman singing`, `singing voice`,
+`drums playing`, and `bass guitar playing`. Each song has these cases: the
+full mix; vocal-only; accompaniment-only; no-drums; no-bass; one 20 s, two
+10 s, and one 30 s window over the same core; and an instrumental section
+where available. Inputs are sums of decoded stems, so the references
+reproduce every job exactly on its sample grid. Scoring removes the excerpt
+means, as in the v2 benchmark. Jobs, scripts, and scores are in
+`data/aws-gpu/musdb-run/` (`prepare.py`, `run_jobs.py`, `score.py`,
+`context.py`, and `scores/`). The source and license are recorded in
+`data/references/musdb18/ATTRIBUTION.md`; MUSDB18 is non-commercial, so the
+files are never redistributed.
+
+| Finding | Evidence |
+| --- | --- |
+| Present sources are extracted in the mix | Vocal target gain 0.77 / 0.90 / 0.97, drums 0.74 / 0.86 / 0.91, bass 0.93 / 0.95 / 0.97; other-stem bleed ≤ 0.08 |
+| No timing offset | 97 target/stem pairs: 81 at lag 0, maximum 4 samples (0.08 ms) |
+| Gains are below one and vary by song | Under-extraction of 3–26%; no per-instrument gain correction is justified |
+| Absent targets are not silent | 30 of 31 absent-target outputs carry 38–77% of input RMS. Missing vocals or drums are replaced mainly by bass (gain 0.6–0.98); missing bass is replaced by "other" |
+| Isolated vocals are mostly missed | Vocal-only target gain 0.19 (Arise) and 0.43–0.47 (Al James); Angels 0.66–0.94. This matches the earlier overtone result on conventional singing |
+| The vocal prompt hardly matters in a mix | The three vocal prompts agree within 0.003 in every mix. `singing voice` is better on Angels vocal-only (0.94 against 0.66–0.71). `woman singing` on the male Arise accompaniment was the only absent target close to silent (0.001) |
+| Context of 30 s never helps | On the shared 20 s core, 30 s is equal or worse for every target. 10 s and 20 s are within about ±0.03, except bass, where 10 s is best (0.94–0.99) |
+
+Target RMS therefore cannot indicate whether a source is present. Downstream
+features need a separate presence signal before a "vocals" stream can be
+trusted on instrumental passages.
+
 ## License observations
 
 The [SAM License](https://github.com/facebookresearch/sam-audio/blob/bb4c6999d2677c7402360e426afc01ddfad6dce0/LICENSE)

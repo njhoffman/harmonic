@@ -16,8 +16,11 @@ Categories are `[feature]`, `[test]`, `[perf]`, `[bug]`, `[docs]`, and `[chore]`
 show incomplete tasks by default; use `--all` for completed tasks or `--help` for
 options. `just todo` retains the complete Markdown checklist.
 
-**Current gate:** add a conventional unaccompanied singing reference and run
-it with the same prompt and settings. The benchmark scorer now removes each
+**Current gate:** absent targets are never silent. The MUSDB18 benchmark
+(2026-11-26) found that a missing vocal or drum part is filled mainly with
+bass, so a source-presence signal is needed before vocal features can be
+trusted on instrumental passages. Timing is verified, and instrument gains are
+below one without a consistent correction. The benchmark scorer now removes each
 stream's excerpt mean (report v2) and reproduces the archived diagnostic: the
 first reference run put guitar in the vocal target (96.4% of input) and left
 overtone singing in the residual, even on its own. Full-song processing and resume are
@@ -50,12 +53,16 @@ Local evidence is ignored by Git. See the
   Guitar-only gives 96.4% and fails. The earlier guitar controls in
   `data/aws-gpu/vocal-followup/scores-v2/` give 94.0% and 97.1% centered
   (52.2% and 60.6% raw) and also fail.
-- [ ] **Add a conventional unaccompanied singing reference** (p1) [test]
+- [x] **Add a conventional unaccompanied singing reference** (p1) [test]
   Select a clearly licensed recording of conventional singing and pair it
   with an aligned accompaniment reference. Prepare the mixed, vocal-only,
   and accompaniment-only cases. After validating the scorer on archived
   results, use the same prompt and model settings to check whether the
   overtone fixture's failure also appears on this material.
+  **Done (2026-11-26):** used MUSDB18 test songs with separate stems (see the
+  worker guide). The failure reproduces on conventional singing: vocal-only
+  target gain is 0.19 (Arise) and 0.43–0.47 (Al James), with Angels at 0.66–0.94.
+  In mixes the vocal is extracted at 0.77–0.97.
 - [ ] **Review full-song vocal consistency and seams** (p1) [test]
   Compare the aligned 72–98 second source, vocal target, and residual clips
   in `data/source-check-v0.12.0/vocal-review/`. Check whether a vocal phrase
@@ -92,6 +99,13 @@ Local evidence is ignored by Git. See the
   windows confirmed a known dropout at 116–124 seconds. The earlier shift
   exposed a faint target vocal with a clear vocal in the residual, and the
   later shift extracted bass. Billie Jean tuning is complete.
+  **MUSDB18 evidence (2026-11-26):** on a shared 20 s core, 30 s context is
+  never better. 10 s and 20 s are within about ±0.03, except bass, where 10 s
+  is best (0.94–0.99). The three vocal prompts agree within 0.003 in mixes,
+  and `singing voice` was better on the Angels vocal-only case. Remaining
+  decision: compare `singing voice` with `man singing` on Billie Jean by
+  listening before changing the default prompt, and choose 10 s or 20 s chunks
+  (10 s means more seams).
 - [x] **Build a reference-based vocal benchmark** (p1) [test]
   Prepare mixture, vocal-only, and accompaniment-only jobs from aligned
   stems. Validate job and result identity, score reference contributions,
@@ -108,14 +122,28 @@ Local evidence is ignored by Git. See the
   The three-case benchmark reproduced guitar leakage and found that the
   overtone vocal stayed mainly in the residual, even on its own. Mean-centered
   diagnostics are recorded under `data/aws-gpu/vocal-benchmark-run/scores/`.
-  Quiet passages and broader absent-target coverage remain open.
-- [ ] **Validate instrument-level timing and relative gain** (p1) [test]
+  **MUSDB18 absent-target coverage (2026-11-26):** 30 of 31 absent targets
+  (vocals, drums, or bass removed, plus instrumental sections) carried 38–77%
+  of input RMS. Missing vocals or drums were replaced mainly by bass, and
+  missing bass by "other". Quiet passages remain open.
+- [x] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero
   within ±100 ms; reconstruction RMS error was 0.091–0.093 against source RMS
   0.209 and fitted gain 0.807–0.863. Independently generated residuals need not
   reconstruct exactly. These mix-level diagnostics do not prove source timing
   or justify applying gain corrections. Preserve float peaks above 1.0.
+  **Done (2026-11-26):** across 97 MUSDB18 target/stem pairs, 81 have zero lag
+  and the maximum is 4 samples (0.08 ms), so no latency correction is needed.
+  Mix gains are vocals 0.77–0.97, drums 0.74–0.91, and bass 0.93–0.97. The
+  under-extraction varies by song, so no gain correction is applied.
+- [ ] **Add a source-presence signal for absent targets** (p1) [feature]
+  SAM always returns content for a prompt; the absent-target MUSDB18 cases
+  measured 38–77% of input RMS, mostly bass. Target RMS cannot show whether a
+  source is present. Evaluate cues such as similarity between the vocal and
+  bass targets, or agreement across prompts (only the mismatched-gender prompt
+  produced silence). Then expose a per-window presence flag in source features
+  so scenes do not animate "vocals" from bass.
 - [ ] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
   Measure target-GPU frame times, stutters, and physical-output timing after
   seeks. Investigate the known GLX search-path warning involving `~/.local/lib`.
@@ -180,6 +208,13 @@ Local evidence is ignored by Git. See the
   (`sam_cli.py`). `tests/test_sam_benchmark.py` lacks unequal stems, excerpts
   past the stem end, rank-deficient gain fits, silent references, and argument
   checks (`sam_benchmark.py:21-90`).
+
+- [ ] **Make the MUSDB multi-target benchmark a project command** (p2) [feature]
+  `data/aws-gpu/musdb-run/{prepare,score,context}.py` are local evidence
+  scripts. Move stem extraction, case generation, lag-aligned multi-stem
+  scoring, and the common-core context comparison into `harmonic_analysis`
+  with tests and `just` recipes, so future model or prompt changes can be
+  re-run the same way.
 
 ## Local experience and integration (P2)
 

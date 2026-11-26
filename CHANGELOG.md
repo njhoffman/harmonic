@@ -5,6 +5,27 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-11-26
+
+### Validation
+
+- MUSDB18 multi-target benchmark on Blackwell: 27 jobs across four songs with
+  separate stems, scored locally after removing the excerpt means.
+  - Present vocals, drums, and bass are extracted at gains of 0.74–0.97 with
+    no timing offset (maximum 4 samples).
+  - Absent targets are not silent: 30 of 31 carried 38–77% of input RMS,
+    mostly bass.
+  - The isolated-vocal failure first seen on the overtone fixture also
+    occurs on conventional singing.
+  - A 30-second context never improved extraction over 10 or 20 seconds.
+  - Details are in the worker guide.
+
+### Documentation
+
+- Record the benchmark in the checklist. The singing-reference and
+  timing/gain items are complete. New items cover a source-presence signal
+  for absent targets and making the benchmark a project command.
+
 ## [0.16.0] - 2026-11-26
 
 ### Changed
@@ -544,7 +565,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.16.1...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -587,3 +608,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.15.1]: https://github.com/njhoffman/harmonic/tree/v0.15.1
 [0.15.2]: https://github.com/njhoffman/harmonic/tree/v0.15.2
 [0.16.0]: https://github.com/njhoffman/harmonic/tree/v0.16.0
+[0.16.1]: https://github.com/njhoffman/harmonic/tree/v0.16.1
