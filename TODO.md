@@ -107,6 +107,15 @@ Local evidence is ignored by Git. See the
   decision: compare `singing voice` with `man singing` on Billie Jean by
   listening before changing the default prompt, and choose 10 s or 20 s chunks
   (10 s means more seams).
+  **Wide MUSDB18 evidence (2026-11-26, 16 tracks, 138 jobs):** `singing voice`
+  had the best vocal gain in every register group (median 0.85-0.91). `man
+  singing` fell to 0.69 on high registers and 0.45 on sparse-drum tracks.
+  `singing voice` also has the best presence AUC (0.979). 10 s context was best
+  for `singing voice` on 13 of 16 tracks (0.880 against 0.862 for 20 s) and for
+  drums on 12 of 16; bass ties. The evidence now favors `singing voice` with
+  10 s chunks. Still needed before changing defaults: a Billie Jean full-song
+  run with `singing voice` at 10s/2s (GPU) and owner listening against the
+  current 20s/2s `man singing` candidate.
 - [x] **Build a reference-based vocal benchmark** (p1) [test]
   Prepare mixture, vocal-only, and accompaniment-only jobs from aligned
   stems. Validate job and result identity, score reference contributions,
@@ -127,6 +136,12 @@ Local evidence is ignored by Git. See the
   (vocals, drums, or bass removed, plus instrumental sections) carried 38–77%
   of input RMS. Missing vocals or drums were replaced mainly by bass, and
   missing bass by "other". Quiet passages remain open.
+  **Wide run (2026-11-26):** across 16 more tracks only 6 of 145 absent
+  targets passed the 5% check (median fill-in 51-69% of input), confirming
+  that absent targets are filled in on contrasting material too. The quiet-
+  passage tracks (Carlos Gonzalez, Sunshine Garcia Band) behave the same.
+  Scenes must gate on presence. Owner listening on contrasting recordings
+  remains open.
 - [x] **Validate instrument-level timing and relative gain** (p1) [test]
   Adapter preservation is verified, but model timing/gain against recognizable
   transients still needs review. Excerpt target-plus-residual lag measured zero
@@ -169,6 +184,13 @@ Local evidence is ignored by Git. See the
   The bundle stores raw probabilities. Pick scene thresholds (vocals about 0.2
   on MUSDB18) and decide how scenes treat `low_confidence` bass and
   `unbenchmarked` prompts. Validate on Billie Jean by listening.
+  **Wide-run thresholds (2026-11-26, 1 s mean probability, best balanced
+  accuracy):** `singing voice` 0.36 (present/absent recall 0.92/0.95; the
+  upstream 0.3 is nearly as good), `drums playing` 0.16 (0.94/0.98),
+  `bass guitar playing` 0.36 (0.94/0.69: keep `low_confidence`), `man singing`
+  0.10 and `woman singing` 0.06. The gendered prompts detect a voice type, not
+  vocal presence; gate scenes on `singing voice`. Implement once the prompt
+  default is decided.
 - [x] **Measure 1080p frame times and output latency on the desktop** (p1) [perf]
   Measure target-GPU frame times, stutters, and physical-output timing after
   seeks. Investigate the known GLX search-path warning involving `~/.local/lib`.
@@ -370,6 +392,11 @@ Local evidence is ignored by Git. See the
 - [x] **Honor `HARMONIC_PLAYER` in the chunk tests** (p3) [test]
   `tests/test_sam_chunks.py:28` hard-codes `build/harmonic-player`, while the
   other test files accept the override.
+- [ ] **Make the presence-threshold evaluation a project command** (p3) [feature]
+  `data/aws-gpu/musdb-wide-run/analyze.py` (presence AUC, threshold sweep,
+  prompt-by-register, and context summaries over a scored MUSDB run) is a
+  local evidence script. Move it into `sam_musdb` with tests and a recipe, as
+  was done for scoring.
 - [ ] **Shorten the MUSDB scoring tests** (p3) [test]
   `tests/test_sam_musdb.py` takes about 75-90 s of the 134 s suite: scoring a
   fixed 20 s case costs about 3.5 s (window lstsq and 2M-point FFTs). Allow a

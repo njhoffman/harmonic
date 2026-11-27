@@ -5,6 +5,26 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.6] - 2026-11-26
+
+### Validation
+
+- Ran a wide MUSDB18 benchmark on AWS Blackwell: 16 more test tracks, 138 jobs
+  in 1942 s, chosen by measured register, drum activity, instrumental
+  sections, and quiet passages. Scored with the project commands.
+  - `singing voice` is the best vocal prompt: median mix gain 0.85-0.91 in
+    every group and presence AUC 0.979. `man singing` falls to 0.45-0.69 on
+    high-register and sparse-drum tracks, and it detects a voice type rather
+    than vocal presence.
+  - Best presence thresholds, as 1 s means: `singing voice` 0.36,
+    `drums playing` 0.16, and `bass guitar playing` 0.36. Bass absence
+    rejection stays weak (0.69).
+  - Absent targets are still filled in: 6 of 145 pass the 5% absence check.
+  - 10 s context beat 20 s for `singing voice` (13 of 16 tracks) and for drums
+    (12 of 16).
+  - Details are in the worker guide. Prompt and chunk defaults are unchanged
+    until a Billie Jean listening check.
+
 ## [0.22.5] - 2026-11-26
 
 ### Changed
@@ -843,7 +863,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.5...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.6...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -901,3 +921,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.22.3]: https://github.com/njhoffman/harmonic/tree/v0.22.3
 [0.22.4]: https://github.com/njhoffman/harmonic/tree/v0.22.4
 [0.22.5]: https://github.com/njhoffman/harmonic/tree/v0.22.5
+[0.22.6]: https://github.com/njhoffman/harmonic/tree/v0.22.6

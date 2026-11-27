@@ -676,6 +676,43 @@ detect the bass fill-in: the target's energy fraction below 150 Hz (vocal AUC
 melodic instrument fills the vocal target. The electronic instrumental was
 called vocal in every window under leave-one-song-out testing.
 
+#### Wide MUSDB18 benchmark: 16 more tracks (2026-11-26)
+
+One Blackwell session (v0.22.4 worker) ran 138 jobs in 1942 s, about 46
+instance-minutes, from 16 MUSDB18 test tracks not used before. Tracks were
+picked by measured stem features (`data/aws-gpu/musdb-wide-run/selection.json`).
+The groups were: the 5 lowest and 5 highest sung registers (median YIN pitch
+150-190 Hz and 333-444 Hz; register, not singer gender), 2 with sparse drums,
+2 with instrumental sections, and 2 with quiet passages, one track per artist.
+Scores come from `just sam-musdb-score` and `just sam-musdb-context`.
+`analyze.py` there computes presence AUCs and thresholds on 2,500 1 s windows
+per prompt, using the ground truth of the earlier study.
+
+| Prompt | Presence AUC | Best threshold (present/absent recall) | At 0.3 | Absent targets silent | Present gain median (p10) |
+| --- | --- | --- | --- | --- | --- |
+| `singing voice` | 0.979 | 0.36 (0.92 / 0.95) | 0.94 / 0.90 | 0 of 26 (median 66% of input) | 0.87 (0.62) |
+| `man singing` | 0.950 | 0.10 (0.84 / 0.94) | 0.62 / 1.00 | 2 of 26 (69%) | 0.83 (0.32) |
+| `woman singing` | 0.960 | 0.06 (0.92 / 0.91) | 0.53 / 1.00 | 3 of 26 (66%) | 0.84 (0.41) |
+| `drums playing` | 0.991 | 0.16 (0.94 / 0.98) | 0.89 / 1.00 | 1 of 32 (51%) | 0.91 (0.77) |
+| `bass guitar playing` | 0.906 | 0.36 (0.94 / 0.69) | 0.96 / 0.66 | 0 of 35 (56%) | 0.92 (0.34) |
+
+- `singing voice` is the best vocal prompt for separation and for presence.
+  - Its median 20 s mix gain is 0.85-0.91 in every register group.
+    `man singing` falls to 0.69 on the highest registers and 0.45 on the
+    sparse-drum tracks; `woman singing` holds up better.
+  - The gendered prompts act as voice-type detectors for presence. On Motor
+    Tapes' high-register vocal-only case, `man singing` scores a mean 0.03
+    against 0.66 for `singing voice`.
+- Absent targets are still never silent: 6 of 145 pass the 5% absence check.
+  Scenes must gate on presence, not on target level.
+- Bass presence is weak at rejecting absence (absent recall 0.69 at best), so
+  the `low_confidence` label stands.
+- On each track's common 20 s core, 10 s context was best for `singing voice`
+  (13 of 16 tracks, median 0.880 against 0.862 for 20 s) and for drums (12 of
+  16, 0.921 against 0.896). Bass ties at 10 s and 20 s. 30 s is rarely best.
+- Worst presence tracks: PR "Happy Daze" (sparse vocals) and Nerve 9 for the
+  vocal prompts, and Hollow Ground (metal) for `woman singing` and bass.
+
 #### SAM span predictor as a presence signal (2026-11-26)
 
 A second Blackwell session re-ran the same 27 jobs with SAM Audio's span
