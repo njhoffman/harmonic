@@ -116,6 +116,18 @@ Local evidence is ignored by Git. See the
   10 s chunks. Still needed before changing defaults: a Billie Jean full-song
   run with `singing voice` at 10s/2s (GPU) and owner listening against the
   current 20s/2s `man singing` candidate.
+  **Billie Jean 2x2 ready for listening (2026-11-26):** `singing voice` at
+  10s/2s and 20s/2s ran full-song on Blackwell (37 + 17 chunks, about 12
+  instance-minutes). Both stitched and validated with presence. The packet in
+  `data/aws-gpu/vocal-prompt-song/listening/` compares all four prompt and
+  chunk versions: `focused-review.m3u` covers the five reviewed sections plus
+  127-135 s (largest prompt difference); `full-track-review.m3u` has the full
+  tracks. Play at 81% (`measurements.json`). Target level relative to the mix
+  at 116-124 s, where `singing voice` presence is 0.93: current `man singing`
+  20s 0.10 against `singing voice` 10s 0.52 and 20s 0.59; at 127-135 s, 0.14
+  against 0.50 and 0.48. At 15-23 s, where presence is 0.08 (no vocal), all
+  targets carry fill-in. **Owner listening decides** whether `singing voice`
+  10s/2s becomes the default.
 - [x] **Build a reference-based vocal benchmark** (p1) [test]
   Prepare mixture, vocal-only, and accompaniment-only jobs from aligned
   stems. Validate job and result identity, score reference contributions,

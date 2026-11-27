@@ -5,6 +5,21 @@ and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.7] - 2026-11-26
+
+### Validation
+
+- Ran Billie Jean full-song with `singing voice` at 10s/2s and 20s/2s on AWS
+  Blackwell, completing a 2x2 with the existing `man singing` versions.
+  - The runs took 37 + 17 chunks, all validated, with stitched presence.
+  - Where `singing voice` presence is high (116-124 s: 0.93), the current
+    `man singing` 20s target holds 0.10 of the mix level against 0.52-0.59
+    for `singing voice`.
+  - Where presence is low (15-23 s: 0.08), every version's target is
+    fill-in, which presence gating would remove.
+  - A four-way listening packet is ready. Defaults are unchanged pending the
+    owner's listening.
+
 ## [0.22.6] - 2026-11-26
 
 ### Validation
@@ -863,7 +878,7 @@ First tagged release, following the untagged 0.1.0 prototype.
 - Playback clock anchoring at the final audio chunk, so playback reaches the
   final sample even when the UI has not queried the clock recently.
 
-[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.6...HEAD
+[Unreleased]: https://github.com/njhoffman/harmonic/compare/v0.22.7...HEAD
 [0.2.0]: https://github.com/njhoffman/harmonic/tree/v0.2.0
 [0.2.1]: https://github.com/njhoffman/harmonic/tree/v0.2.1
 [0.3.0]: https://github.com/njhoffman/harmonic/tree/v0.3.0
@@ -922,3 +937,4 @@ First tagged release, following the untagged 0.1.0 prototype.
 [0.22.4]: https://github.com/njhoffman/harmonic/tree/v0.22.4
 [0.22.5]: https://github.com/njhoffman/harmonic/tree/v0.22.5
 [0.22.6]: https://github.com/njhoffman/harmonic/tree/v0.22.6
+[0.22.7]: https://github.com/njhoffman/harmonic/tree/v0.22.7
