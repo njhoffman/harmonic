@@ -352,6 +352,15 @@ Local evidence is ignored by Git. See the
 
 ## Local experience and integration (P2)
 
+- [ ] **Native build and tests fail on charon after the 26.04 upgrade** (p2) [bug]
+  Found 2026-11-27 while routing `just test` through test-progress (0.22.8). `just build` stops in
+  SDL3's Wayland backend: `libdecor.h: No such file or directory` (the libdecor dev package is
+  missing). The binaries already in `build/` link against `libavformat.so.61`, which the release
+  upgrade replaced, so the 26 native integration tests (`test_player`, `test_cli` player and
+  projectm checks, `test_catalog` import) fail with "error while loading shared libraries". Fix:
+  install libdecor's dev headers (or turn off SDL's libdecor support), rebuild against the
+  current FFmpeg, rerun `just test`.
+
 - [ ] **Import line-timed lyrics with manual timing correction** (p2) [feature]
   Preserve recording identity, lyric provenance, and user adjustments.
 - [ ] **Support Unicode text rendering** (p2) [feature]

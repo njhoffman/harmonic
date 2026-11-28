@@ -135,9 +135,13 @@ play bundle=default_bundle: build
 play-preset preset bundle=default_bundle view="combined": build
     {{ quote(player) }} {{ quote(bundle) }} --preset {{ quote(preset) }} --view {{ quote(view) }}
 
+# ~/.shell's test-progress shows the run live and keeps it (~/.local/state/test-progress);
+# without it, the plain runner
+tp := if path_exists(env_var("HOME") / ".shell/scripts/test-progress") == "true" { env_var("HOME") / ".shell/scripts/test-progress run --" } else { "" }
+
 # Build and run all Python and native integration tests.
 test: build
-    @python3 scripts/run_status.py "Running tests" {{ quote(python) }} -m unittest discover -s tests -v
+    @{{ if tp == "" { "python3 scripts/run_status.py 'Running tests'" } else { tp } }} {{ quote(python) }} -m unittest discover -s tests -v
 
 # Validate a bundle and its native decoding without opening audio/video devices.
 inspect bundle=default_bundle: build
